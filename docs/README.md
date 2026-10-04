@@ -1,4 +1,4 @@
-# Duke
+# TutorLedger
 
 {Give product intro here}
 
