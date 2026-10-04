@@ -1,4 +1,8 @@
-package seedu.duke;
+package seedu.tutorledger;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 
 /**
  * Represents a student profile.
@@ -8,6 +12,7 @@ public class Student {
     private final String name;
     private final String level;
     private final String phoneNumber;
+    private final List<String> subjects;
 
     /**
      * Creates a student profile after validating the supplied values.
@@ -18,10 +23,16 @@ public class Student {
      * @param phoneNumber the student's eight-digit phone number
      */
     public Student(String studentId, String name, String level, String phoneNumber) {
-        this.studentId = requireNonNull(studentId, "Student ID");
+        this(studentId, name, level, phoneNumber, List.of());
+    }
+
+    /** Creates a student profile with its current subjects. */
+    public Student(String studentId, String name, String level, String phoneNumber, List<String> subjects) {
+        this.studentId = validateId(studentId);
         this.name = validateName(name);
         this.level = validateLevel(level);
         this.phoneNumber = validatePhoneNumber(phoneNumber);
+        this.subjects = validateSubjects(subjects);
     }
 
     public String getStudentId() {
@@ -38,6 +49,41 @@ public class Student {
 
     public String getPhoneNumber() {
         return phoneNumber;
+    }
+
+    public List<String> getSubjects() {
+        return subjects;
+    }
+
+    /** Returns a replacement profile after validating all changed fields. */
+    public Student withDetails(String newName, String newLevel, String newPhoneNumber, List<String> newSubjects) {
+        return new Student(studentId, newName, newLevel, newPhoneNumber, newSubjects);
+    }
+
+    private static String validateId(String id) {
+        requireNonNull(id, "Student ID");
+        if (!id.matches("(?i)S[1-9]\\d*")) {
+            throw new IllegalArgumentException("Student ID must look like S1.");
+        }
+        return id.toUpperCase(Locale.ROOT);
+    }
+
+    private static List<String> validateSubjects(List<String> values) {
+        if (values == null) {
+            throw new IllegalArgumentException("Subjects cannot be null.");
+        }
+        List<String> result = new ArrayList<>();
+        for (String value : values) {
+            requireNonNull(value, "Subject");
+            String subject = value.trim();
+            if (subject.isEmpty()) {
+                throw new IllegalArgumentException("Subject cannot be blank.");
+            }
+            if (result.stream().noneMatch(existing -> existing.equalsIgnoreCase(subject))) {
+                result.add(subject);
+            }
+        }
+        return List.copyOf(result);
     }
 
     private static String requireNonNull(String value, String fieldName) {
