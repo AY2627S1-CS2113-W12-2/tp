@@ -9,6 +9,11 @@ import java.util.Locale;
  * Represents a homework item and its submission status.
  */
 public class Homework {
+    /** Status of homework that has been assigned but not handed in. */
+    public static final String STATUS_OUTSTANDING = "outstanding";
+    /** Status of homework that has been handed in. */
+    public static final String STATUS_SUBMITTED = "submitted";
+
     private final String homeworkId;
     private final String submitStatus;
     private final String studentId;
@@ -66,6 +71,19 @@ public class Homework {
 
     public LocalDate getDueDate() {
         return dueDate;
+    }
+
+    /** Returns true if this homework has been handed in. */
+    public boolean isSubmitted() {
+        return STATUS_SUBMITTED.equalsIgnoreCase(submitStatus);
+    }
+
+    /**
+     * Returns a copy of this homework marked as submitted.
+     * A copy is returned because Homework is immutable.
+     */
+    public Homework asSubmitted() {
+        return new Homework(homeworkId, studentId, description, dueDate, STATUS_SUBMITTED);
     }
 
     private static String requireText(String value, String fieldName) {

@@ -10,7 +10,9 @@ public class TutorLedger {
      */
     public static void main(String[] args) {
         TutorLedgerData data = new TutorLedgerData();
-        StudentCommands commands = new StudentCommands(data, Clock.systemDefaultZone());
+        Clock clock = Clock.systemDefaultZone();
+        StudentCommands commands = new StudentCommands(data, clock);
+        HomeworkCommands homeworkCommands = new HomeworkCommands(data, clock);
         System.out.println("TutorLedger student book. Type exit to close.");
         Scanner input = new Scanner(System.in);
         while (input.hasNextLine()) {
@@ -18,7 +20,12 @@ public class TutorLedger {
             if (line.strip().equalsIgnoreCase("exit")) {
                 break;
             }
-            System.out.println(commands.execute(line));
+            // Homework commands go to their own handler; everything else goes to the student commands.
+            if (HomeworkCommands.handles(line)) {
+                System.out.println(homeworkCommands.execute(line));
+            } else {
+                System.out.println(commands.execute(line));
+            }
         }
     }
 }

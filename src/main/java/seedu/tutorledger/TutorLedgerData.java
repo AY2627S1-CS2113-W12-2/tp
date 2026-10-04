@@ -1,5 +1,6 @@
 package seedu.tutorledger;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -14,6 +15,8 @@ public class TutorLedgerData {
     private final Map<String, Lesson> lessons = new LinkedHashMap<>();
     private final Map<String, Homework> homework = new LinkedHashMap<>();
     private int nextStudentNumber = 1;
+    /** Number used for the next homework ID (H1, H2, ...); never decreases so IDs are not reused. */
+    private int nextHomeworkNumber = 1;
 
     /** Adds a student and assigns the next permanent ID. */
     public Student addStudent(String name, String level, String phoneNumber) {
@@ -92,7 +95,45 @@ public class TutorLedgerData {
     /** Registers homework after checking its student link. */
     public void putHomework(Homework item) {
         getStudent(item.getStudentId());
-        homework.put(item.getHomeworkId().toUpperCase(Locale.ROOT), item);
+        String key = item.getHomeworkId().toUpperCase(Locale.ROOT);
+        homework.put(key, item);
+        // Keep the counter ahead of any H<number> ID added directly, so addHomework never reuses it.
+        if (key.matches("H[1-9]\\d*")) {
+            nextHomeworkNumber = Math.max(nextHomeworkNumber, Integer.parseInt(key.substring(1)) + 1);
+        }
+    }
+
+    /**
+     * Creates outstanding homework for an existing student and assigns it the next homework ID.
+     *
+     * @param studentId the ID of the student receiving the homework, in either case
+     * @param description what the homework is
+     * @param dueDate the date the homework is due
+     * @return the newly stored homework
+     */
+    public Homework addHomework(String studentId, String description, LocalDate dueDate) {
+        Student student = getStudent(studentId);
+        Homework item = new Homework("H" + nextHomeworkNumber, student.getStudentId(), description, dueDate,
+                Homework.STATUS_OUTSTANDING);
+        putHomework(item);
+        return item;
+    }
+
+    /** Returns a homework item, accepting IDs in either case. */
+    public Homework getHomeworkById(String id) {
+        if (id == null || !id.matches("(?i)H[1-9]\\d*")) {
+            throw new IllegalArgumentException("Homework ID must look like H1.");
+        }
+        String key = id.toUpperCase(Locale.ROOT);
+        Homework item = homework.get(key);
+        if (item == null) {
+            throw new IllegalArgumentException("No homework found with ID " + key + ".");
+        }
+        return item;
+    }
+
+    public int getNextHomeworkNumber() {
+        return nextHomeworkNumber;
     }
 
     /** Removes a student and all linked records, returning their deletion counts. */
