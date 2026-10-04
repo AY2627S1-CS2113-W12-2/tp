@@ -1,4 +1,4 @@
-package seedu.duke;
+package seedu.tutorledger;
 
 import java.math.BigDecimal;
 import java.time.DateTimeException;
@@ -19,6 +19,7 @@ public class Lesson {
             .withResolverStyle(ResolverStyle.STRICT);
 
     private final String lessonId;
+    private final String studentId;
     private final String subject;
     private final LocalDate date;
     private final LocalTime time;
@@ -41,7 +42,14 @@ public class Lesson {
      */
     public Lesson(String lessonId, String subject, String date, String time, String attendance,
             String fee, String notes, String paymentStatus) {
+        this(lessonId, null, subject, date, time, attendance, fee, notes, paymentStatus);
+    }
+
+    /** Creates a lesson linked to a student for student views and deletion. */
+    public Lesson(String lessonId, String studentId, String subject, String date, String time, String attendance,
+            String fee, String notes, String paymentStatus) {
         this.lessonId = requireText(lessonId, "Lesson ID");
+        this.studentId = studentId;
         this.subject = requireText(subject, "Subject");
         this.date = parseDate(date);
         this.time = parseTime(time);
@@ -53,6 +61,10 @@ public class Lesson {
 
     public String getLessonId() {
         return lessonId;
+    }
+
+    public String getStudentId() {
+        return studentId;
     }
 
     public String getSubject() {
@@ -132,6 +144,7 @@ public class Lesson {
      * The attendance statuses accepted for a lesson.
      */
     public enum Attendance {
+        NOT_RECORDED,
         PRESENT,
         ABSENT,
         LATE;
@@ -139,7 +152,7 @@ public class Lesson {
         private static Attendance parse(String value) {
             requireNonNull(value, "Attendance");
             try {
-                return Attendance.valueOf(value.toUpperCase(Locale.ROOT));
+                return Attendance.valueOf(value.trim().replace(' ', '_').toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException exception) {
                 throw new IllegalArgumentException("Attendance must be present, absent, or late.", exception);
             }
