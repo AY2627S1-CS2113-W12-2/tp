@@ -42,6 +42,7 @@ public class StudentCommands {
             case "list" -> list(arguments);
             case "edit" -> edit(arguments);
             case "delete" -> delete(arguments);
+            case "help" -> HelpCommand.getHelpText();
             default -> "Unknown command: " + words[0] + ".";
             };
         } catch (IllegalArgumentException exception) {
