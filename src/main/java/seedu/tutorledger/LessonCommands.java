@@ -13,13 +13,16 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * Parses and runs the lesson commands: {@code schedule} and {@code lessons}.
+ * Parses and runs the lesson commands: {@code schedule}, {@code lessons} and {@code record}.
  * Like {@link StudentCommands}, each command returns its display text, and validation problems
  * are reported as an "Error: ..." message instead of crashing the program.
  */
 public class LessonCommands {
     /** Command words this class understands, used by the main loop to route input here. */
-    private static final Set<String> COMMAND_WORDS = Set.of("schedule", "lessons");
+    private static final Set<String> COMMAND_WORDS = Set.of("schedule", "lessons", "record");
+
+    /** Attendance values a tutor can type; "not recorded" is only the state a new lesson starts in. */
+    private static final Set<String> ATTENDANCE_WORDS = Set.of("present", "absent", "late");
 
     /** Date format shown to the user, e.g. Tue 22-09-2026. */
     private static final DateTimeFormatter DISPLAY_DATE = DateTimeFormatter.ofPattern("EEE dd-MM-uuuu",
@@ -63,7 +66,8 @@ public class LessonCommands {
         try {
             return switch (command) {
             case "schedule" -> schedule(arguments);
-            default -> listLessons(arguments);
+            case "lessons" -> listLessons(arguments);
+            default -> record(arguments);
             };
         } catch (IllegalArgumentException exception) {
             return "Error: " + exception.getMessage();
@@ -129,6 +133,49 @@ public class LessonCommands {
         return output.toString();
     }
 
+    /** Handles {@code record LESSON_ID a/ATTENDANCE [note/NOTES]}. */
+    private String record(String arguments) {
+        IdAndFields input = splitIdAndFields(arguments, List.of("a", "note"));
+        Lesson lesson = data.getLesson(input.id());
+        String attendance = parseAttendance(input.fields().single("a", true));
+        // A lesson that has not happened yet has no outcome to record.
+        if (lesson.getDate().isAfter(LocalDate.now(clock))) {
+            throw new IllegalArgumentException("Only a lesson dated today or earlier can be recorded.");
+        }
+        // Recording again replaces the attendance, and the notes only if note/ was typed.
+        Lesson recorded = lesson.withDetails(null, null, null, attendance, null, parseNotes(input.fields()));
+        data.replaceLesson(recorded);
+        Student student = data.getStudent(recorded.getStudentId());
+        return "Recorded " + recorded.getLessonId() + " for " + formatStudent(student)
+                + " (" + formatSlot(recorded) + ")" + System.lineSeparator()
+                + "  Attendance: " + formatAttendance(recorded) + formatNotesLine(recorded);
+    }
+
+    /**
+     * Returns the attendance in lower case after checking it is one a tutor may type.
+     *
+     * @throws IllegalArgumentException If the value is not present, absent or late.
+     */
+    private static String parseAttendance(String value) {
+        String word = value.toLowerCase(Locale.ROOT);
+        if (!ATTENDANCE_WORDS.contains(word)) {
+            throw new IllegalArgumentException("Attendance must be present, absent, or late.");
+        }
+        return word;
+    }
+
+    /**
+     * Returns the notes typed after {@code note/}, or null if {@code note/} was left out.
+     * A bare {@code note/} gives an empty string, which clears the lesson's notes.
+     */
+    private static String parseNotes(ArgumentParser.Fields fields) {
+        if (!fields.has("note")) {
+            return null;
+        }
+        String notes = fields.single("note", false);
+        return notes == null ? "" : notes;
+    }
+
     /**
      * Returns the subject as it is written on the student's record, ignoring case.
      * Using the student's own spelling keeps "a math" and "A Math" from showing up as two subjects.
@@ -159,6 +206,16 @@ public class LessonCommands {
     /** Formats when a lesson starts as "Tue 22-09-2026 1600". */
     private static String formatSlot(Lesson lesson) {
         return DISPLAY_DATE.format(lesson.getDate()) + " " + DISPLAY_TIME.format(lesson.getTime());
+    }
+
+    /** Formats attendance the way it is typed and shown, e.g. "present" or "not recorded". */
+    private static String formatAttendance(Lesson lesson) {
+        return lesson.getAttendance().name().toLowerCase(Locale.ROOT).replace('_', ' ');
+    }
+
+    /** Returns an indented "Notes: ..." line for a lesson that has notes, or nothing if it has none. */
+    private static String formatNotesLine(Lesson lesson) {
+        return lesson.getNotes().isBlank() ? "" : System.lineSeparator() + "  Notes: " + lesson.getNotes();
     }
 
     /** Formats a student as "S1 Amirah Binte Rahman". */
