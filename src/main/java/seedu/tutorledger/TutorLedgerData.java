@@ -15,6 +15,8 @@ public class TutorLedgerData {
     private final Map<String, Lesson> lessons = new LinkedHashMap<>();
     private final Map<String, Homework> homework = new LinkedHashMap<>();
     private int nextStudentNumber = 1;
+    /** Number used for the next lesson ID (L1, L2, ...); never decreases so IDs are not reused. */
+    private int nextLessonNumber = 1;
     /** Number used for the next homework ID (H1, H2, ...); never decreases so IDs are not reused. */
     private int nextHomeworkNumber = 1;
 
@@ -89,7 +91,60 @@ public class TutorLedgerData {
     /** Registers a lesson after checking its student link. */
     public void putLesson(Lesson lesson) {
         getStudent(lesson.getStudentId());
-        lessons.put(lesson.getLessonId().toUpperCase(Locale.ROOT), lesson);
+        String key = lesson.getLessonId().toUpperCase(Locale.ROOT);
+        lessons.put(key, lesson);
+        // Keep the counter ahead of any L<number> ID added directly, so addLesson never reuses it.
+        if (key.matches("L[1-9]\\d*")) {
+            nextLessonNumber = Math.max(nextLessonNumber, Integer.parseInt(key.substring(1)) + 1);
+        }
+    }
+
+    /**
+     * Schedules a lesson for an existing student and assigns it the next lesson ID.
+     * A new lesson starts as not recorded and unpaid, with no notes.
+     *
+     * @param studentId The ID of the student taking the lesson, in either case.
+     * @param subject The subject being taught.
+     * @param date The lesson date in DD-MM-YYYY format.
+     * @param time The lesson start time in HHMM format.
+     * @param fee The fee charged for this lesson.
+     * @return The newly stored lesson.
+     * @throws IllegalArgumentException If a value is invalid or another lesson starts at the same time.
+     */
+    public Lesson addLesson(String studentId, String subject, String date, String time, String fee) {
+        Student student = getStudent(studentId);
+        Lesson lesson = new Lesson("L" + nextLessonNumber, student.getStudentId(), subject, date, time,
+                Lesson.Attendance.NOT_RECORDED.name(), fee, "");
+        ensureSlotFree(lesson);
+        putLesson(lesson);
+        return lesson;
+    }
+
+    /**
+     * Replaces an existing lesson with a changed copy that has the same ID.
+     *
+     * @throws IllegalArgumentException If the lesson was moved to a slot where another lesson starts.
+     */
+    public void replaceLesson(Lesson lesson) {
+        Lesson existing = getLesson(lesson.getLessonId());
+        // Only a lesson that actually moved needs the check, so other edits are never blocked by it.
+        boolean isMoved = !existing.getDate().equals(lesson.getDate())
+                || !existing.getTime().equals(lesson.getTime());
+        if (isMoved) {
+            ensureSlotFree(lesson);
+        }
+        lessons.put(existing.getLessonId().toUpperCase(Locale.ROOT), lesson);
+    }
+
+    /** Removes a lesson and returns it, so the caller can report what was deleted. */
+    public Lesson deleteLesson(String id) {
+        Lesson lesson = getLesson(id);
+        lessons.remove(lesson.getLessonId().toUpperCase(Locale.ROOT));
+        return lesson;
+    }
+
+    public int getNextLessonNumber() {
+        return nextLessonNumber;
     }
 
     /** Returns a lesson by ID, accepting IDs in either case. */
@@ -185,6 +240,18 @@ public class TutorLedgerData {
                     && existing.getName().equalsIgnoreCase(candidate.getName())
                     && existing.getPhoneNumber().equals(candidate.getPhoneNumber())) {
                 throw new IllegalArgumentException("A student with that name and phone number already exists.");
+            }
+        }
+    }
+
+    /** Rejects a lesson that would start at the same date and time as a different lesson. */
+    private void ensureSlotFree(Lesson candidate) {
+        for (Lesson existing : lessons.values()) {
+            if (!existing.getLessonId().equalsIgnoreCase(candidate.getLessonId())
+                    && existing.getDate().equals(candidate.getDate())
+                    && existing.getTime().equals(candidate.getTime())) {
+                throw new IllegalArgumentException(existing.getLessonId()
+                        + " already starts at that date and time.");
             }
         }
     }
