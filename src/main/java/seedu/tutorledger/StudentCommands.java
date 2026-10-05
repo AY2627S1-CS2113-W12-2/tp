@@ -7,16 +7,11 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /** Parses and runs the six student commands from the v1 user guide. */
 public class StudentCommands {
-    private static final Pattern PREFIX = Pattern.compile("(?i)(?<!\\S)([a-z]+)/");
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("EEE dd-MM-uuuu", Locale.ENGLISH);
     private final TutorLedgerData data;
     private final Clock clock;
@@ -51,7 +46,7 @@ public class StudentCommands {
     }
 
     private String add(String arguments) {
-        Fields fields = parseFields(arguments, List.of("n", "l", "p"));
+        ArgumentParser.Fields fields = ArgumentParser.parseFields(arguments, List.of("n", "l", "p"));
         String name = fields.single("n", true);
         String level = fields.single("l", true);
         String phone = fields.single("p", true);
@@ -191,72 +186,9 @@ public class StudentCommands {
         String[] pieces = arguments.split("\\s+", 2);
         String id = singleId(pieces[0]);
         String remainder = pieces.length == 2 ? pieces[1] : "";
-        return new IdAndFields(id, parseFields(remainder, allowed));
+        return new IdAndFields(id, ArgumentParser.parseFields(remainder, allowed));
     }
 
-    /** Separates prefixed values without splitting names or subjects containing spaces. */
-    private static Fields parseFields(String text, List<String> allowed) {
-        Map<String, List<String>> values = new HashMap<>();
-        Matcher matcher = PREFIX.matcher(text);
-        int previousEnd = 0;
-        String previousKey = null;
-        while (matcher.find()) {
-            if (previousKey == null && !text.substring(0, matcher.start()).isBlank()) {
-                throw new IllegalArgumentException("Expected a prefixed value.");
-            }
-            if (previousKey != null) {
-                values.get(previousKey).add(text.substring(previousEnd, matcher.start()).trim());
-            }
-            String key = matcher.group(1).toLowerCase(Locale.ROOT);
-            if (!allowed.contains(key)) {
-                throw new IllegalArgumentException("Unexpected prefix " + key + "/.");
-            }
-            values.computeIfAbsent(key, ignored -> new ArrayList<>());
-            previousKey = key;
-            previousEnd = matcher.end();
-        }
-        if (previousKey == null) {
-            if (!text.isBlank()) {
-                throw new IllegalArgumentException("Expected a prefixed value.");
-            }
-        } else {
-            values.get(previousKey).add(text.substring(previousEnd).trim());
-        }
-        return new Fields(values);
-    }
-
-    private record IdAndFields(String id, Fields fields) {
-    }
-
-    private record Fields(Map<String, List<String>> fields) {
-        boolean isEmpty() {
-            return fields.isEmpty();
-        }
-
-        boolean has(String key) {
-            return fields.containsKey(key);
-        }
-
-        List<String> values(String key) {
-            return fields.getOrDefault(key, List.of());
-        }
-
-        String single(String key, boolean required) {
-            List<String> entries = values(key);
-            if (entries.size() > 1) {
-                throw new IllegalArgumentException("Give " + key + "/ only once.");
-            }
-            if (entries.isEmpty() || entries.getFirst().isBlank()) {
-                if (required) {
-                    throw new IllegalArgumentException("Give a non-blank " + key + "/ value.");
-                }
-                return null;
-            }
-            return entries.getFirst();
-        }
-
-        String singleOr(String key, String fallback) {
-            return has(key) ? single(key, true) : fallback;
-        }
+    private record IdAndFields(String id, ArgumentParser.Fields fields) {
     }
 }
