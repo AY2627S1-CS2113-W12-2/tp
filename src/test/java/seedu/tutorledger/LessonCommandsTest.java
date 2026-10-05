@@ -45,6 +45,19 @@ class LessonCommandsTest {
     }
 
     @Test
+    void handles_sharedCommandWord_trueOnlyWithALessonId() {
+        assertTrue(LessonCommands.handles("edit L42 d/25-09-2026"));
+        assertTrue(LessonCommands.handles("EDIT l42 f/55"));
+        // Still a lesson command when the ID is malformed, so the error can describe a lesson ID.
+        assertTrue(LessonCommands.handles("edit Lx f/55"));
+
+        assertFalse(LessonCommands.handles("edit S1 l/Sec 4"));
+        assertFalse(LessonCommands.handles("edit"));
+        // l/ is the student level prefix, not a lesson ID.
+        assertFalse(LessonCommands.handles("edit l/Sec 4"));
+    }
+
+    @Test
     void handles_otherInput_false() {
         assertFalse(LessonCommands.handles("add n/Tan Wei Ming l/Sec 3 p/91234567"));
         assertFalse(LessonCommands.handles("mark L1 paid"));
@@ -277,5 +290,110 @@ class LessonCommandsTest {
         assertEquals("Error: Lesson ID must look like L1.", commands.execute("record"));
         assertFalse(data.getLesson("L1").isRecorded());
         assertEquals("", data.getLesson("L1").getNotes());
+    }
+
+    @Test
+    void edit_dateAndTime_movesTheLessonAndKeepsEverythingElse() {
+        commands.execute("schedule S1 d/24-09-2026 t/1900 s/E Math f/55");
+
+        assertEquals("Edited L1 for S1 Amirah Binte Rahman" + NEW_LINE
+                + "  Fri 25-09-2026 1800, E Math, $55.00, not recorded, unpaid",
+                commands.execute("edit L1 d/25-09-2026 t/1800"));
+        Lesson lesson = data.getLesson("L1");
+        assertEquals(LocalDate.of(2026, 9, 25), lesson.getDate());
+        assertEquals(LocalTime.of(18, 0), lesson.getTime());
+        assertEquals("E Math", lesson.getSubject());
+        assertEquals(new BigDecimal("55"), lesson.getFee());
+    }
+
+    @Test
+    void edit_subjectAndFee_usesTheStudentsSpellingAndKeepsThePaymentStatus() {
+        commands.execute("schedule S1 d/24-09-2026 t/1900 s/E Math f/55");
+        data.updateLessonPaymentStatus("L1", Lesson.PAYMENT_PAID);
+
+        assertEquals("Edited L1 for S1 Amirah Binte Rahman" + NEW_LINE
+                + "  Thu 24-09-2026 1900, A Math, $62.50, not recorded, paid",
+                commands.execute("EDIT l1 S/a math F/62.50"));
+        assertEquals("A Math", data.getLesson("L1").getSubject());
+        assertEquals(Lesson.PAYMENT_PAID, data.getLesson("L1").getPaymentStatus());
+    }
+
+    @Test
+    void edit_attendanceAndNotes_changesARecordedLesson() {
+        commands.execute("schedule S1 d/21-09-2026 t/1600 s/A Math f/60");
+        commands.execute("record L1 a/present note/Started vectors");
+
+        assertEquals("Edited L1 for S1 Amirah Binte Rahman" + NEW_LINE
+                + "  Mon 21-09-2026 1600, A Math, $60.00, late, unpaid" + NEW_LINE
+                + "  Notes: Finished vectors", commands.execute("edit L1 a/late note/Finished vectors"));
+
+        // A bare note/ clears the notes and leaves the attendance alone.
+        commands.execute("edit L1 note/");
+        assertEquals("", data.getLesson("L1").getNotes());
+        assertEquals(Lesson.Attendance.LATE, data.getLesson("L1").getAttendance());
+    }
+
+    @Test
+    void edit_ontoAnotherLessonsSlot_isRejected() {
+        commands.execute("schedule S1 d/22-09-2026 t/1600 s/A Math f/60");
+        commands.execute("schedule S2 d/26-09-2026 t/0900 s/Pure Chemistry f/62.50");
+
+        assertEquals("Error: L1 already starts at that date and time.",
+                commands.execute("edit L2 d/22-09-2026 t/1600"));
+        assertEquals(LocalDate.of(2026, 9, 26), data.getLesson("L2").getDate());
+        // Re-typing a lesson's own slot is not a clash with itself.
+        assertTrue(commands.execute("edit L1 d/22-09-2026 t/1600 f/65").startsWith("Edited L1"));
+    }
+
+    @Test
+    void edit_outcomeOnALessonAfterToday_isRejected() {
+        String expected = "Error: A lesson dated after today cannot have attendance or notes.";
+        commands.execute("schedule S1 d/22-09-2026 t/1600 s/A Math f/60");
+        assertEquals(expected, commands.execute("edit L1 a/present"));
+        assertEquals(expected, commands.execute("edit L1 note/Bring worksheet"));
+        assertFalse(data.getLesson("L1").isRecorded());
+
+        // A lesson that was already recorded cannot be moved into the future either.
+        commands.execute("schedule S1 d/21-09-2026 t/1600 s/A Math f/60");
+        commands.execute("record L2 a/present");
+        assertEquals(expected, commands.execute("edit L2 d/28-09-2026"));
+        assertEquals(LocalDate.of(2026, 9, 21), data.getLesson("L2").getDate());
+
+        // Moving a future lesson back to today and recording it in one command is allowed.
+        assertTrue(commands.execute("edit L1 d/21-09-2026 t/0900 a/absent").contains("absent"));
+    }
+
+    @Test
+    void edit_missingOrInvalidValues_changesNothing() {
+        commands.execute("schedule S1 d/22-09-2026 t/1600 s/A Math f/60");
+
+        assertEquals("Error: Give at least one value to edit.", commands.execute("edit L1"));
+        assertEquals("Error: Give a non-blank d/ value.", commands.execute("edit L1 d/"));
+        assertEquals("Error: Date must be a real date in DD-MM-YYYY format.",
+                commands.execute("edit L1 d/2026-09-25"));
+        assertEquals("Error: Time must be in 24-hour HHMM format.", commands.execute("edit L1 t/6pm"));
+        assertEquals("Error: Fee must be a non-negative dollar amount with at most 2 decimals.",
+                commands.execute("edit L1 f/55.555"));
+        assertEquals(
+                "Error: Pure Chemistry is not one of S1 Amirah Binte Rahman's subjects (E Math, A Math).",
+                commands.execute("edit L1 s/Pure Chemistry"));
+        assertEquals("Error: Attendance must be present, absent, or late.",
+                commands.execute("edit L1 a/excused"));
+        // Payment status is changed with mark, and student prefixes do not apply to a lesson.
+        assertEquals("Error: Unexpected prefix n/.", commands.execute("edit L1 n/Tan Wei Ming"));
+        // One bad value rejects the whole edit, so the valid fee below must not be applied.
+        assertEquals("Error: Time must be in 24-hour HHMM format.", commands.execute("edit L1 f/70 t/6pm"));
+
+        Lesson lesson = data.getLesson("L1");
+        assertEquals(LocalDate.of(2026, 9, 22), lesson.getDate());
+        assertEquals(LocalTime.of(16, 0), lesson.getTime());
+        assertEquals(new BigDecimal("60"), lesson.getFee());
+        assertEquals("A Math", lesson.getSubject());
+    }
+
+    @Test
+    void edit_unknownOrMalformedLessonId_isRejected() {
+        assertEquals("Error: No lesson found with ID L9.", commands.execute("edit L9 f/55"));
+        assertEquals("Error: Lesson ID must look like L1.", commands.execute("edit Lx f/55"));
     }
 }

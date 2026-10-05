@@ -13,13 +13,17 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * Parses and runs the lesson commands: {@code schedule}, {@code lessons} and {@code record}.
+ * Parses and runs the lesson commands: {@code schedule}, {@code lessons} and {@code record},
+ * plus {@code edit} when it is given a lesson ID.
  * Like {@link StudentCommands}, each command returns its display text, and validation problems
  * are reported as an "Error: ..." message instead of crashing the program.
  */
 public class LessonCommands {
-    /** Command words this class understands, used by the main loop to route input here. */
+    /** Command words that always belong to lessons, used by the main loop to route input here. */
     private static final Set<String> COMMAND_WORDS = Set.of("schedule", "lessons", "record");
+
+    /** Command words shared with students; they are lesson commands only when given a lesson ID. */
+    private static final Set<String> SHARED_COMMAND_WORDS = Set.of("edit");
 
     /** Attendance values a tutor can type; "not recorded" is only the state a new lesson starts in. */
     private static final Set<String> ATTENDANCE_WORDS = Set.of("present", "absent", "late");
@@ -46,13 +50,24 @@ public class LessonCommands {
         this.clock = clock;
     }
 
-    /** Returns true if the first word of the input is a lesson command. */
+    /**
+     * Returns true if the input is a lesson command.
+     *
+     * <p>{@code edit} is shared with students, so it counts only when the ID after it starts with
+     * L. This is how the user guide tells the two apart: {@code edit L42 ...} changes a lesson,
+     * while {@code edit S1 ...} is left for {@link StudentCommands}.
+     */
     public static boolean handles(String input) {
         if (input == null || input.isBlank()) {
             return false;
         }
-        String command = input.strip().split("\\s+", 2)[0].toLowerCase(Locale.ROOT);
-        return COMMAND_WORDS.contains(command);
+        String[] words = input.strip().split("\\s+", 3);
+        String command = words[0].toLowerCase(Locale.ROOT);
+        if (COMMAND_WORDS.contains(command)) {
+            return true;
+        }
+        // "[^/]*" keeps a prefixed value such as l/Sec 4 from being mistaken for a lesson ID.
+        return SHARED_COMMAND_WORDS.contains(command) && words.length > 1 && words[1].matches("(?i)L[^/]*");
     }
 
     /** Executes one lesson command and returns its display text, including validation errors. */
@@ -67,7 +82,8 @@ public class LessonCommands {
             return switch (command) {
             case "schedule" -> schedule(arguments);
             case "lessons" -> listLessons(arguments);
-            default -> record(arguments);
+            case "record" -> record(arguments);
+            default -> edit(arguments);
             };
         } catch (IllegalArgumentException exception) {
             return "Error: " + exception.getMessage();
@@ -149,6 +165,32 @@ public class LessonCommands {
         return "Recorded " + recorded.getLessonId() + " for " + formatStudent(student)
                 + " (" + formatSlot(recorded) + ")" + System.lineSeparator()
                 + "  Attendance: " + formatAttendance(recorded) + formatNotesLine(recorded);
+    }
+
+    /** Handles {@code edit LESSON_ID [d/DATE] [t/TIME] [s/SUBJECT] [f/FEE] [a/ATTENDANCE] [note/NOTES]}. */
+    private String edit(String arguments) {
+        IdAndFields input = splitIdAndFields(arguments, List.of("d", "t", "s", "f", "a", "note"));
+        ArgumentParser.Fields fields = input.fields();
+        if (fields.isEmpty()) {
+            throw new IllegalArgumentException("Give at least one value to edit.");
+        }
+        Lesson lesson = data.getLesson(input.id());
+        Student student = data.getStudent(lesson.getStudentId());
+        // A value that was not typed stays null, which withDetails reads as "keep the current value".
+        String subject = fields.has("s") ? findSubjectTakenBy(student, fields.single("s", true)) : null;
+        String attendance = fields.has("a") ? parseAttendance(fields.single("a", true)) : null;
+        Lesson edited = lesson.withDetails(subject, fields.singleOr("d", null), fields.singleOr("t", null),
+                attendance, fields.singleOr("f", null), parseNotes(fields));
+        // The same rule as record: attendance and notes describe a lesson that has already happened.
+        boolean hasOutcome = edited.isRecorded() || !edited.getNotes().isBlank();
+        if (hasOutcome && edited.getDate().isAfter(LocalDate.now(clock))) {
+            throw new IllegalArgumentException("A lesson dated after today cannot have attendance or notes.");
+        }
+        data.replaceLesson(edited);
+        return "Edited " + edited.getLessonId() + " for " + formatStudent(student) + System.lineSeparator()
+                + "  " + formatSlot(edited) + ", " + edited.getSubject() + ", " + formatMoney(edited.getFee())
+                + ", " + formatAttendance(edited) + ", " + edited.getPaymentStatus()
+                + formatNotesLine(edited);
     }
 
     /**
