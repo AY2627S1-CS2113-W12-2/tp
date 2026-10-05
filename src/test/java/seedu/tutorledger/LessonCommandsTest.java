@@ -50,9 +50,13 @@ class LessonCommandsTest {
         assertTrue(LessonCommands.handles("EDIT l42 f/55"));
         // Still a lesson command when the ID is malformed, so the error can describe a lesson ID.
         assertTrue(LessonCommands.handles("edit Lx f/55"));
+        assertTrue(LessonCommands.handles("delete L44"));
+        assertTrue(LessonCommands.handles("Delete l44"));
 
         assertFalse(LessonCommands.handles("edit S1 l/Sec 4"));
         assertFalse(LessonCommands.handles("edit"));
+        assertFalse(LessonCommands.handles("delete S5"));
+        assertFalse(LessonCommands.handles("delete"));
         // l/ is the student level prefix, not a lesson ID.
         assertFalse(LessonCommands.handles("edit l/Sec 4"));
     }
@@ -395,5 +399,42 @@ class LessonCommandsTest {
     void edit_unknownOrMalformedLessonId_isRejected() {
         assertEquals("Error: No lesson found with ID L9.", commands.execute("edit L9 f/55"));
         assertEquals("Error: Lesson ID must look like L1.", commands.execute("edit Lx f/55"));
+    }
+
+    @Test
+    void delete_existingLesson_removesOnlyThatLesson() {
+        commands.execute("schedule S1 d/22-09-2026 t/1600 s/A Math f/60");
+        commands.execute("schedule S2 d/26-09-2026 t/0900 s/Pure Chemistry f/62.50");
+        data.addHomework("S2", "Worksheet 4A", LocalDate.of(2026, 9, 29));
+
+        assertEquals("Deleted L2 for S2 Tan Wei Ming: Sat 26-09-2026 0900, Pure Chemistry",
+                commands.execute("DELETE l2"));
+
+        assertEquals(1, data.getLessons().size());
+        assertEquals("L1", data.getLesson("L1").getLessonId());
+        // The student and their homework are not affected.
+        assertEquals("Tan Wei Ming", data.getStudent("S2").getName());
+        assertEquals(1, data.getHomework().size());
+    }
+
+    @Test
+    void delete_thenSchedule_doesNotReuseTheDeletedId() {
+        commands.execute("schedule S1 d/22-09-2026 t/1600 s/A Math f/60");
+        commands.execute("delete L1");
+
+        // The freed slot can be used again, but the lesson gets a new ID.
+        assertTrue(commands.execute("schedule S1 d/22-09-2026 t/1600 s/A Math f/60")
+                .startsWith("Scheduled L2"));
+        assertEquals("Error: No lesson found with ID L1.", commands.execute("delete L1"));
+    }
+
+    @Test
+    void delete_unknownMalformedOrExtraArguments_deletesNothing() {
+        commands.execute("schedule S1 d/22-09-2026 t/1600 s/A Math f/60");
+
+        assertEquals("Error: No lesson found with ID L9.", commands.execute("delete L9"));
+        assertEquals("Error: Lesson ID must look like L1.", commands.execute("delete Lx"));
+        assertEquals("Error: Use: delete LESSON_ID", commands.execute("delete L1 L2"));
+        assertEquals(1, data.getLessons().size());
     }
 }
