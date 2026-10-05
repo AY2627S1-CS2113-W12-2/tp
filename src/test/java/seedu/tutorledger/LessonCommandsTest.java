@@ -41,6 +41,7 @@ class LessonCommandsTest {
         assertTrue(LessonCommands.handles("  SCHEDULE"));
         assertTrue(LessonCommands.handles("lessons"));
         assertTrue(LessonCommands.handles("Lessons week"));
+        assertTrue(LessonCommands.handles("record L1 a/present"));
     }
 
     @Test
@@ -193,5 +194,88 @@ class LessonCommandsTest {
     void lessons_unknownArgument_isRejected() {
         assertEquals("Error: Use: lessons [week]", commands.execute("lessons month"));
         assertEquals("Error: Use: lessons [week]", commands.execute("lessons week extra"));
+    }
+
+    @Test
+    void record_attendanceAndNotes_savesBothAgainstTheLesson() {
+        commands.execute("schedule S1 d/21-09-2026 t/1600 s/A Math f/60");
+
+        String output = commands.execute(
+                "record L1 a/present note/Discriminant recap. Started simultaneous equations.");
+
+        assertEquals("Recorded L1 for S1 Amirah Binte Rahman (Mon 21-09-2026 1600)" + NEW_LINE
+                + "  Attendance: present" + NEW_LINE
+                + "  Notes: Discriminant recap. Started simultaneous equations.", output);
+        Lesson lesson = data.getLesson("L1");
+        assertEquals(Lesson.Attendance.PRESENT, lesson.getAttendance());
+        assertEquals("Discriminant recap. Started simultaneous equations.", lesson.getNotes());
+        // Recording must not disturb the rest of the lesson.
+        assertEquals("A Math", lesson.getSubject());
+        assertEquals(new BigDecimal("60"), lesson.getFee());
+        assertEquals(Lesson.PAYMENT_UNPAID, lesson.getPaymentStatus());
+    }
+
+    @Test
+    void record_withoutNotes_showsOnlyAttendance() {
+        commands.execute("schedule S1 d/20-09-2026 t/1600 s/A Math f/60");
+
+        assertEquals("Recorded L1 for S1 Amirah Binte Rahman (Sun 20-09-2026 1600)" + NEW_LINE
+                + "  Attendance: absent", commands.execute("RECORD l1 A/Absent"));
+        assertEquals(Lesson.Attendance.ABSENT, data.getLesson("L1").getAttendance());
+    }
+
+    @Test
+    void record_again_replacesAttendanceAndKeepsNotesUnlessNoteIsGiven() {
+        commands.execute("schedule S1 d/21-09-2026 t/1600 s/A Math f/60");
+        commands.execute("record L1 a/present note/Started vectors");
+
+        commands.execute("record L1 a/late");
+        assertEquals(Lesson.Attendance.LATE, data.getLesson("L1").getAttendance());
+        assertEquals("Started vectors", data.getLesson("L1").getNotes());
+
+        commands.execute("record L1 a/late note/Finished vectors");
+        assertEquals("Finished vectors", data.getLesson("L1").getNotes());
+
+        // A bare note/ clears the notes.
+        commands.execute("record L1 a/late note/");
+        assertEquals("", data.getLesson("L1").getNotes());
+    }
+
+    @Test
+    void record_keepsThePaymentStatus() {
+        commands.execute("schedule S1 d/21-09-2026 t/1600 s/A Math f/60");
+        data.updateLessonPaymentStatus("L1", Lesson.PAYMENT_PAID);
+
+        commands.execute("record L1 a/present");
+
+        assertEquals(Lesson.PAYMENT_PAID, data.getLesson("L1").getPaymentStatus());
+    }
+
+    @Test
+    void record_lessonAfterToday_isRejected() {
+        commands.execute("schedule S1 d/22-09-2026 t/1600 s/A Math f/60");
+
+        assertEquals("Error: Only a lesson dated today or earlier can be recorded.",
+                commands.execute("record L1 a/present"));
+        assertFalse(data.getLesson("L1").isRecorded());
+    }
+
+    @Test
+    void record_missingOrInvalidValues_changesNothing() {
+        commands.execute("schedule S1 d/21-09-2026 t/1600 s/A Math f/60");
+
+        assertEquals("Error: Give a non-blank a/ value.", commands.execute("record L1"));
+        assertEquals("Error: Give a non-blank a/ value.",
+                commands.execute("record L1 note/Started vectors"));
+        assertEquals("Error: Attendance must be present, absent, or late.",
+                commands.execute("record L1 a/excused"));
+        assertEquals("Error: Attendance must be present, absent, or late.",
+                commands.execute("record L1 a/not recorded"));
+        assertEquals("Error: Unexpected prefix f/.", commands.execute("record L1 a/present f/70"));
+        assertEquals("Error: No lesson found with ID L9.", commands.execute("record L9 a/present"));
+        assertEquals("Error: Lesson ID must look like L1.", commands.execute("record S1 a/present"));
+        assertEquals("Error: Lesson ID must look like L1.", commands.execute("record"));
+        assertFalse(data.getLesson("L1").isRecorded());
+        assertEquals("", data.getLesson("L1").getNotes());
     }
 }
