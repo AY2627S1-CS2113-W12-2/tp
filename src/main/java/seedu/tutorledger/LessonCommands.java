@@ -3,19 +3,23 @@ package seedu.tutorledger;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.TemporalAdjusters;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
 /**
- * Parses and runs the lesson commands, starting with {@code schedule}.
+ * Parses and runs the lesson commands: {@code schedule} and {@code lessons}.
  * Like {@link StudentCommands}, each command returns its display text, and validation problems
  * are reported as an "Error: ..." message instead of crashing the program.
  */
 public class LessonCommands {
     /** Command words this class understands, used by the main loop to route input here. */
-    private static final Set<String> COMMAND_WORDS = Set.of("schedule");
+    private static final Set<String> COMMAND_WORDS = Set.of("schedule", "lessons");
 
     /** Date format shown to the user, e.g. Tue 22-09-2026. */
     private static final DateTimeFormatter DISPLAY_DATE = DateTimeFormatter.ofPattern("EEE dd-MM-uuuu",
@@ -54,9 +58,13 @@ public class LessonCommands {
             return "Unknown command.";
         }
         String[] words = input.strip().split("\\s+", 2);
+        String command = words[0].toLowerCase(Locale.ROOT);
         String arguments = words.length == 2 ? words[1].trim() : "";
         try {
-            return schedule(arguments);
+            return switch (command) {
+            case "schedule" -> schedule(arguments);
+            default -> listLessons(arguments);
+            };
         } catch (IllegalArgumentException exception) {
             return "Error: " + exception.getMessage();
         }
@@ -74,6 +82,51 @@ public class LessonCommands {
         return "Scheduled " + lesson.getLessonId() + " for " + formatStudent(student) + System.lineSeparator()
                 + "  " + formatSlot(lesson) + ", " + lesson.getSubject() + ", "
                 + formatMoney(lesson.getFee());
+    }
+
+    /** Handles {@code lessons [week]}: lists today's lessons, or this week's, earliest first. */
+    private String listLessons(String arguments) {
+        boolean isWeekView = arguments.equalsIgnoreCase("week");
+        if (!isWeekView && !arguments.isEmpty()) {
+            throw new IllegalArgumentException("Use: lessons [week]");
+        }
+        LocalDate today = LocalDate.now(clock);
+        // A week runs Monday to Sunday, so step back to the most recent Monday (or stay on it).
+        LocalDate firstDay = isWeekView
+                ? today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+                : today;
+        LocalDate lastDay = isWeekView ? firstDay.plusDays(6) : today;
+        String heading = isWeekView
+                ? "This week, " + DISPLAY_DATE.format(firstDay) + " to " + DISPLAY_DATE.format(lastDay)
+                : "Today, " + DISPLAY_DATE.format(today);
+
+        List<Lesson> lessons = data.getLessons().stream()
+                .filter(lesson -> !lesson.getDate().isBefore(firstDay) && !lesson.getDate().isAfter(lastDay))
+                .sorted(Comparator.comparing(Lesson::getDate)
+                        .thenComparing(Lesson::getTime)
+                        .thenComparing(Lesson::getLessonId))
+                .toList();
+        StringBuilder output = new StringBuilder(heading + ": " + formatCount(lessons.size(), "lesson"));
+        if (lessons.isEmpty()) {
+            return output.toString();
+        }
+
+        // Work out column widths so the ID and student columns line up.
+        int idWidth = 0;
+        int studentWidth = 0;
+        for (Lesson lesson : lessons) {
+            String studentLabel = formatStudent(data.getStudent(lesson.getStudentId()));
+            idWidth = Math.max(idWidth, lesson.getLessonId().length());
+            studentWidth = Math.max(studentWidth, studentLabel.length());
+        }
+        String rowFormat = "  %-" + idWidth + "s  %s  %-" + studentWidth + "s  %s";
+        for (Lesson lesson : lessons) {
+            String studentLabel = formatStudent(data.getStudent(lesson.getStudentId()));
+            output.append(System.lineSeparator())
+                    .append(String.format(rowFormat, lesson.getLessonId(), formatSlot(lesson), studentLabel,
+                            lesson.getSubject()));
+        }
+        return output.toString();
     }
 
     /**
@@ -116,6 +169,11 @@ public class LessonCommands {
     /** Formats a fee as dollars with two decimal places, e.g. $60.00. */
     private static String formatMoney(BigDecimal amount) {
         return "$" + amount.setScale(2, RoundingMode.UNNECESSARY).toPlainString();
+    }
+
+    /** Formats an amount with its noun, adding an "s" unless there is exactly one, e.g. "4 lessons". */
+    private static String formatCount(int amount, String noun) {
+        return amount + " " + noun + (amount == 1 ? "" : "s");
     }
 
     /** The ID typed straight after the command word, with the prefixed values that follow it. */
