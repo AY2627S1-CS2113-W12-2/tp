@@ -41,7 +41,7 @@ public final class HelpCommand {
                     new Entry("homework [STUDENT_ID]", "homework S1"))),
             new Section("PAYMENTS", List.of(
                     new Entry("mark LESSON_ID STATUS", "mark L37 paid"),
-                    new Entry("unpaid [STUDENT_ID]", "unpaid"),
+                    new Entry("unpaid [STUDENT_ID]", "unpaid S1"),
                     new Entry("owed", "owed"))),
             new Section("STORAGE", List.of(
                     new Entry("save [FILE_PATH]", "save backups/term1.txt"),
