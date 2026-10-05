@@ -66,6 +66,20 @@ public class Lesson {
         this.paymentStatus = validatePaymentStatus(paymentStatus);
     }
 
+    /** Creates a lesson from values that have already been validated and converted. */
+    private Lesson(String lessonId, String studentId, String subject, LocalDate date, LocalTime time,
+            Attendance attendance, BigDecimal fee, String notes, String paymentStatus) {
+        this.lessonId = lessonId;
+        this.studentId = studentId;
+        this.subject = subject;
+        this.date = date;
+        this.time = time;
+        this.attendance = attendance;
+        this.fee = fee;
+        this.notes = notes;
+        this.paymentStatus = paymentStatus;
+    }
+
     private Lesson(Lesson lesson, String paymentStatus) {
         this.lessonId = lesson.lessonId;
         this.studentId = lesson.studentId;
@@ -112,6 +126,38 @@ public class Lesson {
 
     public String getPaymentStatus() {
         return paymentStatus;
+    }
+
+    /** Returns true once attendance has been recorded for this lesson. */
+    public boolean isRecorded() {
+        return attendance != Attendance.NOT_RECORDED;
+    }
+
+    /**
+     * Returns a copy of this lesson with some details changed, leaving this lesson untouched.
+     *
+     * <p>Pass {@code null} for any detail that should stay as it is. The lesson ID, student and
+     * payment status are always kept, because recording or editing a lesson never changes them.
+     *
+     * @param newSubject The new subject, or null to keep the current one.
+     * @param newDate The new date in DD-MM-YYYY format, or null to keep the current one.
+     * @param newTime The new time in HHMM format, or null to keep the current one.
+     * @param newAttendance The new attendance status, or null to keep the current one.
+     * @param newFee The new non-negative fee, or null to keep the current one.
+     * @param newNotes The new notes, or null to keep the current ones.
+     * @return The changed copy.
+     * @throws IllegalArgumentException If any new value is invalid.
+     */
+    public Lesson withDetails(String newSubject, String newDate, String newTime, String newAttendance,
+            String newFee, String newNotes) {
+        return new Lesson(lessonId, studentId,
+                newSubject == null ? subject : requireText(newSubject, "Subject"),
+                newDate == null ? date : parseDate(newDate),
+                newTime == null ? time : parseTime(newTime),
+                newAttendance == null ? attendance : Attendance.parse(newAttendance),
+                newFee == null ? fee : parseFee(newFee),
+                newNotes == null ? notes : newNotes,
+                paymentStatus);
     }
 
     /** Returns a copy with the supplied paid/unpaid status. */
