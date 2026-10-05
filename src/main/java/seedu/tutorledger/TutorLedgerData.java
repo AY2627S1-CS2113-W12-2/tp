@@ -92,6 +92,26 @@ public class TutorLedgerData {
         lessons.put(lesson.getLessonId().toUpperCase(Locale.ROOT), lesson);
     }
 
+    /** Returns a lesson by ID, accepting IDs in either case. */
+    public Lesson getLesson(String id) {
+        if (id == null || !id.matches("(?i)L[1-9]\\d*")) {
+            throw new IllegalArgumentException("Lesson ID must look like L1.");
+        }
+        String key = id.toUpperCase(Locale.ROOT);
+        Lesson lesson = lessons.get(key);
+        if (lesson == null) {
+            throw new IllegalArgumentException("No lesson found with ID " + key + ".");
+        }
+        return lesson;
+    }
+
+    /** Changes an existing lesson's payment status without modifying its other details. */
+    public Lesson updateLessonPaymentStatus(String id, String status) {
+        Lesson updated = getLesson(id).withPaymentStatus(status);
+        lessons.put(updated.getLessonId().toUpperCase(Locale.ROOT), updated);
+        return updated;
+    }
+
     /** Registers homework after checking its student link. */
     public void putHomework(Homework item) {
         getStudent(item.getStudentId());

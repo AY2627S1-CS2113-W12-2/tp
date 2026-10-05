@@ -13,6 +13,7 @@ public class TutorLedger {
         Clock clock = Clock.systemDefaultZone();
         StudentCommands commands = new StudentCommands(data, clock);
         HomeworkCommands homeworkCommands = new HomeworkCommands(data, clock);
+        PaymentCommands paymentCommands = new PaymentCommands(data, clock);
         System.out.println("TutorLedger student book. Type exit to close.");
         Scanner input = new Scanner(System.in);
         while (input.hasNextLine()) {
@@ -20,8 +21,10 @@ public class TutorLedger {
             if (line.strip().equalsIgnoreCase("exit")) {
                 break;
             }
-            // Homework commands go to their own handler; everything else goes to the student commands.
-            if (HomeworkCommands.handles(line)) {
+            // Each feature handler receives only the commands it owns.
+            if (PaymentCommands.handles(line)) {
+                System.out.println(paymentCommands.execute(line));
+            } else if (HomeworkCommands.handles(line)) {
                 System.out.println(homeworkCommands.execute(line));
             } else {
                 System.out.println(commands.execute(line));
