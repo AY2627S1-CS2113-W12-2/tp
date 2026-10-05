@@ -14,6 +14,7 @@ public class TutorLedger {
         StudentCommands commands = new StudentCommands(data, clock);
         HomeworkCommands homeworkCommands = new HomeworkCommands(data, clock);
         PaymentCommands paymentCommands = new PaymentCommands(data, clock);
+        LessonCommands lessonCommands = new LessonCommands(data, clock);
         System.out.println("TutorLedger student book. Type exit to close.");
         Scanner input = new Scanner(System.in);
         while (input.hasNextLine()) {
@@ -26,6 +27,8 @@ public class TutorLedger {
                 System.out.println(paymentCommands.execute(line));
             } else if (HomeworkCommands.handles(line)) {
                 System.out.println(homeworkCommands.execute(line));
+            } else if (LessonCommands.handles(line)) {
+                System.out.println(lessonCommands.execute(line));
             } else {
                 System.out.println(commands.execute(line));
             }
