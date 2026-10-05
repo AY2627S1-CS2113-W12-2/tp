@@ -39,6 +39,8 @@ class LessonCommandsTest {
     void handles_lessonCommandWords_trueInAnyCase() {
         assertTrue(LessonCommands.handles("schedule S1 d/22-09-2026 t/1600 s/A Math f/60"));
         assertTrue(LessonCommands.handles("  SCHEDULE"));
+        assertTrue(LessonCommands.handles("lessons"));
+        assertTrue(LessonCommands.handles("Lessons week"));
     }
 
     @Test
@@ -124,5 +126,72 @@ class LessonCommandsTest {
         assertEquals("Error: Student ID must look like S1.", commands.execute("schedule"));
         assertEquals("Error: Student ID must look like S1.",
                 commands.execute("schedule d/22-09-2026 t/1600 s/A Math f/60"));
+    }
+
+    /** Schedules the four lessons of the user guide's "lessons week" example, plus two outside it. */
+    private void scheduleExampleWeek() {
+        data.replaceStudent(data.addStudent("Tan Wei Ling", "Sec 2", "98765432")
+                .withDetails("Tan Wei Ling", "Sec 2", "98765432", List.of("Science")));
+        data.replaceStudent(data.addStudent("Daniel Lim", "Sec 2", "81234567")
+                .withDetails("Daniel Lim", "Sec 2", "81234567", List.of("E Math")));
+        // Entered out of order on purpose, to show that the listing sorts by date and time.
+        commands.execute("schedule S3 d/26-09-2026 t/1030 s/Science f/50");
+        commands.execute("schedule S1 d/22-09-2026 t/1600 s/A Math f/60");
+        commands.execute("schedule S2 d/26-09-2026 t/0900 s/Pure Chemistry f/62.50");
+        commands.execute("schedule S4 d/24-09-2026 t/1900 s/E Math f/55");
+        commands.execute("schedule S1 d/20-09-2026 t/1600 s/E Math f/60");
+        commands.execute("schedule S1 d/28-09-2026 t/1600 s/E Math f/60");
+    }
+
+    @Test
+    void lessons_week_listsMondayToSundayInTheOrderTheyHappen() {
+        scheduleExampleWeek();
+
+        assertEquals("This week, Mon 21-09-2026 to Sun 27-09-2026: 4 lessons" + NEW_LINE
+                + "  L2  Tue 22-09-2026 1600  S1 Amirah Binte Rahman  A Math" + NEW_LINE
+                + "  L4  Thu 24-09-2026 1900  S4 Daniel Lim           E Math" + NEW_LINE
+                + "  L3  Sat 26-09-2026 0900  S2 Tan Wei Ming         Pure Chemistry" + NEW_LINE
+                + "  L1  Sat 26-09-2026 1030  S3 Tan Wei Ling         Science",
+                commands.execute("lessons WEEK"));
+    }
+
+    @Test
+    void lessons_week_countsFromMondayEvenWhenTodayIsSunday() {
+        scheduleExampleWeek();
+        LessonCommands sundayCommands = new LessonCommands(data,
+                Clock.fixed(Instant.parse("2026-09-27T10:00:00Z"), ZoneOffset.UTC));
+
+        String output = sundayCommands.execute("lessons week");
+
+        assertTrue(output.startsWith("This week, Mon 21-09-2026 to Sun 27-09-2026: 4 lessons"));
+        assertFalse(output.contains("28-09-2026"));
+    }
+
+    @Test
+    void lessons_noArgument_listsOnlyTodaysLessons() {
+        scheduleExampleWeek();
+        commands.execute("schedule S2 d/21-09-2026 t/1800 s/Pure Chemistry f/62.50");
+        commands.execute("schedule S1 d/21-09-2026 t/0930 s/E Math f/60");
+
+        assertEquals("Today, Mon 21-09-2026: 2 lessons" + NEW_LINE
+                + "  L8  Mon 21-09-2026 0930  S1 Amirah Binte Rahman  E Math" + NEW_LINE
+                + "  L7  Mon 21-09-2026 1800  S2 Tan Wei Ming         Pure Chemistry",
+                commands.execute("lessons"));
+    }
+
+    @Test
+    void lessons_nothingScheduled_reportsZeroOrOneWithTheRightPlural() {
+        assertEquals("Today, Mon 21-09-2026: 0 lessons", commands.execute("lessons"));
+        assertEquals("This week, Mon 21-09-2026 to Sun 27-09-2026: 0 lessons",
+                commands.execute("lessons week"));
+
+        commands.execute("schedule S1 d/21-09-2026 t/1600 s/A Math f/60");
+        assertTrue(commands.execute("lessons").startsWith("Today, Mon 21-09-2026: 1 lesson" + NEW_LINE));
+    }
+
+    @Test
+    void lessons_unknownArgument_isRejected() {
+        assertEquals("Error: Use: lessons [week]", commands.execute("lessons month"));
+        assertEquals("Error: Use: lessons [week]", commands.execute("lessons week extra"));
     }
 }
