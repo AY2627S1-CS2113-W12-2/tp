@@ -36,7 +36,7 @@ public class Lesson {
      *
      * @param lessonId the lesson identifier
      * @param subject the lesson subject
-     * @param date the lesson date in DD-MM-YYYY format
+     * @param date The lesson date in DD-MM-YYYY format.
      * @param time the lesson time in HHMM format
      * @param attendance the attendance status
      * @param fee the non-negative fee, with at most two decimal places
