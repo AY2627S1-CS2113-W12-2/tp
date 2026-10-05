@@ -14,7 +14,7 @@ import java.util.Set;
 
 /**
  * Parses and runs the lesson commands: {@code schedule}, {@code lessons} and {@code record},
- * plus {@code edit} when it is given a lesson ID.
+ * plus {@code edit} and {@code delete} when they are given a lesson ID.
  * Like {@link StudentCommands}, each command returns its display text, and validation problems
  * are reported as an "Error: ..." message instead of crashing the program.
  */
@@ -23,7 +23,7 @@ public class LessonCommands {
     private static final Set<String> COMMAND_WORDS = Set.of("schedule", "lessons", "record");
 
     /** Command words shared with students; they are lesson commands only when given a lesson ID. */
-    private static final Set<String> SHARED_COMMAND_WORDS = Set.of("edit");
+    private static final Set<String> SHARED_COMMAND_WORDS = Set.of("edit", "delete");
 
     /** Attendance values a tutor can type; "not recorded" is only the state a new lesson starts in. */
     private static final Set<String> ATTENDANCE_WORDS = Set.of("present", "absent", "late");
@@ -53,9 +53,9 @@ public class LessonCommands {
     /**
      * Returns true if the input is a lesson command.
      *
-     * <p>{@code edit} is shared with students, so it counts only when the ID after it starts with
-     * L. This is how the user guide tells the two apart: {@code edit L42 ...} changes a lesson,
-     * while {@code edit S1 ...} is left for {@link StudentCommands}.
+     * <p>{@code edit} and {@code delete} are shared with students, so they count only when the ID
+     * after them starts with L. This is how the user guide tells the two apart: {@code edit L42 ...}
+     * changes a lesson, while {@code edit S1 ...} is left for {@link StudentCommands}.
      */
     public static boolean handles(String input) {
         if (input == null || input.isBlank()) {
@@ -83,7 +83,8 @@ public class LessonCommands {
             case "schedule" -> schedule(arguments);
             case "lessons" -> listLessons(arguments);
             case "record" -> record(arguments);
-            default -> edit(arguments);
+            case "edit" -> edit(arguments);
+            default -> delete(arguments);
             };
         } catch (IllegalArgumentException exception) {
             return "Error: " + exception.getMessage();
@@ -191,6 +192,17 @@ public class LessonCommands {
                 + "  " + formatSlot(edited) + ", " + edited.getSubject() + ", " + formatMoney(edited.getFee())
                 + ", " + formatAttendance(edited) + ", " + edited.getPaymentStatus()
                 + formatNotesLine(edited);
+    }
+
+    /** Handles {@code delete LESSON_ID}. The student and their homework are not affected. */
+    private String delete(String arguments) {
+        if (arguments.split("\\s+").length != 1) {
+            throw new IllegalArgumentException("Use: delete LESSON_ID");
+        }
+        Lesson lesson = data.deleteLesson(arguments);
+        Student student = data.getStudent(lesson.getStudentId());
+        return "Deleted " + lesson.getLessonId() + " for " + formatStudent(student) + ": "
+                + formatSlot(lesson) + ", " + lesson.getSubject();
     }
 
     /**
