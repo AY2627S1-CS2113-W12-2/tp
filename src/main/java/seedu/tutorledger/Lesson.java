@@ -13,6 +13,9 @@ import java.util.Locale;
  * Represents a lesson, including its schedule, attendance, fee, and payment status.
  */
 public class Lesson {
+    public static final String PAYMENT_PAID = "paid";
+    public static final String PAYMENT_UNPAID = "unpaid";
+
     private static final DateTimeFormatter DATE_FORMATTER = new DateTimeFormatterBuilder()
             .appendPattern("dd-MM-uuuu")
             .toFormatter(Locale.ROOT)
@@ -38,15 +41,19 @@ public class Lesson {
      * @param attendance the attendance status
      * @param fee the non-negative fee, with at most two decimal places
      * @param notes lesson notes
-     * @param paymentStatus the payment status
      */
     public Lesson(String lessonId, String subject, String date, String time, String attendance,
-            String fee, String notes, String paymentStatus) {
-        this(lessonId, null, subject, date, time, attendance, fee, notes, paymentStatus);
+            String fee, String notes) {
+        this(lessonId, null, subject, date, time, attendance, fee, notes, PAYMENT_UNPAID);
     }
 
     /** Creates a lesson linked to a student for student views and deletion. */
     public Lesson(String lessonId, String studentId, String subject, String date, String time, String attendance,
+            String fee, String notes) {
+        this(lessonId, studentId, subject, date, time, attendance, fee, notes, PAYMENT_UNPAID);
+    }
+
+    private Lesson(String lessonId, String studentId, String subject, String date, String time, String attendance,
             String fee, String notes, String paymentStatus) {
         this.lessonId = requireText(lessonId, "Lesson ID");
         this.studentId = studentId;
@@ -56,7 +63,19 @@ public class Lesson {
         this.attendance = Attendance.parse(attendance);
         this.fee = parseFee(fee);
         this.notes = requireNonNull(notes, "Notes");
-        this.paymentStatus = requireText(paymentStatus, "Payment status");
+        this.paymentStatus = validatePaymentStatus(paymentStatus);
+    }
+
+    private Lesson(Lesson lesson, String paymentStatus) {
+        this.lessonId = lesson.lessonId;
+        this.studentId = lesson.studentId;
+        this.subject = lesson.subject;
+        this.date = lesson.date;
+        this.time = lesson.time;
+        this.attendance = lesson.attendance;
+        this.fee = lesson.fee;
+        this.notes = lesson.notes;
+        this.paymentStatus = validatePaymentStatus(paymentStatus);
     }
 
     public String getLessonId() {
@@ -93,6 +112,19 @@ public class Lesson {
 
     public String getPaymentStatus() {
         return paymentStatus;
+    }
+
+    /** Returns a copy with the supplied paid/unpaid status. */
+    public Lesson withPaymentStatus(String status) {
+        return new Lesson(this, status);
+    }
+
+    private static String validatePaymentStatus(String value) {
+        requireNonNull(value, "Payment status");
+        if (!value.equalsIgnoreCase(PAYMENT_PAID) && !value.equalsIgnoreCase(PAYMENT_UNPAID)) {
+            throw new IllegalArgumentException("Payment status must be paid or unpaid.");
+        }
+        return value.toLowerCase(Locale.ROOT);
     }
 
     private static String requireText(String value, String fieldName) {
