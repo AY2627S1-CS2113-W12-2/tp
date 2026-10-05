@@ -52,9 +52,9 @@ class StudentCommandsTest {
     void viewShowsLinkedRecordsAndExcludesFutureFeesAndSubmittedHomework() {
         commands.execute("add n/Tan Wei Ming l/Sec 3 p/91234567");
         data.putLesson(new Lesson("L1", "S1", "E Math", "15-09-2026", "1600",
-                "present", "60", "Quadratics", "unpaid"));
+                "present", "60", "Quadratics"));
         data.putLesson(new Lesson("L2", "S1", "E Math", "22-09-2026", "1600",
-                "not recorded", "70", "", "unpaid"));
+                "not recorded", "70", ""));
         data.putHomework(new Homework("H1", "S1", "Worksheet 3B", "22-09-2026", "outstanding"));
         data.putHomework(new Homework("H2", "S1", "Old work", "20-09-2026", "submitted"));
         String view = commands.execute("view s1");
@@ -69,7 +69,7 @@ class StudentCommandsTest {
     void deleteCascadesAndIdsRemainUnused() {
         commands.execute("add n/Tan Wei Ming l/Sec 3 p/91234567");
         data.putLesson(new Lesson("L1", "S1", "E Math", "15-09-2026", "1600",
-                "present", "60", "", "unpaid"));
+                "present", "60", ""));
         data.putHomework(new Homework("H1", "S1", "Worksheet", "22-09-2026", "outstanding"));
         assertTrue(commands.execute("delete s1").contains("1 lesson and 1 homework"));
         assertTrue(data.getLessons().isEmpty());
