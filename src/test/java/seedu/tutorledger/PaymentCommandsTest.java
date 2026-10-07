@@ -102,9 +102,46 @@ class PaymentCommandsTest {
     }
 
     @Test
+    void owedTotalsOnlyPastAndTodayUnpaidLessonsByStudent() {
+        data.addStudent("Amirah Binte Rahman", "Sec 3", "81234567");
+        data.addStudent("Zara Tan", "Sec 2", "82234567");
+        data.putLesson(new Lesson("L33", "S1", "E Math", "08-09-2026", "1600",
+                "present", "60", ""));
+        data.putLesson(new Lesson("L38", "S1", "A Math", "21-09-2026", "1800",
+                "present", "55.50", ""));
+        data.putLesson(new Lesson("L39", "S2", "Physics", "20-09-2026", "1600",
+                "present", "45", ""));
+        data.putLesson(new Lesson("L40", "S2", "Biology", "22-09-2026", "1600",
+                "present", "50", ""));
+        commands.execute("mark L39 paid");
+
+        String output = commands.execute("owed");
+
+        assertTrue(output.startsWith("        " + "_".repeat(60) + System.lineSeparator()
+                + "Outstanding balances (1 student)"));
+        assertTrue(output.contains("S1 Tan Wei Ming  $115.50  (2 lessons)"));
+        assertTrue(!output.contains("S2 Amirah Binte Rahman"));
+        assertTrue(!output.contains("S3 Zara Tan"));
+        assertTrue(!output.contains("L40"));
+    }
+
+    @Test
+    void owedShowsFriendlyMessageWhenNoStudentsOwe() {
+        data.putLesson(new Lesson("L38", "S1", "A Math", "22-09-2026", "1800",
+                "present", "55", ""));
+
+        String output = commands.execute("owed");
+
+        assertTrue(output.contains("No students owe anything."));
+        assertTrue(output.endsWith("       " + "_".repeat(60)));
+    }
+
+    @Test
     void handlesUnpaidButRejectsExtraArguments() {
         assertTrue(PaymentCommands.handles("unpaid"));
         assertTrue(PaymentCommands.handles("UNPAID s1"));
         assertTrue(commands.execute("unpaid S1 extra").startsWith("Error:"));
+        assertTrue(PaymentCommands.handles("owed"));
+        assertTrue(commands.execute("owed S1").startsWith("Error:"));
     }
 }

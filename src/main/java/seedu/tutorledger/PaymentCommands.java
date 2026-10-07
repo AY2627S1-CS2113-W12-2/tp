@@ -1,12 +1,15 @@
 package seedu.tutorledger;
 
+import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -15,7 +18,7 @@ import java.util.regex.Pattern;
  * Parses and runs commands that update lesson payment status.
  */
 public class PaymentCommands {
-    private static final Set<String> COMMAND_WORDS = Set.of("mark", "unpaid");
+    private static final Set<String> COMMAND_WORDS = Set.of("mark", "unpaid", "owed");
     private static final Pattern MARK_FORMAT = Pattern.compile("(?i)(\\S+)\\s+(\\S+)");
     private static final DateTimeFormatter DISPLAY_DATE =
             DateTimeFormatter.ofPattern("EEE dd-MM-uuuu", Locale.ENGLISH);
@@ -53,6 +56,9 @@ public class PaymentCommands {
         if (command.equals("unpaid")) {
             return listUnpaid(arguments);
         }
+        if (command.equals("owed")) {
+            return listOwed(arguments);
+        }
         return mark(arguments);
     }
 
@@ -85,16 +91,7 @@ public class PaymentCommands {
             }
         }
 
-        LocalDate today = LocalDate.now(clock);
-        String filterId = selectedStudentId;
-        List<Lesson> unpaidLessons = data.getLessons().stream()
-                .filter(lesson -> Lesson.PAYMENT_UNPAID.equalsIgnoreCase(lesson.getPaymentStatus()))
-                .filter(lesson -> !lesson.getDate().isAfter(today))
-                .filter(lesson -> filterId == null || filterId.equalsIgnoreCase(lesson.getStudentId()))
-                .sorted(Comparator.comparing(Lesson::getDate)
-                        .thenComparing(Lesson::getTime)
-                        .thenComparing(Lesson::getLessonId))
-                .toList();
+        List<Lesson> unpaidLessons = unpaidLessons(LocalDate.now(clock), selectedStudentId);
 
         int studentWidth = unpaidLessons.stream()
                 .map(lesson -> studentLabel(data.getStudent(lesson.getStudentId())).length())
@@ -123,7 +120,59 @@ public class PaymentCommands {
         return output.toString();
     }
 
+    /** Totals fees for students with unpaid lessons that have taken place. */
+    private String listOwed(String arguments) {
+        if (!arguments.isEmpty()) {
+            return "Error: Use: owed.";
+        }
+
+        Map<String, OwedTotal> totals = new HashMap<>();
+        for (Lesson lesson : unpaidLessons(LocalDate.now(clock), null)) {
+            totals.merge(lesson.getStudentId().toUpperCase(Locale.ROOT),
+                    new OwedTotal(lesson.getFee(), 1), OwedTotal::plus);
+        }
+
+        List<Student> owingStudents = data.findStudents("").stream()
+                .filter(student -> totals.containsKey(student.getStudentId()))
+                .toList();
+        StringBuilder output = new StringBuilder("        ").append(SEPARATOR)
+                .append(System.lineSeparator());
+        if (owingStudents.isEmpty()) {
+            output.append("No students owe anything.");
+        } else {
+            output.append("Outstanding balances (").append(owingStudents.size())
+                    .append(owingStudents.size() == 1 ? " student)" : " students)");
+            for (Student student : owingStudents) {
+                OwedTotal total = totals.get(student.getStudentId());
+                output.append(System.lineSeparator())
+                        .append(studentLabel(student)).append("  $")
+                        .append(total.amount().setScale(2, RoundingMode.UNNECESSARY).toPlainString())
+                        .append("  (").append(total.lessonCount())
+                        .append(total.lessonCount() == 1 ? " lesson)" : " lessons)");
+            }
+        }
+        output.append(System.lineSeparator()).append("       ").append(SEPARATOR);
+        return output.toString();
+    }
+
+    private List<Lesson> unpaidLessons(LocalDate today, String studentId) {
+        return data.getLessons().stream()
+                .filter(lesson -> Lesson.PAYMENT_UNPAID.equalsIgnoreCase(lesson.getPaymentStatus()))
+                .filter(lesson -> !lesson.getDate().isAfter(today))
+                .filter(lesson -> studentId == null || studentId.equalsIgnoreCase(lesson.getStudentId()))
+                .sorted(Comparator.comparing(Lesson::getDate)
+                        .thenComparing(Lesson::getTime)
+                        .thenComparing(Lesson::getLessonId))
+                .toList();
+    }
+
     private static String studentLabel(Student student) {
         return student.getStudentId() + " " + student.getName();
+    }
+
+    private record OwedTotal(BigDecimal amount, int lessonCount) {
+        private OwedTotal plus(OwedTotal other) {
+            return new OwedTotal(amount.add(other.amount), lessonCount + other.lessonCount);
+        }
     }
 }
