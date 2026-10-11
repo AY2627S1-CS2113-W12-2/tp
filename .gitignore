@@ -18,3 +18,7 @@ _temp/
 
 /text-ui-test/ACTUAL.TXT
 text-ui-test/EXPECTED-UNIX.TXT
+
+# TutorLedger data and backups created when running the app from the project folder
+/data/
+/backups/
