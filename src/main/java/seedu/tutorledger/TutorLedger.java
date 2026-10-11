@@ -6,7 +6,8 @@ import java.util.Scanner;
 /** Command-line entry point for the student book. */
 public class TutorLedger {
     /**
-     * Reads commands until the user exits or standard input closes.
+     * Loads the saved data, then reads commands until the user exits or standard input closes.
+     * Any command that changes data is saved straight away, so nothing needs saving on exit.
      */
     public static void main(String[] args) {
         TutorLedgerData data = new TutorLedgerData();
@@ -15,13 +16,22 @@ public class TutorLedger {
         HomeworkCommands homeworkCommands = new HomeworkCommands(data, clock);
         PaymentCommands paymentCommands = new PaymentCommands(data, clock);
         LessonCommands lessonCommands = new LessonCommands(data, clock);
+        StorageCommands storageCommands = new StorageCommands(data, new Storage(Storage.DEFAULT_FILE_PATH));
         System.out.println("TutorLedger student book. Type exit to close.");
+        System.out.println(storageCommands.loadOnStartup());
         Scanner input = new Scanner(System.in);
         while (input.hasNextLine()) {
             String line = input.nextLine();
             if (line.strip().equalsIgnoreCase("exit")) {
                 break;
             }
+            // save and reload manage the file themselves, so they are not followed by an automatic save.
+            // In particular, reload must not save, or lines it skipped would be erased before they are fixed.
+            if (StorageCommands.handles(line)) {
+                System.out.println(storageCommands.execute(line));
+                continue;
+            }
+            String before = storageCommands.snapshot();
             // Each feature handler receives only the commands it owns.
             if (PaymentCommands.handles(line)) {
                 System.out.println(paymentCommands.execute(line));
@@ -31,6 +41,10 @@ public class TutorLedger {
                 System.out.println(lessonCommands.execute(line));
             } else {
                 System.out.println(commands.execute(line));
+            }
+            String saveWarning = storageCommands.saveIfChanged(before);
+            if (!saveWarning.isEmpty()) {
+                System.out.println(saveWarning);
             }
         }
     }

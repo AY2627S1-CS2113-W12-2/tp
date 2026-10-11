@@ -143,8 +143,35 @@ public class TutorLedgerData {
         return lesson;
     }
 
+    /**
+     * Imports a saved lesson, keeping its ID, for storage loading.
+     *
+     * <p>Unlike {@link #putLesson}, this rejects a lesson whose ID is already taken or that starts at
+     * the same date and time as another lesson, so a hand-edited data file cannot break those rules.
+     *
+     * @throws IllegalArgumentException If the student is missing, the ID is taken or the slot is not free.
+     */
+    public void importLesson(Lesson lesson) {
+        if (!lesson.getLessonId().matches("(?i)L[1-9]\\d*")) {
+            throw new IllegalArgumentException("Lesson ID must look like L1.");
+        }
+        if (lessons.containsKey(lesson.getLessonId().toUpperCase(Locale.ROOT))) {
+            throw new IllegalArgumentException("Duplicate lesson ID " + lesson.getLessonId() + ".");
+        }
+        ensureSlotFree(lesson);
+        putLesson(lesson);
+    }
+
     public int getNextLessonNumber() {
         return nextLessonNumber;
+    }
+
+    /** Restores the saved lesson counter, including IDs belonging to deleted lessons. */
+    public void setNextLessonNumber(int value) {
+        if (value < nextLessonNumber) {
+            throw new IllegalArgumentException("Next lesson number cannot reuse an ID.");
+        }
+        nextLessonNumber = value;
     }
 
     /** Returns a lesson by ID, accepting IDs in either case. */
@@ -207,8 +234,49 @@ public class TutorLedgerData {
         return item;
     }
 
+    /**
+     * Imports saved homework, keeping its ID, for storage loading.
+     *
+     * @throws IllegalArgumentException If the student is missing or the ID is already taken.
+     */
+    public void importHomework(Homework item) {
+        if (!item.getHomeworkId().matches("(?i)H[1-9]\\d*")) {
+            throw new IllegalArgumentException("Homework ID must look like H1.");
+        }
+        if (homework.containsKey(item.getHomeworkId().toUpperCase(Locale.ROOT))) {
+            throw new IllegalArgumentException("Duplicate homework ID " + item.getHomeworkId() + ".");
+        }
+        putHomework(item);
+    }
+
     public int getNextHomeworkNumber() {
         return nextHomeworkNumber;
+    }
+
+    /** Restores the saved homework counter, including IDs belonging to deleted homework. */
+    public void setNextHomeworkNumber(int value) {
+        if (value < nextHomeworkNumber) {
+            throw new IllegalArgumentException("Next homework number cannot reuse an ID.");
+        }
+        nextHomeworkNumber = value;
+    }
+
+    /**
+     * Replaces every record and ID counter with those of {@code source}.
+     *
+     * <p>Used by {@code reload}. The command classes all share this one object, so the data is
+     * copied into it rather than swapping in a new object they would not see.
+     */
+    public void replaceAllWith(TutorLedgerData source) {
+        students.clear();
+        students.putAll(source.students);
+        lessons.clear();
+        lessons.putAll(source.lessons);
+        homework.clear();
+        homework.putAll(source.homework);
+        nextStudentNumber = source.nextStudentNumber;
+        nextLessonNumber = source.nextLessonNumber;
+        nextHomeworkNumber = source.nextHomeworkNumber;
     }
 
     /** Removes a student and all linked records, returning their deletion counts. */
