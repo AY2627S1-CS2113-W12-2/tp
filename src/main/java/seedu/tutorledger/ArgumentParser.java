@@ -5,6 +5,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -15,6 +17,8 @@ import java.util.regex.Pattern;
  * the same way by every command that accepts it.
  */
 final class ArgumentParser {
+    private static final Logger LOGGER = Logger.getLogger(ArgumentParser.class.getName());
+
     /** A prefix is a run of letters followed by a slash, at the start of the text or after a space. */
     private static final Pattern PREFIX = Pattern.compile("(?i)(?<!\\S)([a-z]+)/");
 
@@ -31,6 +35,7 @@ final class ArgumentParser {
      * @throws IllegalArgumentException If the text has an unexpected prefix or a value with no prefix.
      */
     static Fields parseFields(String text, List<String> allowed) {
+        LOGGER.log(Level.INFO, "Parsing fields: text={0}, allowed={1}", new Object[]{text, allowed});
         Map<String, List<String>> values = new HashMap<>();
         Matcher matcher = PREFIX.matcher(text);
         int previousEnd = 0;
@@ -57,6 +62,7 @@ final class ArgumentParser {
         } else {
             values.get(previousKey).add(text.substring(previousEnd).trim());
         }
+        LOGGER.log(Level.INFO, "Parsed fields result: {0}", values);
         return new Fields(values);
     }
 
@@ -80,6 +86,7 @@ final class ArgumentParser {
          * @throws IllegalArgumentException If the prefix is repeated, or is required but missing or blank.
          */
         String single(String key, boolean required) {
+            LOGGER.log(Level.FINE, "Resolving single field for key {0} (required={1})", new Object[]{key, required});
             List<String> entries = values(key);
             if (entries.size() > 1) {
                 throw new IllegalArgumentException("Give " + key + "/ only once.");
@@ -94,6 +101,7 @@ final class ArgumentParser {
         }
 
         String singleOr(String key, String fallback) {
+            LOGGER.log(Level.FINE, "Resolving optional field {0} with fallback {1}", new Object[]{key, fallback});
             return has(key) ? single(key, true) : fallback;
         }
     }
