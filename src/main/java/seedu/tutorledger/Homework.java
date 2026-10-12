@@ -11,12 +11,12 @@ import java.util.logging.Logger;
  * Represents a homework item and its submission status.
  */
 public class Homework {
-    private static final Logger LOGGER = Logger.getLogger(Homework.class.getName());
-
     /** Status of homework that has been assigned but not handed in. */
     public static final String STATUS_OUTSTANDING = "outstanding";
     /** Status of homework that has been handed in. */
     public static final String STATUS_SUBMITTED = "submitted";
+
+    private static final Logger LOGGER = Logger.getLogger(Homework.class.getName());
 
     private final String homeworkId;
     private final String submitStatus;

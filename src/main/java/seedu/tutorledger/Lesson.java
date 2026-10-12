@@ -15,10 +15,10 @@ import java.util.logging.Logger;
  * Represents a lesson, including its schedule, attendance, fee, and payment status.
  */
 public class Lesson {
-    private static final Logger LOGGER = Logger.getLogger(Lesson.class.getName());
-
     public static final String PAYMENT_PAID = "paid";
     public static final String PAYMENT_UNPAID = "unpaid";
+
+    private static final Logger LOGGER = Logger.getLogger(Lesson.class.getName());
 
     private static final DateTimeFormatter DATE_FORMATTER = new DateTimeFormatterBuilder()
             .appendPattern("dd-MM-uuuu")
@@ -109,7 +109,8 @@ public class Lesson {
     }
 
     private Lesson(Lesson lesson, String paymentStatus) {
-        LOGGER.log(Level.INFO, "Updating payment status for lesson {0} to {1}", new Object[]{lesson.lessonId, paymentStatus});
+        LOGGER.log(Level.INFO, "Updating payment status for lesson {0} to {1}",
+                new Object[]{lesson.lessonId, paymentStatus});
         this.lessonId = lesson.lessonId;
         this.studentId = lesson.studentId;
         this.subject = lesson.subject;
@@ -209,7 +210,8 @@ public class Lesson {
     public Lesson withPaymentStatus(String status) {
         LOGGER.log(Level.INFO, "Changing payment status for lesson {0} to {1}", new Object[]{lessonId, status});
         Lesson updated = new Lesson(this, status);
-        LOGGER.log(Level.INFO, "Lesson {0} payment status changed to {1}", new Object[]{lessonId, updated.paymentStatus});
+        LOGGER.log(Level.INFO, "Lesson {0} payment status changed to {1}",
+                new Object[]{lessonId, updated.paymentStatus});
         return updated;
     }
 
