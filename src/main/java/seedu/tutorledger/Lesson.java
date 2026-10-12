@@ -8,11 +8,15 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.ResolverStyle;
 import java.util.Locale;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Represents a lesson, including its schedule, attendance, fee, and payment status.
  */
 public class Lesson {
+    private static final Logger LOGGER = Logger.getLogger(Lesson.class.getName());
+
     public static final String PAYMENT_PAID = "paid";
     public static final String PAYMENT_UNPAID = "unpaid";
 
@@ -44,17 +48,38 @@ public class Lesson {
      */
     public Lesson(String lessonId, String subject, String date, String time, String attendance,
             String fee, String notes) {
-        this(lessonId, null, subject, date, time, attendance, fee, notes, PAYMENT_UNPAID);
+        LOGGER.log(Level.INFO, "Creating lesson {0} for subject {1}", new Object[]{lessonId, subject});
+        this.lessonId = requireText(lessonId, "Lesson ID");
+        this.studentId = null;
+        this.subject = requireText(subject, "Subject");
+        this.date = parseDate(date);
+        this.time = parseTime(time);
+        this.attendance = Attendance.parse(attendance);
+        this.fee = parseFee(fee);
+        this.notes = requireNonNull(notes, "Notes");
+        this.paymentStatus = validatePaymentStatus(PAYMENT_UNPAID);
+        LOGGER.log(Level.INFO, "Lesson created: {0}", this.lessonId);
     }
 
     /** Creates a lesson linked to a student for student views and deletion. */
     public Lesson(String lessonId, String studentId, String subject, String date, String time, String attendance,
             String fee, String notes) {
-        this(lessonId, studentId, subject, date, time, attendance, fee, notes, PAYMENT_UNPAID);
+        LOGGER.log(Level.INFO, "Creating lesson {0} for student {1}", new Object[]{lessonId, studentId});
+        this.lessonId = requireText(lessonId, "Lesson ID");
+        this.studentId = studentId;
+        this.subject = requireText(subject, "Subject");
+        this.date = parseDate(date);
+        this.time = parseTime(time);
+        this.attendance = Attendance.parse(attendance);
+        this.fee = parseFee(fee);
+        this.notes = requireNonNull(notes, "Notes");
+        this.paymentStatus = validatePaymentStatus(PAYMENT_UNPAID);
+        LOGGER.log(Level.INFO, "Lesson created: {0}", this.lessonId);
     }
 
     private Lesson(String lessonId, String studentId, String subject, String date, String time, String attendance,
             String fee, String notes, String paymentStatus) {
+        LOGGER.log(Level.INFO, "Creating lesson {0} with payment status {1}", new Object[]{lessonId, paymentStatus});
         this.lessonId = requireText(lessonId, "Lesson ID");
         this.studentId = studentId;
         this.subject = requireText(subject, "Subject");
@@ -64,11 +89,13 @@ public class Lesson {
         this.fee = parseFee(fee);
         this.notes = requireNonNull(notes, "Notes");
         this.paymentStatus = validatePaymentStatus(paymentStatus);
+        LOGGER.log(Level.INFO, "Lesson creation complete: {0}", this.lessonId);
     }
 
     /** Creates a lesson from values that have already been validated and converted. */
     private Lesson(String lessonId, String studentId, String subject, LocalDate date, LocalTime time,
             Attendance attendance, BigDecimal fee, String notes, String paymentStatus) {
+        LOGGER.log(Level.INFO, "Creating validated lesson {0}", lessonId);
         this.lessonId = lessonId;
         this.studentId = studentId;
         this.subject = subject;
@@ -78,9 +105,11 @@ public class Lesson {
         this.fee = fee;
         this.notes = notes;
         this.paymentStatus = paymentStatus;
+        LOGGER.log(Level.INFO, "Validated lesson created: {0}", lessonId);
     }
 
     private Lesson(Lesson lesson, String paymentStatus) {
+        LOGGER.log(Level.INFO, "Updating payment status for lesson {0} to {1}", new Object[]{lesson.lessonId, paymentStatus});
         this.lessonId = lesson.lessonId;
         this.studentId = lesson.studentId;
         this.subject = lesson.subject;
@@ -90,47 +119,59 @@ public class Lesson {
         this.fee = lesson.fee;
         this.notes = lesson.notes;
         this.paymentStatus = validatePaymentStatus(paymentStatus);
+        LOGGER.log(Level.INFO, "Lesson payment status updated: {0}", this.lessonId);
     }
 
     public String getLessonId() {
+        LOGGER.log(Level.FINE, "Retrieving lesson ID for lesson {0}", lessonId);
         return lessonId;
     }
 
     public String getStudentId() {
+        LOGGER.log(Level.FINE, "Retrieving student ID for lesson {0}", lessonId);
         return studentId;
     }
 
     public String getSubject() {
+        LOGGER.log(Level.FINE, "Retrieving subject for lesson {0}", lessonId);
         return subject;
     }
 
     public LocalDate getDate() {
+        LOGGER.log(Level.FINE, "Retrieving date for lesson {0}", lessonId);
         return date;
     }
 
     public LocalTime getTime() {
+        LOGGER.log(Level.FINE, "Retrieving time for lesson {0}", lessonId);
         return time;
     }
 
     public Attendance getAttendance() {
+        LOGGER.log(Level.FINE, "Retrieving attendance for lesson {0}", lessonId);
         return attendance;
     }
 
     public BigDecimal getFee() {
+        LOGGER.log(Level.FINE, "Retrieving fee for lesson {0}", lessonId);
         return fee;
     }
 
     public String getNotes() {
+        LOGGER.log(Level.FINE, "Retrieving notes for lesson {0}", lessonId);
         return notes;
     }
 
     public String getPaymentStatus() {
+        LOGGER.log(Level.FINE, "Retrieving payment status for lesson {0}", lessonId);
         return paymentStatus;
     }
 
     /** Returns true once attendance has been recorded for this lesson. */
     public boolean isRecorded() {
-        return attendance != Attendance.NOT_RECORDED;
+        boolean recorded = attendance != Attendance.NOT_RECORDED;
+        LOGGER.log(Level.FINE, "Lesson {0} recorded status: {1}", new Object[]{lessonId, recorded});
+        return recorded;
     }
 
     /**
@@ -150,7 +191,9 @@ public class Lesson {
      */
     public Lesson withDetails(String newSubject, String newDate, String newTime, String newAttendance,
             String newFee, String newNotes) {
-        return new Lesson(lessonId, studentId,
+        LOGGER.log(Level.INFO, "Updating lesson {0} details: subject={1}, date={2}, time={3}",
+                new Object[]{lessonId, newSubject, newDate, newTime});
+        Lesson updated = new Lesson(lessonId, studentId,
                 newSubject == null ? subject : requireText(newSubject, "Subject"),
                 newDate == null ? date : parseDate(newDate),
                 newTime == null ? time : parseTime(newTime),
@@ -158,14 +201,20 @@ public class Lesson {
                 newFee == null ? fee : parseFee(newFee),
                 newNotes == null ? notes : newNotes,
                 paymentStatus);
+        LOGGER.log(Level.INFO, "Lesson {0} details updated", lessonId);
+        return updated;
     }
 
     /** Returns a copy with the supplied paid/unpaid status. */
     public Lesson withPaymentStatus(String status) {
-        return new Lesson(this, status);
+        LOGGER.log(Level.INFO, "Changing payment status for lesson {0} to {1}", new Object[]{lessonId, status});
+        Lesson updated = new Lesson(this, status);
+        LOGGER.log(Level.INFO, "Lesson {0} payment status changed to {1}", new Object[]{lessonId, updated.paymentStatus});
+        return updated;
     }
 
     private static String validatePaymentStatus(String value) {
+        LOGGER.log(Level.FINE, "Validating payment status: {0}", value);
         requireNonNull(value, "Payment status");
         if (!value.equalsIgnoreCase(PAYMENT_PAID) && !value.equalsIgnoreCase(PAYMENT_UNPAID)) {
             throw new IllegalArgumentException("Payment status must be paid or unpaid.");
@@ -174,6 +223,7 @@ public class Lesson {
     }
 
     private static String requireText(String value, String fieldName) {
+        LOGGER.log(Level.FINE, "Validating text field {0}", fieldName);
         requireNonNull(value, fieldName);
         if (value.isBlank()) {
             throw new IllegalArgumentException(fieldName + " cannot be blank.");
@@ -182,6 +232,7 @@ public class Lesson {
     }
 
     private static String requireNonNull(String value, String fieldName) {
+        LOGGER.log(Level.FINE, "Validating non-null field {0}", fieldName);
         if (value == null) {
             throw new IllegalArgumentException(fieldName + " cannot be null.");
         }
@@ -189,6 +240,7 @@ public class Lesson {
     }
 
     private static LocalDate parseDate(String value) {
+        LOGGER.log(Level.FINE, "Parsing date value: {0}", value);
         requireNonNull(value, "Date");
         try {
             return LocalDate.parse(value, DATE_FORMATTER);
@@ -198,6 +250,7 @@ public class Lesson {
     }
 
     private static LocalTime parseTime(String value) {
+        LOGGER.log(Level.FINE, "Parsing time value: {0}", value);
         requireNonNull(value, "Time");
         if (!value.matches("\\d{4}")) {
             throw new IllegalArgumentException("Time must be in 24-hour HHMM format.");
@@ -211,6 +264,7 @@ public class Lesson {
     }
 
     private static BigDecimal parseFee(String value) {
+        LOGGER.log(Level.FINE, "Parsing fee value: {0}", value);
         requireNonNull(value, "Fee");
         if (!value.matches("\\d+(?:\\.\\d{1,2})?")) {
             throw new IllegalArgumentException("Fee must be a non-negative dollar amount with at most 2 decimals.");
@@ -228,6 +282,7 @@ public class Lesson {
         LATE;
 
         private static Attendance parse(String value) {
+            LOGGER.log(Level.FINE, "Parsing attendance value: {0}", value);
             requireNonNull(value, "Attendance");
             try {
                 return Attendance.valueOf(value.trim().replace(' ', '_').toUpperCase(Locale.ROOT));
