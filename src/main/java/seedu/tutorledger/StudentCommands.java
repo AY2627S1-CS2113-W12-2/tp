@@ -9,9 +9,13 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /** Parses and runs the six student commands from the v1 user guide. */
 public class StudentCommands {
+    /** Records rejected commands when debug logging is enabled. */
+    private static final Logger LOGGER = Logger.getLogger(StudentCommands.class.getName());
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("EEE dd-MM-uuuu", Locale.ENGLISH);
     private final TutorLedgerData data;
     private final Clock clock;
@@ -41,6 +45,8 @@ public class StudentCommands {
             default -> "Unknown command: " + words[0] + ".";
             };
         } catch (IllegalArgumentException exception) {
+            LOGGER.log(Level.FINE, "Student command {0} rejected: {1}",
+                    new Object[]{command, exception.getMessage()});
             return "Error: " + exception.getMessage();
         }
     }
