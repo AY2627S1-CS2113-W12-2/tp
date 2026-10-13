@@ -8,9 +8,13 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /** Shared in-memory records used by student commands and future feature commands. */
 public class TutorLedgerData {
+    private static final Logger LOGGER = Logger.getLogger(TutorLedgerData.class.getName());
+
     private final Map<String, Student> students = new LinkedHashMap<>();
     private final Map<String, Lesson> lessons = new LinkedHashMap<>();
     private final Map<String, Homework> homework = new LinkedHashMap<>();
@@ -22,15 +26,19 @@ public class TutorLedgerData {
 
     /** Adds a student and assigns the next permanent ID. */
     public Student addStudent(String name, String level, String phoneNumber) {
+        LOGGER.log(Level.INFO, "Adding student: name={0}, level={1}, phone={2}",
+                new Object[]{name, level, phoneNumber});
         Student candidate = new Student("S" + nextStudentNumber, name, level, phoneNumber);
         ensureUnique(candidate, null);
         students.put(candidate.getStudentId(), candidate);
         nextStudentNumber++;
+        LOGGER.log(Level.INFO, "Student added: {0}", candidate.getStudentId());
         return candidate;
     }
 
     /** Replaces an existing profile after checking for duplicate identity. */
     public void replaceStudent(Student student) {
+        LOGGER.log(Level.INFO, "Replacing student {0}", student.getStudentId());
         getStudent(student.getStudentId());
         ensureUnique(student, student.getStudentId());
         students.put(student.getStudentId(), student);
@@ -38,6 +46,7 @@ public class TutorLedgerData {
 
     /** Returns a student, accepting IDs in either case. */
     public Student getStudent(String id) {
+        LOGGER.log(Level.FINE, "Looking up student by ID: {0}", id);
         String key = normaliseId(id);
         Student student = students.get(key);
         if (student == null) {
@@ -48,6 +57,7 @@ public class TutorLedgerData {
 
     /** Returns students in numeric ID order, optionally filtered by name. */
     public List<Student> findStudents(String nameFragment) {
+        LOGGER.log(Level.FINE, "Finding students matching: {0}", nameFragment);
         String needle = nameFragment.toLowerCase(Locale.ROOT);
         return students.values().stream()
                 .filter(student -> student.getName().toLowerCase(Locale.ROOT).contains(needle))
@@ -57,6 +67,7 @@ public class TutorLedgerData {
 
     /** Imports a student for storage reload while advancing the ID counter. */
     public void importStudent(Student student) {
+        LOGGER.log(Level.INFO, "Importing student: {0}", student.getStudentId());
         ensureUnique(student, null);
         if (students.putIfAbsent(student.getStudentId(), student) != null) {
             throw new IllegalArgumentException("Duplicate student ID " + student.getStudentId() + ".");
@@ -65,11 +76,13 @@ public class TutorLedgerData {
     }
 
     public int getNextStudentNumber() {
+        LOGGER.log(Level.FINE, "Current next student number: {0}", nextStudentNumber);
         return nextStudentNumber;
     }
 
     /** Restores the saved counter, including IDs belonging to deleted students. */
     public void setNextStudentNumber(int value) {
+        LOGGER.log(Level.INFO, "Setting next student number to {0}", value);
         if (value < nextStudentNumber) {
             throw new IllegalArgumentException("Next student number cannot reuse an ID.");
         }
@@ -77,19 +90,23 @@ public class TutorLedgerData {
     }
 
     public Collection<Student> getStudents() {
+        LOGGER.log(Level.FINE, "Retrieving all students ({0})", students.size());
         return List.copyOf(students.values());
     }
 
     public Collection<Lesson> getLessons() {
+        LOGGER.log(Level.FINE, "Retrieving all lessons ({0})", lessons.size());
         return List.copyOf(lessons.values());
     }
 
     public Collection<Homework> getHomework() {
+        LOGGER.log(Level.FINE, "Retrieving all homework ({0})", homework.size());
         return List.copyOf(homework.values());
     }
 
     /** Registers a lesson after checking its student link. */
     public void putLesson(Lesson lesson) {
+        LOGGER.log(Level.INFO, "Putting lesson {0} into store", lesson.getLessonId());
         getStudent(lesson.getStudentId());
         String key = lesson.getLessonId().toUpperCase(Locale.ROOT);
         lessons.put(key, lesson);
@@ -97,6 +114,7 @@ public class TutorLedgerData {
         if (key.matches("L[1-9]\\d*")) {
             nextLessonNumber = Math.max(nextLessonNumber, Integer.parseInt(key.substring(1)) + 1);
         }
+        LOGGER.log(Level.INFO, "Lesson stored: {0}", key);
     }
 
     /**
@@ -112,11 +130,14 @@ public class TutorLedgerData {
      * @throws IllegalArgumentException If a value is invalid or another lesson starts at the same time.
      */
     public Lesson addLesson(String studentId, String subject, String date, String time, String fee) {
+        LOGGER.log(Level.INFO, "Scheduling lesson for student {0} subject={1} date={2} time={3} fee={4}",
+                new Object[]{studentId, subject, date, time, fee});
         Student student = getStudent(studentId);
         Lesson lesson = new Lesson("L" + nextLessonNumber, student.getStudentId(), subject, date, time,
                 Lesson.Attendance.NOT_RECORDED.name(), fee, "");
         ensureSlotFree(lesson);
         putLesson(lesson);
+        LOGGER.log(Level.INFO, "Lesson scheduled: {0}", lesson.getLessonId());
         return lesson;
     }
 
@@ -126,6 +147,7 @@ public class TutorLedgerData {
      * @throws IllegalArgumentException If the lesson was moved to a slot where another lesson starts.
      */
     public void replaceLesson(Lesson lesson) {
+        LOGGER.log(Level.INFO, "Replacing lesson {0}", lesson.getLessonId());
         Lesson existing = getLesson(lesson.getLessonId());
         // Only a lesson that actually moved needs the check, so other edits are never blocked by it.
         boolean isMoved = !existing.getDate().equals(lesson.getDate())
@@ -138,6 +160,7 @@ public class TutorLedgerData {
 
     /** Removes a lesson and returns it, so the caller can report what was deleted. */
     public Lesson deleteLesson(String id) {
+        LOGGER.log(Level.INFO, "Deleting lesson {0}", id);
         Lesson lesson = getLesson(id);
         lessons.remove(lesson.getLessonId().toUpperCase(Locale.ROOT));
         return lesson;
@@ -152,6 +175,7 @@ public class TutorLedgerData {
      * @throws IllegalArgumentException If the student is missing, the ID is taken or the slot is not free.
      */
     public void importLesson(Lesson lesson) {
+        LOGGER.log(Level.INFO, "Importing lesson {0}", lesson.getLessonId());
         if (!lesson.getLessonId().matches("(?i)L[1-9]\\d*")) {
             throw new IllegalArgumentException("Lesson ID must look like L1.");
         }
@@ -163,11 +187,13 @@ public class TutorLedgerData {
     }
 
     public int getNextLessonNumber() {
+        LOGGER.log(Level.FINE, "Current next lesson number: {0}", nextLessonNumber);
         return nextLessonNumber;
     }
 
     /** Restores the saved lesson counter, including IDs belonging to deleted lessons. */
     public void setNextLessonNumber(int value) {
+        LOGGER.log(Level.INFO, "Setting next lesson number to {0}", value);
         if (value < nextLessonNumber) {
             throw new IllegalArgumentException("Next lesson number cannot reuse an ID.");
         }
@@ -176,6 +202,7 @@ public class TutorLedgerData {
 
     /** Returns a lesson by ID, accepting IDs in either case. */
     public Lesson getLesson(String id) {
+        LOGGER.log(Level.FINE, "Looking up lesson by ID: {0}", id);
         if (id == null || !id.matches("(?i)L[1-9]\\d*")) {
             throw new IllegalArgumentException("Lesson ID must look like L1.");
         }
@@ -189,6 +216,7 @@ public class TutorLedgerData {
 
     /** Changes an existing lesson's payment status without modifying its other details. */
     public Lesson updateLessonPaymentStatus(String id, String status) {
+        LOGGER.log(Level.INFO, "Updating payment status for lesson {0} to {1}", new Object[]{id, status});
         Lesson updated = getLesson(id).withPaymentStatus(status);
         lessons.put(updated.getLessonId().toUpperCase(Locale.ROOT), updated);
         return updated;
@@ -196,6 +224,7 @@ public class TutorLedgerData {
 
     /** Registers homework after checking its student link. */
     public void putHomework(Homework item) {
+        LOGGER.log(Level.INFO, "Putting homework {0} into store", item.getHomeworkId());
         getStudent(item.getStudentId());
         String key = item.getHomeworkId().toUpperCase(Locale.ROOT);
         homework.put(key, item);
@@ -203,6 +232,7 @@ public class TutorLedgerData {
         if (key.matches("H[1-9]\\d*")) {
             nextHomeworkNumber = Math.max(nextHomeworkNumber, Integer.parseInt(key.substring(1)) + 1);
         }
+        LOGGER.log(Level.INFO, "Homework stored: {0}", key);
     }
 
     /**
@@ -214,15 +244,19 @@ public class TutorLedgerData {
      * @return the newly stored homework
      */
     public Homework addHomework(String studentId, String description, LocalDate dueDate) {
+        LOGGER.log(Level.INFO, "Assigning homework to student {0}: description={1}, dueDate={2}",
+                new Object[]{studentId, description, dueDate});
         Student student = getStudent(studentId);
         Homework item = new Homework("H" + nextHomeworkNumber, student.getStudentId(), description, dueDate,
                 Homework.STATUS_OUTSTANDING);
         putHomework(item);
+        LOGGER.log(Level.INFO, "Homework assigned: {0}", item.getHomeworkId());
         return item;
     }
 
     /** Returns a homework item, accepting IDs in either case. */
     public Homework getHomeworkById(String id) {
+        LOGGER.log(Level.FINE, "Looking up homework by ID: {0}", id);
         if (id == null || !id.matches("(?i)H[1-9]\\d*")) {
             throw new IllegalArgumentException("Homework ID must look like H1.");
         }
@@ -240,6 +274,7 @@ public class TutorLedgerData {
      * @throws IllegalArgumentException If the student is missing or the ID is already taken.
      */
     public void importHomework(Homework item) {
+        LOGGER.log(Level.INFO, "Importing homework {0}", item.getHomeworkId());
         if (!item.getHomeworkId().matches("(?i)H[1-9]\\d*")) {
             throw new IllegalArgumentException("Homework ID must look like H1.");
         }
@@ -250,11 +285,13 @@ public class TutorLedgerData {
     }
 
     public int getNextHomeworkNumber() {
+        LOGGER.log(Level.FINE, "Current next homework number: {0}", nextHomeworkNumber);
         return nextHomeworkNumber;
     }
 
     /** Restores the saved homework counter, including IDs belonging to deleted homework. */
     public void setNextHomeworkNumber(int value) {
+        LOGGER.log(Level.INFO, "Setting next homework number to {0}", value);
         if (value < nextHomeworkNumber) {
             throw new IllegalArgumentException("Next homework number cannot reuse an ID.");
         }
@@ -268,6 +305,7 @@ public class TutorLedgerData {
      * copied into it rather than swapping in a new object they would not see.
      */
     public void replaceAllWith(TutorLedgerData source) {
+        LOGGER.log(Level.INFO, "Replacing all records from source data");
         students.clear();
         students.putAll(source.students);
         lessons.clear();
@@ -281,6 +319,7 @@ public class TutorLedgerData {
 
     /** Removes a student and all linked records, returning their deletion counts. */
     public Deletion deleteStudent(String id) {
+        LOGGER.log(Level.INFO, "Deleting student {0}", id);
         Student student = getStudent(id);
         String key = student.getStudentId();
         students.remove(key);
@@ -290,6 +329,7 @@ public class TutorLedgerData {
     }
 
     private static <T> int removeLinked(Map<String, T> records, String studentId) {
+        LOGGER.log(Level.FINE, "Removing linked records for student {0}", studentId);
         List<String> keys = new ArrayList<>();
         for (Map.Entry<String, T> entry : records.entrySet()) {
             T record = entry.getValue();
@@ -303,6 +343,7 @@ public class TutorLedgerData {
     }
 
     private void ensureUnique(Student candidate, String excludedId) {
+        LOGGER.log(Level.FINE, "Ensuring uniqueness for student {0}", candidate.getStudentId());
         for (Student existing : students.values()) {
             if (!existing.getStudentId().equals(excludedId)
                     && existing.getName().equalsIgnoreCase(candidate.getName())
@@ -314,6 +355,8 @@ public class TutorLedgerData {
 
     /** Rejects a lesson that would start at the same date and time as a different lesson. */
     private void ensureSlotFree(Lesson candidate) {
+        LOGGER.log(Level.FINE, "Checking slot availability for lesson {0} at {1} {2}",
+                new Object[]{candidate.getLessonId(), candidate.getDate(), candidate.getTime()});
         for (Lesson existing : lessons.values()) {
             if (!existing.getLessonId().equalsIgnoreCase(candidate.getLessonId())
                     && existing.getDate().equals(candidate.getDate())
@@ -325,6 +368,7 @@ public class TutorLedgerData {
     }
 
     private static String normaliseId(String id) {
+        LOGGER.log(Level.FINE, "Normalising student ID: {0}", id);
         if (id == null || !id.matches("(?i)S[1-9]\\d*")) {
             throw new IllegalArgumentException("Student ID must look like S1.");
         }
