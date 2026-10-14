@@ -11,6 +11,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Parses and runs the lesson commands: {@code schedule}, {@code lessons} and {@code record},
@@ -19,6 +21,12 @@ import java.util.Set;
  * are reported as an "Error: ..." message instead of crashing the program.
  */
 public class LessonCommands {
+    /**
+     * Records each lesson command and its outcome at FINE level, so the trace only appears when
+     * debug logging is enabled and never clutters the tutor's screen.
+     */
+    private static final Logger LOGGER = Logger.getLogger(LessonCommands.class.getName());
+
     /** Command words that always belong to lessons, used by the main loop to route input here. */
     private static final Set<String> COMMAND_WORDS = Set.of("schedule", "lessons", "record");
 
@@ -46,6 +54,8 @@ public class LessonCommands {
      * @param clock The source of today's date.
      */
     public LessonCommands(TutorLedgerData data, Clock clock) {
+        assert data != null : "LessonCommands needs the records to work on";
+        assert clock != null : "LessonCommands needs a clock to know today's date";
         this.data = data;
         this.clock = clock;
     }
@@ -78,15 +88,23 @@ public class LessonCommands {
         String[] words = input.strip().split("\\s+", 2);
         String command = words[0].toLowerCase(Locale.ROOT);
         String arguments = words.length == 2 ? words[1].trim() : "";
+        LOGGER.log(Level.FINE, "Running lesson command {0} with arguments: {1}", new Object[]{command, arguments});
         try {
             return switch (command) {
             case "schedule" -> schedule(arguments);
             case "lessons" -> listLessons(arguments);
             case "record" -> record(arguments);
             case "edit" -> edit(arguments);
-            default -> delete(arguments);
+            default -> {
+                // handles() let only lesson command words through, so delete is the only one left.
+                assert command.equals("delete") : "Unexpected lesson command: " + command;
+                yield delete(arguments);
+            }
             };
         } catch (IllegalArgumentException exception) {
+            // A rejected command is the user's mistake, not a bug, so it is only traced for debugging.
+            LOGGER.log(Level.FINE, "Lesson command {0} rejected: {1}",
+                    new Object[]{command, exception.getMessage()});
             return "Error: " + exception.getMessage();
         }
     }
@@ -100,6 +118,9 @@ public class LessonCommands {
         String subject = findSubjectTakenBy(student, input.fields().single("s", true));
         String fee = input.fields().single("f", true);
         Lesson lesson = data.addLesson(student.getStudentId(), subject, date, time, fee);
+        assert lesson.getStudentId().equals(student.getStudentId()) : "Lesson was scheduled for the wrong student";
+        assert !lesson.isRecorded() : "A newly scheduled lesson should not have attendance yet";
+        LOGGER.log(Level.FINE, "Scheduled {0} for {1}", new Object[]{lesson.getLessonId(), student.getStudentId()});
         return "Scheduled " + lesson.getLessonId() + " for " + formatStudent(student) + System.lineSeparator()
                 + "  " + formatSlot(lesson) + ", " + lesson.getSubject() + ", "
                 + formatMoney(lesson.getFee());
@@ -117,6 +138,8 @@ public class LessonCommands {
                 ? today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
                 : today;
         LocalDate lastDay = isWeekView ? firstDay.plusDays(6) : today;
+        assert !firstDay.isAfter(lastDay) : "The listed range must not end before it starts";
+        assert !today.isBefore(firstDay) && !today.isAfter(lastDay) : "The listed range must include today";
         String heading = isWeekView
                 ? "This week, " + DISPLAY_DATE.format(firstDay) + " to " + DISPLAY_DATE.format(lastDay)
                 : "Today, " + DISPLAY_DATE.format(today);
@@ -127,6 +150,8 @@ public class LessonCommands {
                         .thenComparing(Lesson::getTime)
                         .thenComparing(Lesson::getLessonId))
                 .toList();
+        LOGGER.log(Level.FINE, "Listing {0} lessons from {1} to {2}",
+                new Object[]{lessons.size(), firstDay, lastDay});
         StringBuilder output = new StringBuilder(heading + ": " + formatCount(lessons.size(), "lesson"));
         if (lessons.isEmpty()) {
             return output.toString();
@@ -161,7 +186,10 @@ public class LessonCommands {
         }
         // Recording again replaces the attendance, and the notes only if note/ was typed.
         Lesson recorded = lesson.withDetails(null, null, null, attendance, null, parseNotes(input.fields()));
+        // parseAttendance only allows present, absent or late, so the copy must count as recorded.
+        assert recorded.isRecorded() : "Recording a lesson should leave it with attendance";
         data.replaceLesson(recorded);
+        LOGGER.log(Level.FINE, "Recorded {0} as {1}", new Object[]{recorded.getLessonId(), attendance});
         Student student = data.getStudent(recorded.getStudentId());
         return "Recorded " + recorded.getLessonId() + " for " + formatStudent(student)
                 + " (" + formatSlot(recorded) + ")" + System.lineSeparator()
@@ -188,6 +216,8 @@ public class LessonCommands {
             throw new IllegalArgumentException("A lesson dated after today cannot have attendance or notes.");
         }
         data.replaceLesson(edited);
+        LOGGER.log(Level.FINE, "Edited {0} using prefixes {1}",
+                new Object[]{edited.getLessonId(), fields.fields().keySet()});
         return "Edited " + edited.getLessonId() + " for " + formatStudent(student) + System.lineSeparator()
                 + "  " + formatSlot(edited) + ", " + edited.getSubject() + ", " + formatMoney(edited.getFee())
                 + ", " + formatAttendance(edited) + ", " + edited.getPaymentStatus()
@@ -200,6 +230,7 @@ public class LessonCommands {
             throw new IllegalArgumentException("Use: delete LESSON_ID");
         }
         Lesson lesson = data.deleteLesson(arguments);
+        LOGGER.log(Level.FINE, "Deleted {0}", lesson.getLessonId());
         Student student = data.getStudent(lesson.getStudentId());
         return "Deleted " + lesson.getLessonId() + " for " + formatStudent(student) + ": "
                 + formatSlot(lesson) + ", " + lesson.getSubject();
@@ -211,6 +242,8 @@ public class LessonCommands {
      * @throws IllegalArgumentException If the value is not present, absent or late.
      */
     private static String parseAttendance(String value) {
+        // Callers pass a required a/ value, which the parser has already checked is present.
+        assert value != null : "Attendance should have been checked as required before parsing";
         String word = value.toLowerCase(Locale.ROOT);
         if (!ATTENDANCE_WORDS.contains(word)) {
             throw new IllegalArgumentException("Attendance must be present, absent, or late.");
@@ -237,6 +270,8 @@ public class LessonCommands {
      * @throws IllegalArgumentException If the student does not take the subject.
      */
     private static String findSubjectTakenBy(Student student, String subject) {
+        assert student != null : "The student should have been looked up before checking subjects";
+        assert subject != null : "Subject should have been checked as required before matching";
         for (String taken : student.getSubjects()) {
             if (taken.equalsIgnoreCase(subject)) {
                 return taken;
@@ -279,6 +314,8 @@ public class LessonCommands {
 
     /** Formats a fee as dollars with two decimal places, e.g. $60.00. */
     private static String formatMoney(BigDecimal amount) {
+        // Lesson only accepts fees with at most two decimals, so rounding is never needed here.
+        assert amount.scale() <= 2 : "Fee has more than two decimal places: " + amount;
         return "$" + amount.setScale(2, RoundingMode.UNNECESSARY).toPlainString();
     }
 
