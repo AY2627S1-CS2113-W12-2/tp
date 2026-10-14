@@ -36,6 +36,10 @@ final class ArgumentParser {
      */
     static Fields parseFields(String text, List<String> allowed) {
         LOGGER.log(Level.INFO, "Parsing fields: text={0}, allowed={1}", new Object[]{text, allowed});
+        assert text != null : "Callers pass an empty string, not null, when there are no values";
+        // Matched keys are lower-cased letters, so an allowed prefix in any other form could never match.
+        assert allowed != null && allowed.stream().allMatch(prefix -> prefix.matches("[a-z]+"))
+                : "Allowed prefixes must be lower-case letters without the slash: " + allowed;
         Map<String, List<String>> values = new HashMap<>();
         Matcher matcher = PREFIX.matcher(text);
         int previousEnd = 0;
@@ -62,6 +66,8 @@ final class ArgumentParser {
         } else {
             values.get(previousKey).add(text.substring(previousEnd).trim());
         }
+        // Every prefix found is followed by a value (possibly blank), which single() relies on.
+        assert values.values().stream().noneMatch(List::isEmpty) : "A prefix was recorded without its value";
         LOGGER.log(Level.INFO, "Parsed fields result: {0}", values);
         return new Fields(values);
     }

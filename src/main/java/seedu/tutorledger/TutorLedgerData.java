@@ -133,10 +133,14 @@ public class TutorLedgerData {
         LOGGER.log(Level.INFO, "Scheduling lesson for student {0} subject={1} date={2} time={3} fee={4}",
                 new Object[]{studentId, subject, date, time, fee});
         Student student = getStudent(studentId);
-        Lesson lesson = new Lesson("L" + nextLessonNumber, student.getStudentId(), subject, date, time,
+        int lessonNumber = nextLessonNumber;
+        Lesson lesson = new Lesson("L" + lessonNumber, student.getStudentId(), subject, date, time,
                 Lesson.Attendance.NOT_RECORDED.name(), fee, "");
         ensureSlotFree(lesson);
         putLesson(lesson);
+        // putLesson must move the counter past the ID just used, or the next lesson would overwrite this one.
+        assert nextLessonNumber == lessonNumber + 1 : "Lesson counter did not advance after scheduling";
+        assert lessons.get(lesson.getLessonId()) == lesson : "Scheduled lesson was not stored";
         LOGGER.log(Level.INFO, "Lesson scheduled: {0}", lesson.getLessonId());
         return lesson;
     }
@@ -147,8 +151,12 @@ public class TutorLedgerData {
      * @throws IllegalArgumentException If the lesson was moved to a slot where another lesson starts.
      */
     public void replaceLesson(Lesson lesson) {
+        assert lesson != null : "Replacement lesson should not be null";
         LOGGER.log(Level.INFO, "Replacing lesson {0}", lesson.getLessonId());
         Lesson existing = getLesson(lesson.getLessonId());
+        // The replacement is a copy of an existing lesson, so it must still belong to the same student.
+        assert existing.getStudentId().equals(lesson.getStudentId())
+                : "Replacement moved the lesson to another student";
         // Only a lesson that actually moved needs the check, so other edits are never blocked by it.
         boolean isMoved = !existing.getDate().equals(lesson.getDate())
                 || !existing.getTime().equals(lesson.getTime());
@@ -156,13 +164,17 @@ public class TutorLedgerData {
             ensureSlotFree(lesson);
         }
         lessons.put(existing.getLessonId().toUpperCase(Locale.ROOT), lesson);
+        LOGGER.log(Level.FINE, "Lesson replaced: {0} (moved={1})", new Object[]{lesson.getLessonId(), isMoved});
     }
 
     /** Removes a lesson and returns it, so the caller can report what was deleted. */
     public Lesson deleteLesson(String id) {
         LOGGER.log(Level.INFO, "Deleting lesson {0}", id);
         Lesson lesson = getLesson(id);
-        lessons.remove(lesson.getLessonId().toUpperCase(Locale.ROOT));
+        String key = lesson.getLessonId().toUpperCase(Locale.ROOT);
+        lessons.remove(key);
+        assert !lessons.containsKey(key) : "Deleted lesson is still stored";
+        LOGGER.log(Level.FINE, "Lesson deleted: {0}", key);
         return lesson;
     }
 
@@ -355,6 +367,7 @@ public class TutorLedgerData {
 
     /** Rejects a lesson that would start at the same date and time as a different lesson. */
     private void ensureSlotFree(Lesson candidate) {
+        assert candidate != null : "Cannot check the slot of a null lesson";
         LOGGER.log(Level.FINE, "Checking slot availability for lesson {0} at {1} {2}",
                 new Object[]{candidate.getLessonId(), candidate.getDate(), candidate.getTime()});
         for (Lesson existing : lessons.values()) {
