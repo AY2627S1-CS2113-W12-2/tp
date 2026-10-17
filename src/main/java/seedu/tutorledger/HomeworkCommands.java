@@ -9,6 +9,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -18,6 +20,8 @@ import java.util.regex.Pattern;
  * are reported as an "Error: ..." message instead of crashing the program.
  */
 public class HomeworkCommands {
+    private static final Logger LOGGER = Logger.getLogger(HomeworkCommands.class.getName());
+
     /** Command words this class understands, used by the main loop to route input here. */
     private static final Set<String> COMMAND_WORDS = Set.of("assign", "submit", "homework");
 
@@ -40,6 +44,8 @@ public class HomeworkCommands {
     private final Clock clock;
 
     public HomeworkCommands(TutorLedgerData data, Clock clock) {
+        assert data != null : "HomeworkCommands needs a data store";
+        assert clock != null : "HomeworkCommands needs a clock to know today's date";
         this.data = data;
         this.clock = clock;
     }
@@ -61,6 +67,8 @@ public class HomeworkCommands {
         String[] words = input.strip().split("\\s+", 2);
         String command = words[0].toLowerCase(Locale.ROOT);
         String arguments = words.length == 2 ? words[1].trim() : "";
+        LOGGER.log(Level.FINE, "Running homework command {0} with arguments: {1}",
+                new Object[]{command, arguments});
         try {
             return switch (command) {
             case "assign" -> assign(arguments);
@@ -68,6 +76,9 @@ public class HomeworkCommands {
             default -> listOutstanding(arguments);
             };
         } catch (IllegalArgumentException exception) {
+            // Invalid user input is expected, so it is a WARNING (not SEVERE) and the user sees a friendly message.
+            LOGGER.log(Level.WARNING, "Rejected homework command {0}: {1}",
+                    new Object[]{input.strip(), exception.getMessage()});
             return "Error: " + exception.getMessage();
         }
     }
@@ -80,6 +91,7 @@ public class HomeworkCommands {
         }
         LocalDate dueDate = parseDate(matcher.group(3));
         Homework item = data.addHomework(matcher.group(1), matcher.group(2).trim(), dueDate);
+        assert !item.isSubmitted() : "Newly assigned homework should start as outstanding";
         Student student = data.getStudent(item.getStudentId());
         return "Assigned " + item.getHomeworkId() + " to " + studentLabel(student) + System.lineSeparator()
                 + "  " + item.getDescription() + ", due " + DISPLAY_DATE.format(item.getDueDate());
@@ -96,6 +108,7 @@ public class HomeworkCommands {
         }
         // Homework is immutable, so store a submitted copy under the same ID.
         data.putHomework(item.asSubmitted());
+        assert data.getHomeworkById(item.getHomeworkId()).isSubmitted() : "Stored homework should now be submitted";
         Student student = data.getStudent(item.getStudentId());
         return "Marked " + item.getHomeworkId() + " as submitted: " + item.getDescription()
                 + " (" + studentLabel(student) + ")";
@@ -110,6 +123,7 @@ public class HomeworkCommands {
                 .filter(item -> studentId == null || studentId.equals(item.getStudentId()))
                 .sorted(Comparator.comparing(Homework::getDueDate).thenComparing(Homework::getHomeworkId))
                 .toList();
+        LOGGER.log(Level.FINE, "Found {0} outstanding homework item(s)", outstanding.size());
 
         StringBuilder output = new StringBuilder(outstanding.size()
                 + (outstanding.size() == 1 ? " homework item" : " homework items") + " outstanding");
@@ -130,6 +144,7 @@ public class HomeworkCommands {
 
         LocalDate today = LocalDate.now(clock);
         for (Homework item : outstanding) {
+            assert !item.isSubmitted() : "Submitted homework should have been filtered out";
             String row = String.format(rowFormat, item.getHomeworkId(),
                     studentLabel(data.getStudent(item.getStudentId())), item.getDescription(),
                     DISPLAY_DATE.format(item.getDueDate()));
