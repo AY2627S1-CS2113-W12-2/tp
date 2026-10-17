@@ -8,6 +8,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.ResolverStyle;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -96,6 +97,15 @@ public class Lesson {
     private Lesson(String lessonId, String studentId, String subject, LocalDate date, LocalTime time,
             Attendance attendance, BigDecimal fee, String notes, String paymentStatus) {
         LOGGER.log(Level.INFO, "Creating validated lesson {0}", lessonId);
+        // This constructor skips validation, so check that its caller really did validate everything.
+        assert lessonId != null && !lessonId.isBlank() : "Lesson ID should already be validated";
+        assert subject != null && !subject.isBlank() : "Subject should already be validated";
+        assert date != null && time != null : "Date and time should already be parsed";
+        assert attendance != null : "Attendance should already be parsed";
+        assert fee != null && fee.signum() >= 0 && fee.scale() <= 2 : "Fee should already be validated";
+        assert notes != null : "Notes should be empty rather than null";
+        assert PAYMENT_PAID.equals(paymentStatus) || PAYMENT_UNPAID.equals(paymentStatus)
+                : "Payment status should already be validated";
         this.lessonId = lessonId;
         this.studentId = studentId;
         this.subject = subject;
@@ -202,6 +212,10 @@ public class Lesson {
                 newFee == null ? fee : parseFee(newFee),
                 newNotes == null ? notes : newNotes,
                 paymentStatus);
+        // As documented above, recording or editing must never change who or what the lesson is.
+        assert updated.lessonId.equals(lessonId) : "withDetails changed the lesson ID";
+        assert Objects.equals(updated.studentId, studentId) : "withDetails changed the student";
+        assert updated.paymentStatus.equals(paymentStatus) : "withDetails changed the payment status";
         LOGGER.log(Level.INFO, "Lesson {0} details updated", lessonId);
         return updated;
     }

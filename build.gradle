@@ -58,4 +58,7 @@ checkstyle {
 
 run {
     standardInput = System.in
+    // Java ignores assert statements unless the JVM is started with -ea; this does that for `gradlew run`.
+    // (The test task already enables them by default.)
+    enableAssertions = true
 }
