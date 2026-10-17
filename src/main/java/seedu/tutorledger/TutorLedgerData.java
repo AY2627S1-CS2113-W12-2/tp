@@ -261,7 +261,9 @@ public class TutorLedgerData {
         Student student = getStudent(studentId);
         Homework item = new Homework("H" + nextHomeworkNumber, student.getStudentId(), description, dueDate,
                 Homework.STATUS_OUTSTANDING);
+        int numberBefore = nextHomeworkNumber;
         putHomework(item);
+        assert nextHomeworkNumber == numberBefore + 1 : "Homework counter should advance so IDs are never reused";
         LOGGER.log(Level.INFO, "Homework assigned: {0}", item.getHomeworkId());
         return item;
     }
