@@ -137,11 +137,49 @@ class PaymentCommandsTest {
     }
 
     @Test
+    void feeStatementListsAllStudentLessonsByDateWithPaymentStatus() {
+        data.addStudent("Amirah Binte Rahman", "Sec 3", "81234567");
+        data.putLesson(new Lesson("L38", "S1", "E Math", "15-09-2026", "1800",
+                "present", "60", ""));
+        data.putLesson(new Lesson("L39", "S1", "Physics", "22-09-2026", "1600",
+                "present", "45.50", ""));
+        data.putLesson(new Lesson("L40", "S2", "Biology", "20-09-2026", "1600",
+                "present", "50", ""));
+        commands.execute("mark L38 paid");
+        commands.execute("mark L39 paid");
+
+        String output = commands.execute("fee_statement s1");
+
+        assertTrue(output.contains("Payment history for S1 Tan Wei Ming (3 lessons)"));
+        assertTrue(output.indexOf("L38") < output.indexOf("L37"));
+        assertTrue(output.contains("Tue 15-09-2026  E Math"));
+        assertTrue(output.contains("$60.00  paid"));
+        assertTrue(output.contains("$62.50  unpaid"));
+        assertTrue(output.contains("L39"));
+        assertTrue(!output.contains("L40"));
+        assertTrue(!output.contains("S2"));
+    }
+
+    @Test
+    void feeStatementReportsEmptyHistoryAndValidatesStudentArgument() {
+        data.addStudent("Amirah Binte Rahman", "Sec 3", "81234567");
+
+        String output = commands.execute("fee_statement S2");
+
+        assertTrue(output.contains("Payment history for S2 Amirah Binte Rahman (0 lessons)"));
+        assertTrue(output.contains("No lesson payments found."));
+        assertTrue(commands.execute("fee_statement").startsWith("Error: Use: fee_statement"));
+        assertTrue(commands.execute("fee_statement S99").startsWith("Error: No student found"));
+        assertTrue(commands.execute("fee_statement S1 extra").startsWith("Error: Use: fee_statement"));
+    }
+
+    @Test
     void handlesUnpaidButRejectsExtraArguments() {
         assertTrue(PaymentCommands.handles("unpaid"));
         assertTrue(PaymentCommands.handles("UNPAID s1"));
         assertTrue(commands.execute("unpaid S1 extra").startsWith("Error:"));
         assertTrue(PaymentCommands.handles("owed"));
         assertTrue(commands.execute("owed S1").startsWith("Error:"));
+        assertTrue(PaymentCommands.handles("fee_statement S1"));
     }
 }

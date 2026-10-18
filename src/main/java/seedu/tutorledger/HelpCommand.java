@@ -42,7 +42,8 @@ public final class HelpCommand {
             new Section("PAYMENTS", List.of(
                     new Entry("mark LESSON_ID STATUS", "mark L37 paid"),
                     new Entry("unpaid [STUDENT_ID]", "unpaid S1"),
-                    new Entry("owed", "owed"))),
+                    new Entry("owed", "owed"),
+                    new Entry("fee_statement STUDENT_ID", "fee_statement S1"))),
             new Section("STORAGE", List.of(
                     new Entry("save [FILE_PATH]", "save backups/term1.txt"),
                     new Entry("reload", "reload"))),

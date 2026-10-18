@@ -542,6 +542,26 @@ S5 Ryan Koh  $45.00  (1 lesson)
        ____________________________________________________________
 ```
 
+#### Viewing a student's fee statement: `fee_statement`
+
+Lists every lesson fee for one student, including lessons paid in advance, in date and time order. Each entry
+shows the lesson ID, date, subject, fee, and current payment status.
+
+Format: `fee_statement STUDENT_ID`
+
+Example: `fee_statement S1`
+
+Example output:
+
+```
+> fee_statement S1
+        ____________________________________________________________
+Payment history for S1 Amirah Binte Rahman (2 lessons)
+L2  Tue 06-10-2026  A Math                $60.00  paid
+L3  Tue 13-10-2026  A Math                $60.00  unpaid
+       ____________________________________________________________
+```
+
 ### Storage
 
 TutorLedger loads `data/tutorledger.txt` when it starts and tells you what it found:
@@ -795,6 +815,7 @@ from, then start TutorLedger.
 | **Mark paid / unpaid**  | `mark LESSON_ID STATUS`<br>e.g. `mark L1 paid`                                                                           |
 | **List unpaid lessons** | `unpaid [STUDENT_ID]`<br>e.g. `unpaid S1`                                                                                |
 | **Show amount owed**    | `owed`                                                                                                                   |
+| **Fee statement**       | `fee_statement STUDENT_ID`<br>e.g. `fee_statement S1`                                                                    |
 | **Save**                | `save [FILE_PATH]`<br>e.g. `save backups/term1.txt`                                                                      |
 | **Reload data file**    | `reload`                                                                                                                 |
 | **Help**                | `help`                                                                                                                   |
