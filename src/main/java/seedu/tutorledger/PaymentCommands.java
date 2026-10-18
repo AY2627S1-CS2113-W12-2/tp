@@ -18,7 +18,7 @@ import java.util.regex.Pattern;
  * Parses and runs commands that update lesson payment status.
  */
 public class PaymentCommands {
-    private static final Set<String> COMMAND_WORDS = Set.of("mark", "unpaid", "owed");
+    private static final Set<String> COMMAND_WORDS = Set.of("mark", "unpaid", "owed", "fee_statement");
     private static final Pattern MARK_FORMAT = Pattern.compile("(?i)(\\S+)\\s+(\\S+)");
     private static final DateTimeFormatter DISPLAY_DATE =
             DateTimeFormatter.ofPattern("EEE dd-MM-uuuu", Locale.ENGLISH);
@@ -58,6 +58,9 @@ public class PaymentCommands {
         }
         if (command.equals("owed")) {
             return listOwed(arguments);
+        }
+        if (command.equals("fee_statement")) {
+            return feeStatement(arguments);
         }
         return mark(arguments);
     }
@@ -150,6 +153,44 @@ public class PaymentCommands {
                         .append("  (").append(total.lessonCount())
                         .append(total.lessonCount() == 1 ? " lesson)" : " lessons)");
             }
+        }
+        output.append(System.lineSeparator()).append("       ").append(SEPARATOR);
+        return output.toString();
+    }
+
+    /** Lists all lesson fees and their payment statuses for one student. */
+    private String feeStatement(String studentId) {
+        if (studentId.isEmpty() || studentId.matches(".*\\s+.*")) {
+            return "Error: Use: fee_statement STUDENT_ID.";
+        }
+
+        Student student;
+        try {
+            student = data.getStudent(studentId);
+        } catch (IllegalArgumentException exception) {
+            return "Error: " + exception.getMessage();
+        }
+
+        List<Lesson> lessons = data.getLessons().stream()
+                .filter(lesson -> student.getStudentId().equalsIgnoreCase(lesson.getStudentId()))
+                .sorted(Comparator.comparing(Lesson::getDate)
+                        .thenComparing(Lesson::getTime)
+                        .thenComparing(Lesson::getLessonId))
+                .toList();
+
+        StringBuilder output = new StringBuilder("        ").append(SEPARATOR)
+                .append(System.lineSeparator())
+                .append("Payment history for ").append(studentLabel(student))
+                .append(" (").append(lessons.size()).append(lessons.size() == 1 ? " lesson)" : " lessons)");
+        if (lessons.isEmpty()) {
+            output.append(System.lineSeparator()).append("No lesson payments found.");
+        }
+        for (Lesson lesson : lessons) {
+            output.append(System.lineSeparator())
+                    .append(String.format(Locale.ROOT, "%s  %s  %-20s  $%s  %s",
+                            lesson.getLessonId(), DISPLAY_DATE.format(lesson.getDate()), lesson.getSubject(),
+                            lesson.getFee().setScale(2, RoundingMode.UNNECESSARY).toPlainString(),
+                            lesson.getPaymentStatus()));
         }
         output.append(System.lineSeparator()).append("       ").append(SEPARATOR);
         return output.toString();
