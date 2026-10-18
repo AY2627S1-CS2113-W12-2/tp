@@ -18,6 +18,7 @@ your own tutoring work.
   * [Lessons](#lessons): `schedule`, `lessons`, `record`, `edit`, `delete`
   * [Homework](#homework): `assign`, `submit`, `homework`
   * [Payments](#payments): `mark`, `unpaid`, `owed`
+  * [Scores and progress](#scores-and-progress): `score`, `scores`, `progress`
   * [Storage](#storage): `save`, `reload`
   * [Help and exiting](#help-and-exiting): `help`, `exit`
 * [FAQ](#faq)
@@ -61,6 +62,7 @@ wherever the item is listed. Commands use the ID to say which item you mean.
 | `STUDENT_ID`  | A student. Starts with `S`.         | `S1`    |
 | `LESSON_ID`   | A lesson. Starts with `L`.          | `L3`    |
 | `HOMEWORK_ID` | A homework item. Starts with `H`.   | `H4`    |
+| `SCORE_ID`    | A test score. Starts with `A`.      | `A2`    |
 
 An ID is never reused, even after its item is deleted.
 
@@ -80,6 +82,8 @@ An ID is never reused, even after its item is deleted.
 | `NOTES`          | `note/` | Any text: what was covered and anything to remember. See [Known issues](#known-issues). | `note/Started vectors` |
 | `STATUS`         | (none)  | `paid` or `unpaid`.                                                             | `paid`               |
 | `DESCRIPTION`    | (none)  | Any text, written straight after the student ID.                                | `Worksheet 3B`       |
+| `TEST_NAME`      | (none)  | Any text, written straight after the student ID.                                | `Mid-year exam`      |
+| `MARKS/TOTAL`    | `m/`    | Marks scored, `/`, then the maximum marks. Up to 2 decimal places each.         | `m/28/40`            |
 | `FILE_PATH`      | (none)  | A file path relative to the folder you run TutorLedger from.                    | `backups/term1.txt`  |
 
 The example outputs in this guide were all taken from one session on Wed 14-10-2026, so they share the same
@@ -233,7 +237,8 @@ Subjects: E Math, A Math
 
 Feature F1.6 · Story US31
 
-Deletes a student, together with all of their lessons and homework.
+Deletes a student, together with all of their lessons, homework and scores. Scores are only mentioned in the
+output if the student had any.
 
 Format: `delete STUDENT_ID`
 
@@ -562,6 +567,102 @@ L3  Tue 13-10-2026  A Math                $60.00  unpaid
        ____________________________________________________________
 ```
 
+### Scores and progress
+
+#### Recording a test score: `score`
+
+Feature F7.1 · Story US19
+
+Records a student's result for a test or assessment, and shows how it compares with their previous test.
+
+Format: `score STUDENT_ID TEST_NAME m/MARKS/TOTAL [d/DATE]`
+
+* `TEST_NAME` is everything between the student ID and the first `m/` or `d/`, so it may contain spaces.
+* `MARKS/TOTAL` is the marks scored and the maximum marks, such as `m/28/40`. Half marks such as `m/17.5/20`
+  are accepted. The marks cannot be more than the total.
+* `DATE` is when the test was taken. If it is left out, today's date is used.
+* Scores are compared as percentages, so tests with different totals can be compared fairly. The comparison
+  is with the student's test dated just before this one.
+
+Examples:
+
+* `score S1 WA1 m/28/40 d/07-09-2026`
+* `score S1 Mid-year exam m/55/100 d/21-09-2026`
+
+Example output:
+
+```
+> score S1 Mid-year exam m/55/100 d/21-09-2026
+Recorded A2 for S1 Amirah Binte Rahman
+  Mid-year exam: 55/100 (55.0%) on Mon 21-09-2026
+  Down 15.0 points from WA1 (70.0%)
+```
+
+#### Listing a student's scores: `scores`
+
+Feature F7.2 · Story US19
+
+Lists every score for one student, oldest first, so you can see whether they are improving.
+
+Format: `scores STUDENT_ID`
+
+* The last column shows the change in percentage points from the test before.
+* The trend compares the first test with the latest one. At least 2 scores are needed for a trend.
+
+Example: `scores S1`
+
+Example output:
+
+```
+> scores S1
+3 scores for S1 Amirah Binte Rahman
+  A1  Mon 07-09-2026  WA1            28/40    70.0%
+  A2  Mon 21-09-2026  Mid-year exam  55/100   55.0%  -15.0
+  A3  Mon 12-10-2026  WA2            33/40    82.5%  +27.5
+Trend: improving, up 12.5 points from the first test to the latest
+```
+
+#### Summarising a student's progress: `progress`
+
+Feature F7.3 · Story US44
+
+Summarises a student's attendance and scores over a period, such as a term, for an end-of-term review.
+
+Format: `progress STUDENT_ID [from/DATE] [to/DATE]`
+
+* Without `from/`, the summary starts from the student's earliest record. Without `to/`, it ends today.
+* Attendance counts lessons in the period that have already taken place. Arriving late counts as attending.
+  Lessons whose attendance has not been recorded are listed separately and do not affect the rate.
+* Scores are those dated within the period, with their average and trend.
+
+Examples:
+
+* `progress S1`
+* `progress S1 from/15-09-2026 to/14-10-2026`
+
+Example output (today is Wed 14-10-2026):
+
+```
+> progress S1
+Progress for S1 Amirah Binte Rahman, up to Wed 14-10-2026
+Attendance: attended 2 of 3 recorded lessons (66.7%)
+  1 present, 1 late, 1 absent
+Scores: 3 tests, average 69.2%
+  A1  Mon 07-09-2026  WA1            28/40    70.0%
+  A2  Mon 21-09-2026  Mid-year exam  55/100   55.0%  -15.0
+  A3  Mon 12-10-2026  WA2            33/40    82.5%  +27.5
+Trend: improving, up 12.5 points from the first test to the latest
+
+> progress S1 from/15-09-2026
+Progress for S1 Amirah Binte Rahman, Tue 15-09-2026 to Wed 14-10-2026
+Attendance: attended 0 of 1 recorded lesson (0.0%)
+  0 present, 0 late, 1 absent
+Scores: 2 tests, average 68.8%
+  A2  Mon 21-09-2026  Mid-year exam  55/100   55.0%
+  A3  Mon 12-10-2026  WA2            33/40    82.5%  +27.5
+Trend: improving, up 27.5 points from the first test to the latest
+```
+
 ### Storage
 
 TutorLedger loads `data/tutorledger.txt` when it starts and tells you what it found:
@@ -660,18 +761,20 @@ Your current data has not been changed.
 `|`. Lines starting with `#` are ignored.
 
 ```
-NEXT | S3 | L2 | H2
+NEXT | S3 | L2 | H2 | A2
 S | S1 | Amirah Binte Rahman | Sec 3 | 91234567 | E Math | A Math
 L | L1 | S1 | 15-09-2026 | 1600 | A Math | 60 | present | paid | Quadratics \| discriminant
 H | H1 | S1 | 29-09-2026 | outstanding | Worksheet 4A
+A | A1 | S1 | 07-09-2026 | 28 | 40 | WA1
 ```
 
 | Line   | Fields, in order                                                                                    |
 |--------|-----------------------------------------------------------------------------------------------------|
-| `NEXT` | the IDs the next new student, lesson and homework item will get                                     |
+| `NEXT` | the IDs the next new student, lesson, homework item and score will get                              |
 | `S`    | student ID, name, level, phone number, then any number of subjects                                  |
 | `L`    | lesson ID, student ID, date, time, subject, fee, attendance (`not recorded`, `present`, `absent` or `late`), `paid` or `unpaid`, notes |
 | `H`    | homework ID, student ID, due date, `outstanding` or `submitted`, description                        |
+| `A`    | score ID, student ID, test date, marks, total marks, test name                                      |
 
 * Values follow the same rules as when you type them in a command, for example dates as `DD-MM-YYYY`.
 * To put a `|` inside a value, write `\|`. To put a `\` there, write `\\`.
@@ -741,6 +844,16 @@ PAYMENTS
       unpaid S1
   owed
       owed
+  fee_statement STUDENT_ID
+      fee_statement S1
+
+SCORES AND PROGRESS
+  score STUDENT_ID TEST_NAME m/MARKS/TOTAL [d/DATE]
+      score S1 WA1 m/28/40 d/07-09-2026
+  scores STUDENT_ID
+      scores S1
+  progress STUDENT_ID [from/DATE] [to/DATE]
+      progress S1 from/01-07-2026 to/14-10-2026
 
 STORAGE
   save [FILE_PATH]
@@ -816,6 +929,9 @@ from, then start TutorLedger.
 | **List unpaid lessons** | `unpaid [STUDENT_ID]`<br>e.g. `unpaid S1`                                                                                |
 | **Show amount owed**    | `owed`                                                                                                                   |
 | **Fee statement**       | `fee_statement STUDENT_ID`<br>e.g. `fee_statement S1`                                                                    |
+| **Record score**        | `score STUDENT_ID TEST_NAME m/MARKS/TOTAL [d/DATE]`<br>e.g. `score S1 WA1 m/28/40 d/07-09-2026`                         |
+| **List scores**         | `scores STUDENT_ID`<br>e.g. `scores S1`                                                                                  |
+| **Progress summary**    | `progress STUDENT_ID [from/DATE] [to/DATE]`<br>e.g. `progress S1 from/01-07-2026`                                       |
 | **Save**                | `save [FILE_PATH]`<br>e.g. `save backups/term1.txt`                                                                      |
 | **Reload data file**    | `reload`                                                                                                                 |
 | **Help**                | `help`                                                                                                                   |
