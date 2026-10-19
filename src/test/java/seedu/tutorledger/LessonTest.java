@@ -123,4 +123,37 @@ class LessonTest {
                 () -> new Lesson("L123", "Chemistry", "22-09-2026", "1600",
                         "excused", "62.50", ""));
     }
+
+    @Test
+    void withCancellation_reason_marksTheCopyCancelledAndKeepsOtherDetails() {
+        Lesson lesson = new Lesson("L1", "S1", "A Math", "22-09-2026", "1600", "not recorded", "60", "")
+                .withPaymentStatus(Lesson.PAYMENT_PAID);
+
+        Lesson cancelled = lesson.withCancellation("  Student sick ");
+
+        assertFalse(lesson.isCancelled());
+        assertEquals("", lesson.getCancellationReason());
+        assertTrue(cancelled.isCancelled());
+        assertEquals("Student sick", cancelled.getCancellationReason());
+        assertEquals(LocalDate.of(2026, 9, 22), cancelled.getDate());
+        assertEquals(Lesson.PAYMENT_PAID, cancelled.getPaymentStatus());
+        // Later copies keep the cancellation.
+        assertTrue(cancelled.withDetails(null, null, null, null, "55", null).isCancelled());
+        assertTrue(cancelled.withPaymentStatus(Lesson.PAYMENT_UNPAID).isCancelled());
+    }
+
+    @Test
+    void withCancellation_blankReason_throws() {
+        Lesson lesson = new Lesson("L1", "S1", "A Math", "22-09-2026", "1600", "not recorded", "60", "");
+
+        assertThrows(IllegalArgumentException.class, () -> lesson.withCancellation("   "));
+        assertThrows(IllegalArgumentException.class, () -> lesson.withCancellation(null));
+    }
+
+    @Test
+    void parseDateAndFormatDate_roundTrip() {
+        assertEquals(LocalDate.of(2027, 1, 5), Lesson.parseDate("05-01-2027"));
+        assertEquals("05-01-2027", Lesson.formatDate(LocalDate.of(2027, 1, 5)));
+        assertThrows(IllegalArgumentException.class, () -> Lesson.parseDate("29-02-2027"));
+    }
 }

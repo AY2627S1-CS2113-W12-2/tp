@@ -1,6 +1,7 @@
 package seedu.tutorledger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -87,7 +88,7 @@ class StorageTest {
                 "Line 5: Level must be Sec 1 to Sec 5.",
                 "Line 6: Unknown record type \"X\". A line must start with S, L, H, A or NEXT.",
                 "Line 7: Homework status must be outstanding or submitted.",
-                "Line 8: A lesson line needs 10 fields but has 6."), result.problems());
+                "Line 8: A lesson line needs 10 fields, or 11 if cancelled, but has 6."), result.problems());
         assertEquals(1, result.data().getStudents().size());
         assertEquals(List.of("L4"), result.data().getLessons().stream().map(Lesson::getLessonId).toList());
         assertTrue(result.data().getHomework().isEmpty());
@@ -203,5 +204,34 @@ class StorageTest {
     void splitFields_escapedCharacters_areKeptInsideTheField() {
         assertEquals(List.of("L", "a | b", "c \\ d", "e"), Storage.splitFields("L | a \\| b | c \\\\ d | e"));
         assertEquals(List.of(""), Storage.splitFields("   # a comment"));
+    }
+
+    @Test
+    void encodeThenDecode_cancelledLesson_keepsTheReasonInAnExtraField() {
+        TutorLedgerData original = sampleData();
+        original.replaceLesson(original.getLesson("L2").withCancellation("Exam | week"));
+
+        String text = Storage.encode(original);
+        Storage.LoadResult result = Storage.decode(text.lines().toList());
+
+        assertTrue(text.contains("L | L2 | S1 | 22-09-2026 | 1600 | E Math | 62.50 | not recorded | unpaid |  | "
+                + "Exam \\| week"));
+        assertTrue(result.problems().isEmpty());
+        assertEquals("Exam | week", result.data().getLesson("L2").getCancellationReason());
+        assertFalse(result.data().getLesson("L1").isCancelled());
+        assertEquals(text, Storage.encode(result.data()));
+    }
+
+    @Test
+    void decode_cancelledLessonLines_ignoresABlankReasonAndRejectsAttendance() {
+        List<String> lines = List.of(
+                "S | S1 | Amirah Binte Rahman | Sec 3 | 91234567 | A Math",
+                "L | L1 | S1 | 22-09-2026 | 1600 | A Math | 60 | not recorded | unpaid |  | ",
+                "L | L2 | S1 | 23-09-2026 | 1600 | A Math | 60 | present | unpaid |  | Student sick");
+
+        Storage.LoadResult result = Storage.decode(lines);
+
+        assertEquals(List.of("Line 3: A cancelled lesson cannot have attendance."), result.problems());
+        assertFalse(result.data().getLesson("L1").isCancelled());
     }
 }
