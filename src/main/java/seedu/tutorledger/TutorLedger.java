@@ -16,6 +16,7 @@ public class TutorLedger {
         HomeworkCommands homeworkCommands = new HomeworkCommands(data, clock);
         PaymentCommands paymentCommands = new PaymentCommands(data, clock);
         LessonCommands lessonCommands = new LessonCommands(data, clock);
+        ScoreCommands scoreCommands = new ScoreCommands(data, clock);
         StorageCommands storageCommands = new StorageCommands(data, new Storage(Storage.DEFAULT_FILE_PATH));
         System.out.println("TutorLedger student book. Type exit to close.");
         System.out.println(storageCommands.loadOnStartup());
@@ -39,6 +40,8 @@ public class TutorLedger {
                 System.out.println(homeworkCommands.execute(line));
             } else if (LessonCommands.handles(line)) {
                 System.out.println(lessonCommands.execute(line));
+            } else if (ScoreCommands.handles(line)) {
+                System.out.println(scoreCommands.execute(line));
             } else {
                 System.out.println(commands.execute(line));
             }

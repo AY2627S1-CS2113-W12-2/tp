@@ -18,10 +18,11 @@ import java.util.TreeMap;
  * <p>The file has one record per line, with fields separated by {@code |}, so a tutor can read and
  * edit it in any text editor. For example:
  * <pre>
- * NEXT | S3 | L2 | H2
+ * NEXT | S3 | L2 | H2 | A2
  * S | S1 | Amirah Binte Rahman | Sec 3 | 91234567 | E Math | A Math
  * L | L1 | S1 | 22-09-2026 | 1600 | A Math | 60 | present | unpaid | Quadratic equations
  * H | H1 | S1 | 29-09-2026 | outstanding | Worksheet 4A
+ * A | A1 | S1 | 21-09-2026 | 28 | 40 | WA1
  * </pre>
  * A {@code |} or {@code \} inside a value is written with a backslash in front ({@code \|} or
  * {@code \\}), so text such as notes can contain them without breaking the line into extra fields.
@@ -37,16 +38,18 @@ public class Storage {
     private static final List<String> HEADER = List.of(
             "# TutorLedger data file. You may edit it in a text editor; run \"reload\" in TutorLedger afterwards.",
             "# Lines starting with # are ignored. Fields are separated by |. Write \\| for a | inside a value.",
-            "#   NEXT | next student ID | next lesson ID | next homework ID",
+            "#   NEXT | next student ID | next lesson ID | next homework ID | next score ID",
             "#   S | STUDENT_ID | NAME | LEVEL | PHONE_NUMBER | SUBJECT | SUBJECT ...",
             "#   L | LESSON_ID | STUDENT_ID | DATE | TIME | SUBJECT | FEE | ATTENDANCE | PAYMENT | NOTES",
-            "#   H | HOMEWORK_ID | STUDENT_ID | DUE_DATE | STATUS | DESCRIPTION");
+            "#   H | HOMEWORK_ID | STUDENT_ID | DUE_DATE | STATUS | DESCRIPTION",
+            "#   A | SCORE_ID | STUDENT_ID | DATE | MARKS | TOTAL_MARKS | TEST_NAME");
 
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd-MM-uuuu", Locale.ROOT);
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HHmm", Locale.ROOT);
     private static final String SEPARATOR = " | ";
     private static final int LESSON_FIELD_COUNT = 10;
     private static final int HOMEWORK_FIELD_COUNT = 6;
+    private static final int SCORE_FIELD_COUNT = 7;
     /** A student line has at least these fields; any further fields are subjects. */
     private static final int STUDENT_MIN_FIELD_COUNT = 5;
 
@@ -108,7 +111,7 @@ public class Storage {
     public static String encode(TutorLedgerData data) {
         List<String> lines = new ArrayList<>(HEADER);
         lines.add(join("NEXT", "S" + data.getNextStudentNumber(), "L" + data.getNextLessonNumber(),
-                "H" + data.getNextHomeworkNumber()));
+                "H" + data.getNextHomeworkNumber(), "A" + data.getNextScoreNumber()));
         for (Student student : data.getStudents()) {
             List<String> fields = new ArrayList<>(List.of("S", student.getStudentId(), student.getName(),
                     student.getLevel(), student.getPhoneNumber()));
@@ -125,13 +128,17 @@ public class Storage {
             lines.add(join("H", item.getHomeworkId(), item.getStudentId(), DATE.format(item.getDueDate()),
                     item.getSubmitStatus(), item.getDescription()));
         }
+        for (Score score : data.getScores()) {
+            lines.add(join("A", score.getScoreId(), score.getStudentId(), DATE.format(score.getDate()),
+                    score.getMarks().toPlainString(), score.getTotalMarks().toPlainString(), score.getTestName()));
+        }
         return String.join(System.lineSeparator(), lines) + System.lineSeparator();
     }
 
     /**
      * Rebuilds the records from the lines of a data file.
      *
-     * <p>Students are read first, then lessons and homework, because those must belong to a student
+     * <p>Students are read first, then lessons, homework and scores, because those must belong to a student
      * that already exists. This means the lines may appear in any order in the file.
      */
     public static LoadResult decode(List<String> lines) {
@@ -145,8 +152,8 @@ public class Storage {
             String type = fields.getFirst().toUpperCase(Locale.ROOT);
             try {
                 switch (type) {
-                case "", "L", "H" -> {
-                    // Blank and comment lines are ignored; lessons and homework wait for the second pass.
+                case "", "L", "H", "A" -> {
+                    // Blank and comment lines are ignored; lessons, homework and scores wait for the second pass.
                 }
                 case "NEXT" -> {
                     if (savedNextIds != null) {
@@ -156,7 +163,7 @@ public class Storage {
                 }
                 case "S" -> data.importStudent(parseStudent(fields));
                 default -> throw new IllegalArgumentException("Unknown record type \"" + fields.getFirst()
-                        + "\". A line must start with S, L, H or NEXT.");
+                        + "\". A line must start with S, L, H, A or NEXT.");
                 }
             } catch (IllegalArgumentException exception) {
                 problems.put(i + 1, exception.getMessage());
@@ -171,6 +178,8 @@ public class Storage {
                     data.importLesson(parseLesson(fields, data));
                 } else if (type.equals("H")) {
                     data.importHomework(parseHomework(fields, data));
+                } else if (type.equals("A")) {
+                    data.importScore(parseScore(fields, data));
                 }
             } catch (IllegalArgumentException exception) {
                 problems.put(i + 1, exception.getMessage());
@@ -183,6 +192,8 @@ public class Storage {
             data.setNextStudentNumber(Math.max(savedNextIds[0], data.getNextStudentNumber()));
             data.setNextLessonNumber(Math.max(savedNextIds[1], data.getNextLessonNumber()));
             data.setNextHomeworkNumber(Math.max(savedNextIds[2], data.getNextHomeworkNumber()));
+            // Files saved before scores existed have no score counter; 0 leaves the counter as it is.
+            data.setNextScoreNumber(Math.max(savedNextIds[3], data.getNextScoreNumber()));
         }
 
         List<String> problemLines = new ArrayList<>();
@@ -190,15 +201,18 @@ public class Storage {
         return new LoadResult(data, problemLines);
     }
 
-    /** Reads {@code NEXT | S6 | L45 | H9} into the three numbers 6, 45 and 9. */
+    /**
+     * Reads {@code NEXT | S6 | L45 | H9 | A3} into the numbers 6, 45, 9 and 3.
+     * The score ID is optional so that files saved before scores were added still load; it is then 0.
+     */
     private static int[] parseNextIds(List<String> fields) {
-        String usage = "A NEXT line must look like: NEXT | S1 | L1 | H1";
-        if (fields.size() != 4) {
+        String usage = "A NEXT line must look like: NEXT | S1 | L1 | H1 | A1";
+        if (fields.size() != 4 && fields.size() != 5) {
             throw new IllegalArgumentException(usage);
         }
-        String[] prefixes = {"S", "L", "H"};
+        String[] prefixes = {"S", "L", "H", "A"};
         int[] numbers = new int[prefixes.length];
-        for (int i = 0; i < prefixes.length; i++) {
+        for (int i = 0; i < fields.size() - 1; i++) {
             String id = fields.get(i + 1);
             if (!id.matches("(?i)" + prefixes[i] + "[1-9]\\d{0,8}")) {
                 throw new IllegalArgumentException(usage);
@@ -246,6 +260,15 @@ public class Storage {
             // Homework parses its own date and throws a date exception rather than IllegalArgumentException.
             throw new IllegalArgumentException("Due date must be a real date in DD-MM-YYYY format.", exception);
         }
+    }
+
+    private static Score parseScore(List<String> fields, TutorLedgerData data) {
+        if (fields.size() != SCORE_FIELD_COUNT) {
+            throw new IllegalArgumentException(wrongFieldCount("A score", SCORE_FIELD_COUNT, fields));
+        }
+        String studentId = data.getStudent(fields.get(2)).getStudentId();
+        return new Score(fields.get(1).toUpperCase(Locale.ROOT), studentId, fields.get(6), fields.get(4),
+                fields.get(5), fields.get(3));
     }
 
     private static String wrongFieldCount(String record, int expected, List<String> fields) {

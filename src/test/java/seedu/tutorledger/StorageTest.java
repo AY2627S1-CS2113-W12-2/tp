@@ -37,6 +37,8 @@ class StorageTest {
         data.addHomework("S1", "Worksheet 3B", LocalDate.of(2026, 9, 22));
         data.addHomework("S2", "TYS 2023 Paper 1, Q1-10", LocalDate.of(2026, 9, 26));
         data.putHomework(data.getHomeworkById("H1").asSubmitted());
+        data.addScore("S1", "WA1 | retest", "17.5", "20", "07-09-2026");
+        data.addScore("S3", "Quiz", "5", "10", "10-09-2026");
         // Deleting the newest records leaves gaps that the saved counters must remember.
         data.deleteStudent("S3");
         return data;
@@ -83,7 +85,7 @@ class StorageTest {
                 "Line 3: Date must be a real date in DD-MM-YYYY format.",
                 "Line 4: No student found with ID S9.",
                 "Line 5: Level must be Sec 1 to Sec 5.",
-                "Line 6: Unknown record type \"X\". A line must start with S, L, H or NEXT.",
+                "Line 6: Unknown record type \"X\". A line must start with S, L, H, A or NEXT.",
                 "Line 7: Homework status must be outstanding or submitted.",
                 "Line 8: A lesson line needs 10 fields but has 6."), result.problems());
         assertEquals(1, result.data().getStudents().size());
@@ -144,7 +146,27 @@ class StorageTest {
         assertEquals(6, tooLow.data().getNextStudentNumber());
 
         Storage.LoadResult broken = Storage.decode(List.of("NEXT | 10 | L20", "NEXT | S1 | L1 | H1"));
-        assertEquals(List.of("Line 1: A NEXT line must look like: NEXT | S1 | L1 | H1"), broken.problems());
+        assertEquals(List.of("Line 1: A NEXT line must look like: NEXT | S1 | L1 | H1 | A1"), broken.problems());
+    }
+
+    @Test
+    void decode_scores_roundTripAndOldNextLineStillLoads() {
+        TutorLedgerData loaded = Storage.decode(Storage.encode(sampleData()).lines().toList()).data();
+        Score score = loaded.getScores().iterator().next();
+        assertEquals("A1", score.getScoreId());
+        assertEquals("WA1 | retest", score.getTestName());
+        assertEquals("17.5/20", score.getMarksText());
+        // A2 belonged to the deleted student S3, so its ID must not be handed out again.
+        assertEquals(1, loaded.getScores().size());
+        assertEquals(3, loaded.getNextScoreNumber());
+
+        // Files saved before scores were added have a NEXT line without a score counter.
+        Storage.LoadResult old = Storage.decode(List.of("NEXT | S2 | L1 | H1",
+                "S | S1 | Amirah Binte Rahman | Sec 3 | 91234567",
+                "A | A4 | S1 | 07-09-2026 | 30 | 40 | WA1",
+                "A | A5 | S1 | 07-09-2026 | 50 | 40 | WA2"));
+        assertEquals(List.of("Line 4: Marks must be between 0 and the total marks."), old.problems());
+        assertEquals(5, old.data().getNextScoreNumber());
     }
 
     @Test

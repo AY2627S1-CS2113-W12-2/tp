@@ -115,9 +115,14 @@ public class StudentCommands {
     private String delete(String arguments) {
         Student student = data.getStudent(singleId(arguments));
         TutorLedgerData.Deletion removed = data.deleteStudent(student.getStudentId());
-        return "Deleted " + student.getStudentId() + ": " + student.getName() + " (" + student.getLevel() + ")"
-                + System.lineSeparator() + "Also deleted " + count(removed.lessonCount(), "lesson") + " and "
+        String result = "Deleted " + student.getStudentId() + ": " + student.getName() + " (" + student.getLevel()
+                + ")" + System.lineSeparator() + "Also deleted " + count(removed.lessonCount(), "lesson") + " and "
                 + count(removed.homeworkCount(), "homework item") + ".";
+        // Scores are only mentioned when there were some, so the usual message stays short.
+        if (removed.scoreCount() > 0) {
+            result += System.lineSeparator() + "Also deleted " + count(removed.scoreCount(), "score") + ".";
+        }
+        return result;
     }
 
     private String view(String arguments) {

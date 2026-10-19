@@ -18,11 +18,14 @@ public class TutorLedgerData {
     private final Map<String, Student> students = new LinkedHashMap<>();
     private final Map<String, Lesson> lessons = new LinkedHashMap<>();
     private final Map<String, Homework> homework = new LinkedHashMap<>();
+    private final Map<String, Score> scores = new LinkedHashMap<>();
     private int nextStudentNumber = 1;
     /** Number used for the next lesson ID (L1, L2, ...); never decreases so IDs are not reused. */
     private int nextLessonNumber = 1;
     /** Number used for the next homework ID (H1, H2, ...); never decreases so IDs are not reused. */
     private int nextHomeworkNumber = 1;
+    /** Number used for the next score ID (A1, A2, ...); never decreases so IDs are not reused. */
+    private int nextScoreNumber = 1;
 
     /** Adds a student and assigns the next permanent ID. */
     public Student addStudent(String name, String level, String phoneNumber) {
@@ -312,6 +315,71 @@ public class TutorLedgerData {
         nextHomeworkNumber = value;
     }
 
+    public Collection<Score> getScores() {
+        LOGGER.log(Level.FINE, "Retrieving all scores ({0})", scores.size());
+        return List.copyOf(scores.values());
+    }
+
+    /**
+     * Records a score for an existing student and gives it the next score ID.
+     *
+     * @param studentId The student who took the test, in either case.
+     * @param testName What the test was.
+     * @param marks The marks scored, as typed.
+     * @param totalMarks The maximum possible marks, as typed.
+     * @param date The test date in DD-MM-YYYY format.
+     * @return The stored score.
+     * @throws IllegalArgumentException If the student does not exist or a value is invalid.
+     */
+    public Score addScore(String studentId, String testName, String marks, String totalMarks, String date) {
+        LOGGER.log(Level.INFO, "Recording score for student {0}: {1}", new Object[]{studentId, testName});
+        Student student = getStudent(studentId);
+        Score score = new Score("A" + nextScoreNumber, student.getStudentId(), testName, marks, totalMarks, date);
+        int numberBefore = nextScoreNumber;
+        putScore(score);
+        assert nextScoreNumber == numberBefore + 1 : "Score counter should advance so IDs are never reused";
+        return score;
+    }
+
+    /**
+     * Imports a saved score, keeping its ID, for storage loading.
+     *
+     * @throws IllegalArgumentException If the student is missing or the ID is invalid or already taken.
+     */
+    public void importScore(Score score) {
+        LOGGER.log(Level.INFO, "Importing score {0}", score.getScoreId());
+        if (!score.getScoreId().matches("(?i)A[1-9]\\d*")) {
+            throw new IllegalArgumentException("Score ID must look like A1.");
+        }
+        if (scores.containsKey(score.getScoreId().toUpperCase(Locale.ROOT))) {
+            throw new IllegalArgumentException("Duplicate score ID " + score.getScoreId() + ".");
+        }
+        putScore(score);
+    }
+
+    /** Stores a score after checking its student, keeping the ID counter ahead of its ID. */
+    private void putScore(Score score) {
+        getStudent(score.getStudentId());
+        String key = score.getScoreId().toUpperCase(Locale.ROOT);
+        scores.put(key, score);
+        if (key.matches("A[1-9]\\d*")) {
+            nextScoreNumber = Math.max(nextScoreNumber, Integer.parseInt(key.substring(1)) + 1);
+        }
+    }
+
+    public int getNextScoreNumber() {
+        return nextScoreNumber;
+    }
+
+    /** Restores the saved score counter, including IDs belonging to deleted scores. */
+    public void setNextScoreNumber(int value) {
+        LOGGER.log(Level.INFO, "Setting next score number to {0}", value);
+        if (value < nextScoreNumber) {
+            throw new IllegalArgumentException("Next score number cannot reuse an ID.");
+        }
+        nextScoreNumber = value;
+    }
+
     /**
      * Replaces every record and ID counter with those of {@code source}.
      *
@@ -326,9 +394,12 @@ public class TutorLedgerData {
         lessons.putAll(source.lessons);
         homework.clear();
         homework.putAll(source.homework);
+        scores.clear();
+        scores.putAll(source.scores);
         nextStudentNumber = source.nextStudentNumber;
         nextLessonNumber = source.nextLessonNumber;
         nextHomeworkNumber = source.nextHomeworkNumber;
+        nextScoreNumber = source.nextScoreNumber;
     }
 
     /** Removes a student and all linked records, returning their deletion counts. */
@@ -339,15 +410,20 @@ public class TutorLedgerData {
         students.remove(key);
         int lessonCount = removeLinked(lessons, key);
         int homeworkCount = removeLinked(homework, key);
-        return new Deletion(student, lessonCount, homeworkCount);
+        int scoreCount = removeLinked(scores, key);
+        return new Deletion(student, lessonCount, homeworkCount, scoreCount);
     }
 
     private static <T> int removeLinked(Map<String, T> records, String studentId) {
         LOGGER.log(Level.FINE, "Removing linked records for student {0}", studentId);
         List<String> keys = new ArrayList<>();
         for (Map.Entry<String, T> entry : records.entrySet()) {
-            T record = entry.getValue();
-            String owner = record instanceof Lesson lesson ? lesson.getStudentId() : ((Homework) record).getStudentId();
+            String owner = switch (entry.getValue()) {
+            case Lesson lesson -> lesson.getStudentId();
+            case Homework item -> item.getStudentId();
+            case Score score -> score.getStudentId();
+            default -> throw new AssertionError("Unexpected linked record type: " + entry.getValue());
+            };
             if (studentId.equalsIgnoreCase(owner)) {
                 keys.add(entry.getKey());
             }
@@ -391,6 +467,6 @@ public class TutorLedgerData {
     }
 
     /** Student deletion result for the user-facing command. */
-    public record Deletion(Student student, int lessonCount, int homeworkCount) {
+    public record Deletion(Student student, int lessonCount, int homeworkCount, int scoreCount) {
     }
 }
