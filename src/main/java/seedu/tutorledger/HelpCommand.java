@@ -17,24 +17,25 @@ public final class HelpCommand {
     /** All feature sections, in the order they appear in the user guide. */
     private static final List<Section> SECTIONS = List.of(
             new Section("STUDENTS", List.of(
-                    new Entry("add n/NAME l/LEVEL p/PHONE_NUMBER [s/SUBJECT]...",
+                    new Entry("add n/NAME l/LEVEL p/PHONE_NUMBER [s/SUBJECT]... [r/RATE]",
                             "add n/Amirah Binte Rahman l/Sec 3 p/91234567 s/E Math s/A Math"),
                     new Entry("subject STUDENT_ID s/SUBJECT [s/SUBJECT]...",
                             "subject S1 s/E Math s/A Math"),
                     new Entry("view STUDENT_ID", "view S1"),
                     new Entry("list [NAME]", "list wei"),
-                    new Entry("edit STUDENT_ID [n/NAME] [l/LEVEL] [p/PHONE_NUMBER] [s/SUBJECT]...",
+                    new Entry("edit STUDENT_ID [n/NAME] [l/LEVEL] [p/PHONE_NUMBER] [s/SUBJECT]... [r/RATE]",
                             "edit S1 l/Sec 4"),
                     new Entry("delete STUDENT_ID", "delete S5"))),
             new Section("LESSONS", List.of(
-                    new Entry("schedule STUDENT_ID d/DATE t/TIME s/SUBJECT f/FEE",
+                    new Entry("schedule STUDENT_ID d/DATE t/TIME s/SUBJECT [dur/MINUTES] [f/FEE]",
                             "schedule S1 d/22-09-2026 t/1600 s/A Math f/60"),
                     new Entry("lessons [week]", "lessons week"),
                     new Entry("filter [STUDENT_ID] [from/DATE] [to/DATE] [pay/STATUS]",
                             "filter S1 from/01-09-2026 pay/unpaid"),
                     new Entry("record LESSON_ID a/ATTENDANCE [note/NOTES]",
                             "record L41 a/present note/Started simultaneous equations"),
-                    new Entry("edit LESSON_ID [d/DATE] [t/TIME] [s/SUBJECT] [f/FEE] [a/ATTENDANCE] [note/NOTES]",
+                    new Entry("edit LESSON_ID [d/DATE] [t/TIME] [s/SUBJECT] [f/FEE]"
+                            + " [dur/MINUTES] [a/ATTENDANCE] [note/NOTES]",
                             "edit L42 d/25-09-2026 t/1800"),
                     new Entry("delete LESSON_ID", "delete L44"))),
             new Section("HOMEWORK", List.of(

@@ -25,6 +25,7 @@ dependencies {
 
 test {
     useJUnitPlatform()
+    enableAssertions = true
 
     testLogging {
         events 'passed', 'skipped', 'failed'
@@ -39,6 +40,7 @@ test {
 
 application {
     mainClass = 'seedu.tutorledger.TutorLedger'
+    applicationDefaultJvmArgs = ['-ea']
 }
 
 jar {
@@ -60,5 +62,10 @@ run {
     standardInput = System.in
     // Java ignores assert statements unless the JVM is started with -ea; this does that for `gradlew run`.
     // (The test task already enables them by default.)
+    enableAssertions = true
+}
+
+// Also covers JavaExec tasks created by IDE Gradle run configurations.
+tasks.withType(JavaExec).configureEach {
     enableAssertions = true
 }

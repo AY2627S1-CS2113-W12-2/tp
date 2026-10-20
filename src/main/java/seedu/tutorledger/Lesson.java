@@ -18,6 +18,8 @@ import java.util.logging.Logger;
 public class Lesson {
     public static final String PAYMENT_PAID = "paid";
     public static final String PAYMENT_UNPAID = "unpaid";
+    /** Legacy lessons and commands without dur/ represent one hour. */
+    public static final int DEFAULT_DURATION_MINUTES = 60;
 
     private static final Logger LOGGER = Logger.getLogger(Lesson.class.getName());
 
@@ -35,6 +37,8 @@ public class Lesson {
     private final BigDecimal fee;
     private final String notes;
     private final String paymentStatus;
+    /** Billing duration; changing it does not implicitly recalculate the saved fee. */
+    private final int durationMinutes;
 
     /**
      * Creates a lesson after validating and converting its details.
@@ -59,12 +63,19 @@ public class Lesson {
         this.fee = parseFee(fee);
         this.notes = requireNonNull(notes, "Notes");
         this.paymentStatus = validatePaymentStatus(PAYMENT_UNPAID);
+        this.durationMinutes = DEFAULT_DURATION_MINUTES;
         LOGGER.log(Level.INFO, "Lesson created: {0}", this.lessonId);
     }
 
     /** Creates a lesson linked to a student for student views and deletion. */
     public Lesson(String lessonId, String studentId, String subject, String date, String time, String attendance,
             String fee, String notes) {
+        this(lessonId, studentId, subject, date, time, attendance, fee, notes, DEFAULT_DURATION_MINUTES);
+    }
+
+    /** Creates a linked lesson with a validated billing duration and an already chosen total fee. */
+    public Lesson(String lessonId, String studentId, String subject, String date, String time, String attendance,
+            String fee, String notes, int durationMinutes) {
         LOGGER.log(Level.INFO, "Creating lesson {0} for student {1}", new Object[]{lessonId, studentId});
         this.lessonId = requireText(lessonId, "Lesson ID");
         this.studentId = studentId;
@@ -75,6 +86,7 @@ public class Lesson {
         this.fee = parseFee(fee);
         this.notes = requireNonNull(notes, "Notes");
         this.paymentStatus = validatePaymentStatus(PAYMENT_UNPAID);
+        this.durationMinutes = validateDuration(durationMinutes);
         LOGGER.log(Level.INFO, "Lesson created: {0}", this.lessonId);
     }
 
@@ -90,12 +102,13 @@ public class Lesson {
         this.fee = parseFee(fee);
         this.notes = requireNonNull(notes, "Notes");
         this.paymentStatus = validatePaymentStatus(paymentStatus);
+        this.durationMinutes = DEFAULT_DURATION_MINUTES;
         LOGGER.log(Level.INFO, "Lesson creation complete: {0}", this.lessonId);
     }
 
     /** Creates a lesson from values that have already been validated and converted. */
     private Lesson(String lessonId, String studentId, String subject, LocalDate date, LocalTime time,
-            Attendance attendance, BigDecimal fee, String notes, String paymentStatus) {
+            Attendance attendance, BigDecimal fee, String notes, String paymentStatus, int durationMinutes) {
         LOGGER.log(Level.INFO, "Creating validated lesson {0}", lessonId);
         // This constructor skips validation, so check that its caller really did validate everything.
         assert lessonId != null && !lessonId.isBlank() : "Lesson ID should already be validated";
@@ -104,6 +117,7 @@ public class Lesson {
         assert attendance != null : "Attendance should already be parsed";
         assert fee != null && fee.signum() >= 0 && fee.scale() <= 2 : "Fee should already be validated";
         assert notes != null : "Notes should be empty rather than null";
+        assert durationMinutes >= 1 && durationMinutes <= 1440 : "Duration should already be validated";
         assert PAYMENT_PAID.equals(paymentStatus) || PAYMENT_UNPAID.equals(paymentStatus)
                 : "Payment status should already be validated";
         this.lessonId = lessonId;
@@ -115,6 +129,7 @@ public class Lesson {
         this.fee = fee;
         this.notes = notes;
         this.paymentStatus = paymentStatus;
+        this.durationMinutes = durationMinutes;
         LOGGER.log(Level.INFO, "Validated lesson created: {0}", lessonId);
     }
 
@@ -130,6 +145,7 @@ public class Lesson {
         this.fee = lesson.fee;
         this.notes = lesson.notes;
         this.paymentStatus = validatePaymentStatus(paymentStatus);
+        this.durationMinutes = lesson.durationMinutes;
         LOGGER.log(Level.INFO, "Lesson payment status updated: {0}", this.lessonId);
     }
 
@@ -166,6 +182,32 @@ public class Lesson {
     public BigDecimal getFee() {
         LOGGER.log(Level.FINE, "Retrieving fee for lesson {0}", lessonId);
         return fee;
+    }
+
+    public int getDurationMinutes() {
+        return durationMinutes;
+    }
+
+    /** Rejects invalid duration values at the model boundary, including direct API calls. */
+    static int validateDuration(int minutes) {
+        if (minutes < 1 || minutes > 1440) {
+            throw new IllegalArgumentException("Duration must be a whole number of minutes from 1 to 1440.");
+        }
+        return minutes;
+    }
+
+    /** Parses a command or hand-edited duration without leaking integer-overflow exceptions. */
+    static int parseDuration(String value) {
+        if (value == null || !value.matches("[0-9]{1,4}")) {
+            throw new IllegalArgumentException("Duration must be a whole number of minutes from 1 to 1440.");
+        }
+        return validateDuration(Integer.parseInt(value));
+    }
+
+    /** Returns a copy with a new duration, retaining its saved fee and all historical details. */
+    public Lesson withDurationMinutes(int minutes) {
+        return new Lesson(lessonId, studentId, subject, date, time, attendance, fee, notes, paymentStatus,
+                validateDuration(minutes));
     }
 
     public String getNotes() {
@@ -211,7 +253,7 @@ public class Lesson {
                 newAttendance == null ? attendance : Attendance.parse(newAttendance),
                 newFee == null ? fee : parseFee(newFee),
                 newNotes == null ? notes : newNotes,
-                paymentStatus);
+                paymentStatus, durationMinutes);
         // As documented above, recording or editing must never change who or what the lesson is.
         assert updated.lessonId.equals(lessonId) : "withDetails changed the lesson ID";
         assert Objects.equals(updated.studentId, studentId) : "withDetails changed the student";

@@ -12,7 +12,7 @@ import java.util.Locale;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-/** Parses and runs the six student commands from the v1 user guide. */
+/** Parses student commands, including the optional default hourly rate (US5). */
 public class StudentCommands {
     /** Records rejected commands when debug logging is enabled. */
     private static final Logger LOGGER = Logger.getLogger(StudentCommands.class.getName());
@@ -21,6 +21,8 @@ public class StudentCommands {
     private final Clock clock;
 
     public StudentCommands(TutorLedgerData data, Clock clock) {
+        assert data != null : "StudentCommands needs shared records";
+        assert clock != null : "StudentCommands needs a clock";
         this.data = data;
         this.clock = clock;
     }
@@ -52,12 +54,12 @@ public class StudentCommands {
     }
 
     /**
-     * Handles {@code add n/NAME l/LEVEL p/PHONE_NUMBER [s/SUBJECT]...}.
+     * Handles {@code add n/NAME l/LEVEL p/PHONE_NUMBER [s/SUBJECT]... [r/RATE]}.
      * Subjects are optional, so a whole student record can be entered in one line (story US38)
      * instead of following {@code add} with a separate {@code subject} command.
      */
     private String add(String arguments) {
-        ArgumentParser.Fields fields = ArgumentParser.parseFields(arguments, List.of("n", "l", "p", "s"));
+        ArgumentParser.Fields fields = ArgumentParser.parseFields(arguments, List.of("n", "l", "p", "s", "r"));
         String name = fields.single("n", true);
         String level = fields.single("l", true);
         String phone = fields.single("p", true);
@@ -66,14 +68,10 @@ public class StudentCommands {
         if (subjects.stream().anyMatch(String::isBlank)) {
             throw new IllegalArgumentException("Give a non-blank s/SUBJECT, or leave s/ out.");
         }
-        Student student = data.addStudent(name, level, phone);
-        String subjectLine = "";
-        if (!subjects.isEmpty()) {
-            student = student.withDetails(student.getName(), student.getLevel(), student.getPhoneNumber(), subjects);
-            data.replaceStudent(student);
-            subjectLine = System.lineSeparator() + "Subjects: " + subjectText(student);
-        }
-        return "Added " + details(student) + subjectLine + System.lineSeparator()
+        Student student = data.addStudent(name, level, phone, subjects, fields.singleOr("r", null));
+        String subjectLine = subjects.isEmpty() ? "" : System.lineSeparator() + "Subjects: " + subjectText(student);
+        String rateLine = fields.has("r") ? System.lineSeparator() + rateText(student) : "";
+        return "Added " + details(student) + subjectLine + rateLine + System.lineSeparator()
                 + "You now have " + count(data.getStudents().size(), "student") + ".";
     }
 
@@ -108,7 +106,7 @@ public class StudentCommands {
     }
 
     private String edit(String arguments) {
-        IdAndFields input = parseIdAndFields(arguments, List.of("n", "l", "p", "s"));
+        IdAndFields input = parseIdAndFields(arguments, List.of("n", "l", "p", "s", "r"));
         if (input.fields().isEmpty()) {
             throw new IllegalArgumentException("Give at least one value to edit.");
         }
@@ -124,8 +122,13 @@ public class StudentCommands {
             subjects = List.of();
         }
         Student updated = student.withDetails(name, level, phone, subjects);
+        if (input.fields().has("r")) {
+            // Only edit accepts a blank r/, which deliberately clears the rate.
+            updated = updated.withDefaultHourlyRate(input.fields().single("r", false));
+        }
         data.replaceStudent(updated);
-        return "Edited " + details(updated) + System.lineSeparator() + "Subjects: " + subjectText(updated);
+        return "Edited " + details(updated) + System.lineSeparator() + "Subjects: " + subjectText(updated)
+                + (input.fields().has("r") ? System.lineSeparator() + rateText(updated) : "");
     }
 
     private String delete(String arguments) {
@@ -147,6 +150,7 @@ public class StudentCommands {
         StringBuilder output = new StringBuilder(id + "  " + student.getName() + "  (" + student.getLevel()
                 + ")  " + student.getPhoneNumber());
         output.append(System.lineSeparator()).append("Subjects: ").append(subjectText(student));
+        output.append(System.lineSeparator()).append(rateText(student));
         output.append(System.lineSeparator()).append("Lessons");
         List<Lesson> lessons = data.getLessons().stream()
                 .filter(lesson -> id.equalsIgnoreCase(lesson.getStudentId()))
@@ -164,6 +168,9 @@ public class StudentCommands {
                     .append("  ").append(lesson.getSubject()).append("  ").append(money(lesson.getFee()))
                     .append("  ").append(lesson.getAttendance().name().toLowerCase(Locale.ROOT).replace('_', ' '))
                     .append("  ").append(lesson.getPaymentStatus());
+            if (lesson.getDurationMinutes() != Lesson.DEFAULT_DURATION_MINUTES) {
+                output.append("  ").append(lesson.getDurationMinutes()).append(" min");
+            }
             if (!lesson.getNotes().isBlank()) {
                 output.append(System.lineSeparator()).append("       ").append(lesson.getNotes());
             }
@@ -192,6 +199,12 @@ public class StudentCommands {
 
     private static String subjectText(Student student) {
         return student.getSubjects().isEmpty() ? "none" : String.join(", ", student.getSubjects());
+    }
+
+    /** Formats the optional rate consistently for add, edit and view. */
+    private static String rateText(Student student) {
+        return "Default hourly rate: " + student.getDefaultHourlyRate()
+                .map(rate -> money(rate) + "/hour").orElse("not set");
     }
 
     private static String money(BigDecimal amount) {

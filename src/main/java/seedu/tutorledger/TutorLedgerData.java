@@ -1,5 +1,7 @@
 package seedu.tutorledger;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -29,9 +31,14 @@ public class TutorLedgerData {
 
     /** Adds a student and assigns the next permanent ID. */
     public Student addStudent(String name, String level, String phoneNumber) {
+        return addStudent(name, level, phoneNumber, List.of(), null);
+    }
+
+    /** Validates the complete profile before storing it or consuming its permanent ID. */
+    public Student addStudent(String name, String level, String phoneNumber, List<String> subjects, String hourlyRate) {
         LOGGER.log(Level.INFO, "Adding student: name={0}, level={1}, phone={2}",
                 new Object[]{name, level, phoneNumber});
-        Student candidate = new Student("S" + nextStudentNumber, name, level, phoneNumber);
+        Student candidate = new Student("S" + nextStudentNumber, name, level, phoneNumber, subjects, hourlyRate);
         ensureUnique(candidate, null);
         students.put(candidate.getStudentId(), candidate);
         nextStudentNumber++;
@@ -128,17 +135,36 @@ public class TutorLedgerData {
      * @param subject The subject being taught.
      * @param date The lesson date in DD-MM-YYYY format.
      * @param time The lesson start time in HHMM format.
-     * @param fee The fee charged for this lesson.
+     * @param fee The total fee charged for this lesson, or null to use the student's hourly rate.
      * @return The newly stored lesson.
      * @throws IllegalArgumentException If a value is invalid or another lesson starts at the same time.
      */
     public Lesson addLesson(String studentId, String subject, String date, String time, String fee) {
+        return addLesson(studentId, subject, date, time, fee, Lesson.DEFAULT_DURATION_MINUTES);
+    }
+
+    /**
+     * Schedules a lesson with its duration and a fixed total fee.
+     * A null fee requests the student's default hourly rate; an explicit fee always wins.
+     * Validation finishes before storing the lesson or advancing its ID counter.
+     */
+    public Lesson addLesson(String studentId, String subject, String date, String time, String fee,
+            int durationMinutes) {
         LOGGER.log(Level.INFO, "Scheduling lesson for student {0} subject={1} date={2} time={3} fee={4}",
                 new Object[]{studentId, subject, date, time, fee});
         Student student = getStudent(studentId);
+        Lesson.validateDuration(durationMinutes);
+        if (fee == null) {
+            BigDecimal rate = student.getDefaultHourlyRate().orElseThrow(() -> new IllegalArgumentException(
+                    "Set a default hourly rate with edit " + student.getStudentId() + " r/RATE, or give f/FEE."));
+            fee = rate.multiply(BigDecimal.valueOf(durationMinutes))
+                    .divide(BigDecimal.valueOf(60), 2, RoundingMode.HALF_UP).toPlainString();
+            LOGGER.log(Level.FINE, "Calculated fee {0} for {1} minutes for student {2}",
+                    new Object[]{fee, durationMinutes, student.getStudentId()});
+        }
         int lessonNumber = nextLessonNumber;
         Lesson lesson = new Lesson("L" + lessonNumber, student.getStudentId(), subject, date, time,
-                Lesson.Attendance.NOT_RECORDED.name(), fee, "");
+                Lesson.Attendance.NOT_RECORDED.name(), fee, "", durationMinutes);
         ensureSlotFree(lesson);
         putLesson(lesson);
         // putLesson must move the counter past the ID just used, or the next lesson would overwrite this one.

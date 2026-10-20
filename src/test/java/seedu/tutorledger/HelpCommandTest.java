@@ -38,7 +38,8 @@ class HelpCommandTest {
             assertTrue(help.contains(section), "missing section " + section);
         }
         for (String format : new String[] {"add n/NAME l/LEVEL p/PHONE_NUMBER", "view STUDENT_ID",
-            "schedule STUDENT_ID d/DATE t/TIME s/SUBJECT f/FEE", "assign STUDENT_ID DESCRIPTION d/DUE_DATE",
+            "schedule STUDENT_ID d/DATE t/TIME s/SUBJECT [dur/MINUTES] [f/FEE]",
+            "assign STUDENT_ID DESCRIPTION d/DUE_DATE",
             "mark LESSON_ID STATUS", "owed", "save [FILE_PATH]", "reload"}) {
             assertTrue(help.contains(format), "missing format " + format);
         }

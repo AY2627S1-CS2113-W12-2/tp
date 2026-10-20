@@ -8,16 +8,20 @@ Prerequisites: JDK 25 (use the exact version), update Intellij to the most recen
 
 1. **Ensure Intellij JDK 25 is defined as an SDK**, as described [here](https://www.jetbrains.com/help/idea/sdk.html#set-up-jdk) -- this step is not needed if you have used JDK 25 in a previous Intellij project.
 1. **Import the project _as a Gradle project_**, as described [here](https://se-education.org/guides/tutorials/intellijImportGradleProject.html).
-1. **Verify the setup**: After importing, locate `src/main/java/seedu/tutorledger/TutorLedger.java`, right-click it, and choose `Run TutorLedger.main()`. If the setup is correct, you should see:
+1. **Enable assertions**: Select the shared **TutorLedger (assertions enabled)** run configuration from
+   `.run/`. It uses `-ea`; select JDK 25 as the project SDK and Gradle JVM. The shared **All tests
+   (assertions enabled)** configuration also uses `-ea`. If IDEA names your imported modules differently,
+   select the production or test module in the corresponding configuration.
+1. **Verify the setup**: Run **TutorLedger (assertions enabled)**. If the setup is correct, you should see:
    ```
-   > Task :compileJava
-   > Task :processResources NO-SOURCE
-   > Task :classes
-   
-   > Task :TutorLedger.main()
    TutorLedger student book. Type exit to close.
    ```
    Type `exit` and press Enter to close the application.
+
+For a configuration created by right-clicking `TutorLedger.main()`, open **Run → Edit Configurations →
+Modify options → Add VM options** and add `-ea`. Gradle runs and tests enable assertions in `build.gradle`;
+generated application scripts also include `-ea`. When running the JAR directly, use
+`java -ea -jar build/libs/tutorledger.jar` with Java 25.
 
 **Warning:** Keep the `src\main\java` folder as the root folder for Java files (i.e., don't rename those folders or move Java files to another folder outside of this folder path), as this is the default location some tools (e.g., Gradle) expect to find Java files.
 

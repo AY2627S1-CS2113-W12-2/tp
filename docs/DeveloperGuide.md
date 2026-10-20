@@ -4,6 +4,9 @@
 
 {list here sources of all reused/adapted ideas, code, documentation, and third-party libraries -- include links to the original source as well}
 
+* The default hourly rate UML figures are rendered with [PlantUML](https://plantuml.com/),
+  using the [SE-EDU PlantUML guide](https://se-education.org/guides/tutorials/plantUml.html) for tooling guidance.
+
 ## Design & implementation
 
 {Describe the design and implementation of the product. Use UML diagrams and short code snippets where applicable.}
@@ -262,6 +265,122 @@ setup.
 without editing the data file. Also show the average score by subject, once scores record a subject.
 
 
+### Default hourly rates — Yan Hern
+
+**v2.0 enhancement · US5 · [Issue #11](https://github.com/AY2627S1-CS2113-W12-2/tp/issues/11)**
+
+An independent tutor often charges the same student the same hourly rate for many lessons. Requiring
+`f/60` every time repeats information and makes it easy to enter an inconsistent fee. This enhancement
+lets the tutor store that rate on the student and schedule a lesson using its duration. For example,
+after `edit S1 r/60`, `schedule S1 d/20-10-2026 t/1600 s/E Math dur/90` creates a lesson costing
+$90.00. Omitting `dur/` means 60 minutes. An explicit `f/25` instead charges $25 for the whole lesson.
+
+#### Responsibilities and object relationships
+
+The feature extends the existing command, model and storage components. `StudentCommands` parses `r/`
+on `add` and `edit`; `LessonCommands` parses optional `dur/` and `f/` on `schedule`. Both use
+`ArgumentParser`, so prefixes keep their existing case-insensitive, order-independent behaviour.
+`TutorLedgerData` chooses the total fee when creating a lesson. This puts the business rule at the
+shared data boundary rather than only in a particular command handler.
+
+![Class diagram showing command handlers, shared data, immutable records and storage](diagrams/hourly-rate-class.svg)
+
+*Figure 1. The store owns student and lesson records; a lesson identifies its student by permanent ID.*
+
+`Student` stores an optional `BigDecimal` rate. Its getter returns `Optional<BigDecimal>` so callers
+must distinguish an unset rate from a valid rate of zero. A missing rate means that scheduling needs an
+explicit fee; zero means that the lesson is free. Existing constructors still create students without
+a rate. Existing `withDetails` operations preserve the rate, including subject changes.
+
+`Lesson` stores both `durationMinutes` and its total `fee`. These are immutable values. Existing lesson
+constructors default to 60 minutes, while the new overload accepts a validated duration. Copies created
+for attendance, notes, payment status and other edits retain the duration unless it is explicitly edited.
+This preserves existing callers without requiring changes to unrelated feature handlers.
+
+#### Setting and clearing a rate
+
+`add ... r/60` creates the entire profile, including subjects and rate, before the data store inserts
+anything. Invalid rates therefore cannot leave a partially created student or consume an ID.
+`edit S1 r/65` creates a replacement profile, validates it, then replaces the existing map entry.
+The original profile remains available until all validation succeeds.
+
+![Sequence diagram for setting a student's default hourly rate and automatically saving](diagrams/hourly-rate-edit-sequence.svg)
+
+*Figure 2. A rate edit replaces a validated student and uses the existing automatic-save path.*
+
+Omitting `r/` during an edit preserves the current rate. A bare `edit S1 r/` deliberately clears it,
+matching the existing convention for clearing subjects with `s/`. A bare `r/` on `add` is rejected:
+there is no existing rate to clear, so omission already expresses that intent. Repeated `r/` prefixes
+are rejected rather than choosing a value silently. `view S1` reports either the dollar rate per hour
+or `Default hourly rate: not set`.
+
+#### Scheduling and keeping charges stable
+
+The new `addLesson` overload accepts duration and an optional explicit fee. An explicit fee has priority
+and represents the entire lesson charge, regardless of duration. Otherwise, the method obtains the
+student's default rate. If neither source is available, it returns an error explaining both remedies:
+set the student's rate or supply `f/FEE`.
+
+![Sequence diagram showing a 90-minute lesson calculated from a student's default rate](diagrams/hourly-rate-schedule-sequence.svg)
+
+*Figure 3. Calculation happens before insertion; the result is stored as the lesson's fixed charge.*
+
+The calculation is `hourly rate × duration in minutes ÷ 60`. All money uses `BigDecimal`; conversion to
+`double` would introduce binary floating-point approximation. Division rounds once to two decimal
+places using `HALF_UP`. For example, $60.01/hour for 30 minutes produces $30.005 before rounding and
+$30.01 afterwards. Multiplication is performed before division to avoid rounding an hourly rate down
+to a per-minute rate too early.
+
+![Activity diagram explaining fee precedence, missing rates, validation and insertion](diagrams/hourly-rate-fee-activity.svg)
+
+*Figure 4. Invalid explicit values are rejected; they do not trigger a fallback to the default rate.*
+
+Changing the student's rate affects newly scheduled lessons only. Previously scheduled lessons,
+including future appointments, keep their saved fee. Editing a lesson's duration also keeps its fee;
+the tutor must use `edit L1 f/AMOUNT` to change the charge. This protects negotiated prices and prevents
+an administrative edit from changing payment history. Payment summaries and fee statements continue
+reading `Lesson.getFee()`, so they need no separate pricing logic.
+
+#### Defensive checks and persistence
+
+Rates accept non-negative decimal dollar amounts with at most two fractional digits. Durations accept
+whole minutes from 1 to 1440. Model validation throws `IllegalArgumentException`, so these rules apply
+to direct calls and hand-edited files even when assertions are disabled. The command layer catches
+these exceptions and returns `Error: ...`. Assertions check programming invariants, such as preserving
+student identity and advancing counters only after successful insertion. Debug logging records rate
+changes, calculation results and rejected commands without adding messages to normal command output.
+
+The data file keeps the legacy student layout because every trailing student field is already a
+subject. Inserting a rate into that layout could misread an existing subject as money. Instead, an
+optional `R | S1 | 60` record stores a student's rate. New lesson lines append a duration field after
+notes; old ten-field lesson lines remain accepted and mean 60 minutes. Loading preserves the saved
+total fee and never recalculates it from current rates.
+
+Students load in the first pass. The second pass applies rates and imports linked records, allowing
+lines in any order. Invalid or orphaned rate lines are skipped with their line numbers; a duplicate
+rate line cannot override the first valid rate. A bad rate does not discard the student or their
+history. Encoding includes rate records and durations, so the existing snapshot comparison automatically
+saves changes. The new application reads old files; older application versions cannot read all new
+records, so keep a backup before using the new version if a downgrade may be necessary.
+
+#### Alternatives, limits and verification
+
+A separate `rate` command was considered. Extending `add` and `edit` uses familiar commands and supports
+entering a complete student in one line. Storing only the rate on lessons and calculating fees whenever
+displayed was also considered. Saving the chosen total instead keeps historical amounts stable.
+Per-subject rates, effective-date rate histories and automatic recalculation are possible future
+extensions; they would need explicit rules for existing and paid lessons.
+
+Duration currently supports billing and display. Conflict checking retains the existing identical-start
+rule; it does not detect overlapping lesson intervals. Adding interval scheduling would be a separate
+enhancement requiring corresponding tests and documentation.
+
+`DefaultHourlyRateTest` exercises command validation, decimal rounding, overrides, rate clearing,
+immutable copies, payment totals, legacy files, malformed records and save/restart behaviour. The manual
+scenario below provides a reproducible acceptance check. UML sources and rendering instructions are
+kept in [diagrams/README.md](diagrams/README.md); rendered SVGs display on GitHub Pages without a client-side
+diagram renderer.
+
 ## Product scope
 ### Target user profile
 
@@ -277,6 +396,7 @@ without editing the data file. Also show the average score by subject, once scor
 |--------|----------|---------------|------------------|
 |v1.0|new user|see usage instructions|refer to them when I forget how to use the application|
 |v2.0|user|find a to-do item by name|locate a to-do without having to go through the entire list|
+|v2.0 (US5)|independent tutor|set a default hourly rate for each student|avoid re-entering the fee for every lesson|
 
 ## Non-Functional Requirements
 
@@ -289,6 +409,27 @@ without editing the data file. Also show the average score by subject, once scor
 ## Instructions for manual testing
 
 {Give instructions on how to do a manual product testing e.g., how to load sample data to be used for testing}
+
+### Default hourly rates (US5)
+
+Use an empty working directory and run the packaged application with Java 25 and `-ea`.
+
+1. Add a student: `add n/Amirah l/Sec 3 p/91234567 s/E Math r/60`.
+   Expected: S1 is created with `Default hourly rate: $60.00/hour`.
+2. Run `schedule S1 d/20-10-2026 t/1600 s/E Math dur/90`.
+   Expected: L1 is scheduled for 90 minutes with a total fee of $90.00.
+3. Run `edit S1 r/100`, then `view S1`.
+   Expected: the new rate is $100.00/hour; L1 still costs $90.00.
+4. Run `edit L1 dur/30`, then `view S1`.
+   Expected: L1 is 30 minutes long and still costs $90.00. `edit L1 f/50` explicitly changes it to $50.00.
+5. Run `schedule S1 d/21-10-2026 t/1600 s/E Math f/25 dur/90`.
+   Expected: L2 costs $25.00 in total, overriding the rate.
+6. Run `edit S1 r/`, then try `schedule S1 d/22-10-2026 t/1600 s/E Math`.
+   Expected: an error asks for a default rate or explicit fee; no lesson or ID is consumed.
+7. Try `edit S1 r/-1` and `edit L1 dur/0 f/999`.
+   Expected: both are rejected; S1's rate stays unset and L1's fee stays $50.00.
+8. Exit and restart. Run `view S1`.
+   Expected: both lessons retain their durations and fees, and the default rate remains unset.
 
 ### Saving and loading data
 

@@ -85,7 +85,7 @@ class StorageTest {
                 "Line 3: Date must be a real date in DD-MM-YYYY format.",
                 "Line 4: No student found with ID S9.",
                 "Line 5: Level must be Sec 1 to Sec 5.",
-                "Line 6: Unknown record type \"X\". A line must start with S, L, H, A or NEXT.",
+                "Line 6: Unknown record type \"X\". A line must start with S, R, L, H, A or NEXT.",
                 "Line 7: Homework status must be outstanding or submitted.",
                 "Line 8: A lesson line needs 10 fields but has 6."), result.problems());
         assertEquals(1, result.data().getStudents().size());

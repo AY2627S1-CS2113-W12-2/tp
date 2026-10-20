@@ -7,9 +7,11 @@ import java.nio.file.Path;
 import java.time.DateTimeException;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -48,7 +50,9 @@ public class Storage {
             "# Lines starting with # are ignored. Fields are separated by |. Write \\| for a | inside a value.",
             "#   NEXT | next student ID | next lesson ID | next homework ID | next score ID",
             "#   S | STUDENT_ID | NAME | LEVEL | PHONE_NUMBER | SUBJECT | SUBJECT ...",
-            "#   L | LESSON_ID | STUDENT_ID | DATE | TIME | SUBJECT | FEE | ATTENDANCE | PAYMENT | NOTES",
+            "#   R | STUDENT_ID | DEFAULT_HOURLY_RATE (omit the line if no rate is set)",
+            "#   L | LESSON_ID | STUDENT_ID | DATE | TIME | SUBJECT | FEE | ATTENDANCE | PAYMENT | NOTES | MINUTES",
+            "#   Older L lines without MINUTES default to 60. Saved fees are never recalculated on load.",
             "#   H | HOMEWORK_ID | STUDENT_ID | DUE_DATE | STATUS | DESCRIPTION",
             "#   A | SCORE_ID | STUDENT_ID | DATE | MARKS | TOTAL_MARKS | TEST_NAME");
 
@@ -128,12 +132,14 @@ public class Storage {
                     student.getLevel(), student.getPhoneNumber()));
             fields.addAll(student.getSubjects());
             lines.add(join(fields.toArray(String[]::new)));
+            student.getDefaultHourlyRate().ifPresent(rate ->
+                    lines.add(join("R", student.getStudentId(), rate.toPlainString())));
         }
         for (Lesson lesson : data.getLessons()) {
             lines.add(join("L", lesson.getLessonId(), lesson.getStudentId(), DATE.format(lesson.getDate()),
                     TIME.format(lesson.getTime()), lesson.getSubject(), lesson.getFee().toPlainString(),
                     lesson.getAttendance().name().toLowerCase(Locale.ROOT).replace('_', ' '),
-                    lesson.getPaymentStatus(), lesson.getNotes()));
+                    lesson.getPaymentStatus(), lesson.getNotes(), Integer.toString(lesson.getDurationMinutes())));
         }
         for (Homework item : data.getHomework()) {
             lines.add(join("H", item.getHomeworkId(), item.getStudentId(), DATE.format(item.getDueDate()),
@@ -143,16 +149,18 @@ public class Storage {
             lines.add(join("A", score.getScoreId(), score.getStudentId(), DATE.format(score.getDate()),
                     score.getMarks().toPlainString(), score.getTotalMarks().toPlainString(), score.getTestName()));
         }
-        // One line per record, plus the header and the NEXT line; anything else means a record was missed.
+        long rateCount = data.getStudents().stream()
+                .filter(student -> student.getDefaultHourlyRate().isPresent()).count();
+        // Student rates have their own lines so legacy subjects remain unambiguous.
         assert lines.size() == HEADER.size() + 1 + data.getStudents().size() + data.getLessons().size()
-                + data.getHomework().size() + data.getScores().size() : "Some records were not encoded";
+                + data.getHomework().size() + data.getScores().size() + rateCount : "Some records were not encoded";
         return String.join(System.lineSeparator(), lines) + System.lineSeparator();
     }
 
     /**
      * Rebuilds the records from the lines of a data file.
      *
-     * <p>Students are read first, then lessons, homework and scores, because those must belong to a student
+     * <p>Students are read first, then rates, lessons, homework and scores, which must belong to a student
      * that already exists. This means the lines may appear in any order in the file.
      */
     public static LoadResult decode(List<String> lines) {
@@ -166,8 +174,8 @@ public class Storage {
             String type = fields.getFirst().toUpperCase(Locale.ROOT);
             try {
                 switch (type) {
-                case "", "L", "H", "A" -> {
-                    // Blank and comment lines are ignored; lessons, homework and scores wait for the second pass.
+                case "", "L", "H", "A", "R" -> {
+                    // Linked records and rates wait for the second pass; blank and comment lines are ignored.
                 }
                 case "NEXT" -> {
                     if (savedNextIds != null) {
@@ -177,18 +185,21 @@ public class Storage {
                 }
                 case "S" -> data.importStudent(parseStudent(fields));
                 default -> throw new IllegalArgumentException("Unknown record type \"" + fields.getFirst()
-                        + "\". A line must start with S, L, H, A or NEXT.");
+                        + "\". A line must start with S, R, L, H, A or NEXT.");
                 }
             } catch (IllegalArgumentException exception) {
                 problems.put(i + 1, exception.getMessage());
             }
         }
 
+        Set<String> ratedStudents = new HashSet<>();
         for (int i = 0; i < lines.size(); i++) {
             List<String> fields = splitFields(lines.get(i));
             String type = fields.getFirst().toUpperCase(Locale.ROOT);
             try {
-                if (type.equals("L")) {
+                if (type.equals("R")) {
+                    importRate(fields, data, ratedStudents);
+                } else if (type.equals("L")) {
                     data.importLesson(parseLesson(fields, data));
                 } else if (type.equals("H")) {
                     data.importHomework(parseHomework(fields, data));
@@ -253,14 +264,31 @@ public class Storage {
     }
 
     private static Lesson parseLesson(List<String> fields, TutorLedgerData data) {
-        if (fields.size() != LESSON_FIELD_COUNT) {
+        if (fields.size() != LESSON_FIELD_COUNT && fields.size() != LESSON_FIELD_COUNT + 1) {
             throw new IllegalArgumentException(wrongFieldCount("A lesson", LESSON_FIELD_COUNT, fields));
         }
         // Looking the student up checks they exist and gives their ID in its usual upper-case form.
         String studentId = data.getStudent(fields.get(2)).getStudentId();
         Lesson lesson = new Lesson(fields.get(1).toUpperCase(Locale.ROOT), studentId, fields.get(5),
                 fields.get(3), fields.get(4), fields.get(7), fields.get(6), fields.get(9));
+        if (fields.size() == LESSON_FIELD_COUNT + 1) {
+            lesson = lesson.withDurationMinutes(Lesson.parseDuration(fields.get(10)));
+        }
         return lesson.withPaymentStatus(fields.get(8));
+    }
+
+    /** Applies the first valid rate for a student without disturbing their profile or history. */
+    private static void importRate(List<String> fields, TutorLedgerData data, Set<String> ratedStudents) {
+        if (fields.size() != 3) {
+            throw new IllegalArgumentException(wrongFieldCount("A rate", 3, fields));
+        }
+        Student student = data.getStudent(fields.get(1));
+        String id = student.getStudentId();
+        if (ratedStudents.contains(id)) {
+            throw new IllegalArgumentException("Duplicate hourly rate for student " + id + ".");
+        }
+        data.replaceStudent(student.withDefaultHourlyRate(fields.get(2)));
+        ratedStudents.add(id);
     }
 
     private static Homework parseHomework(List<String> fields, TutorLedgerData data) {

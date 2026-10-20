@@ -1,0 +1,32 @@
+@startuml
+skinparam backgroundColor white
+skinparam defaultFontSize 14
+skinparam shadowing false
+title Choosing a new lesson's fee
+start
+:Parse schedule fields;
+if (Any supplied field invalid or repeated?) then (yes)
+  :Reject command;\nkeep records and counters unchanged;
+  stop
+endif
+:Validate duration\n(default 60; range 1..1440);
+if (Explicit f/FEE supplied?) then (yes)
+  :Use the explicit total fee;
+else (no)
+  if (Student has a default rate?) then (yes)
+    :Calculate rate x minutes / 60;\nround to cents using HALF_UP;
+  else (no)
+    :Ask tutor to set r/RATE\nor supply f/FEE;
+    stop
+  endif
+endif
+:Construct and validate lesson;\ncheck start-time conflict;
+if (All checks pass?) then (yes)
+  :Store lesson with fixed fee and duration;\nadvance lesson ID counter;
+else (no)
+  :Reject command;\nkeep records and counters unchanged;
+  stop
+endif
+:Automatically save changed data;
+stop
+@enduml

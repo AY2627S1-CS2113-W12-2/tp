@@ -1,0 +1,35 @@
+@startuml
+skinparam backgroundColor white
+skinparam defaultFontSize 14
+skinparam shadowing false
+hide footbox
+title Set a rate: student command component
+
+participant ":StudentCommands" as Commands
+participant ":TutorLedgerData" as Data
+participant "original:Student" as Original
+participant "edited:Student" as Edited
+
+[-> Commands : execute("edit S1 r/60")
+activate Commands
+Commands -> Data : getStudent("S1")
+Data --> Commands : original
+Commands -> Original : withDetails(...)
+create Edited
+Original -> Edited : new Student(...)
+Original --> Commands : edited copy
+Commands -> Edited : withDefaultHourlyRate("60")
+Edited --> Commands : updated copy
+note over Commands, Edited
+  Validate a replacement before storing it.
+  The original stays unchanged on failure.
+end note
+Commands -> Data : replaceStudent(updated)
+Data --> Commands
+Commands -->[ : confirmation
+deactivate Commands
+note over Commands, Edited
+  After execute returns, TutorLedger calls
+  StorageCommands.saveIfChanged(before).
+end note
+@enduml

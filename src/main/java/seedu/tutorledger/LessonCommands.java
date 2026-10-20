@@ -109,15 +109,17 @@ public class LessonCommands {
         }
     }
 
-    /** Handles {@code schedule STUDENT_ID d/DATE t/TIME s/SUBJECT f/FEE}. */
+    /** Handles scheduling with an optional fee override and duration (US5). */
     private String schedule(String arguments) {
-        IdAndFields input = splitIdAndFields(arguments, List.of("d", "t", "s", "f"));
+        IdAndFields input = splitIdAndFields(arguments, List.of("d", "t", "s", "f", "dur"));
         Student student = data.getStudent(input.id());
         String date = input.fields().single("d", true);
         String time = input.fields().single("t", true);
         String subject = findSubjectTakenBy(student, input.fields().single("s", true));
-        String fee = input.fields().single("f", true);
-        Lesson lesson = data.addLesson(student.getStudentId(), subject, date, time, fee);
+        String fee = input.fields().singleOr("f", null);
+        int duration = input.fields().has("dur") ? Lesson.parseDuration(input.fields().single("dur", true))
+                : Lesson.DEFAULT_DURATION_MINUTES;
+        Lesson lesson = data.addLesson(student.getStudentId(), subject, date, time, fee, duration);
         assert lesson.getStudentId().equals(student.getStudentId()) : "Lesson was scheduled for the wrong student";
         assert !lesson.isRecorded() : "A newly scheduled lesson should not have attendance yet";
         LOGGER.log(Level.FINE, "Scheduled {0} for {1}", new Object[]{lesson.getLessonId(), student.getStudentId()});
@@ -196,9 +198,9 @@ public class LessonCommands {
                 + "  Attendance: " + formatAttendance(recorded) + formatNotesLine(recorded);
     }
 
-    /** Handles {@code edit LESSON_ID [d/DATE] [t/TIME] [s/SUBJECT] [f/FEE] [a/ATTENDANCE] [note/NOTES]}. */
+    /** Edits lesson details; changing duration alone preserves the saved total fee. */
     private String edit(String arguments) {
-        IdAndFields input = splitIdAndFields(arguments, List.of("d", "t", "s", "f", "a", "note"));
+        IdAndFields input = splitIdAndFields(arguments, List.of("d", "t", "s", "f", "a", "note", "dur"));
         ArgumentParser.Fields fields = input.fields();
         if (fields.isEmpty()) {
             throw new IllegalArgumentException("Give at least one value to edit.");
@@ -210,6 +212,9 @@ public class LessonCommands {
         String attendance = fields.has("a") ? parseAttendance(fields.single("a", true)) : null;
         Lesson edited = lesson.withDetails(subject, fields.singleOr("d", null), fields.singleOr("t", null),
                 attendance, fields.singleOr("f", null), parseNotes(fields));
+        if (fields.has("dur")) {
+            edited = edited.withDurationMinutes(Lesson.parseDuration(fields.single("dur", true)));
+        }
         // The same rule as record: attendance and notes describe a lesson that has already happened.
         boolean hasOutcome = edited.isRecorded() || !edited.getNotes().isBlank();
         if (hasOutcome && edited.getDate().isAfter(LocalDate.now(clock))) {
@@ -294,7 +299,9 @@ public class LessonCommands {
 
     /** Formats when a lesson starts as "Tue 22-09-2026 1600". */
     private static String formatSlot(Lesson lesson) {
-        return DISPLAY_DATE.format(lesson.getDate()) + " " + DISPLAY_TIME.format(lesson.getTime());
+        String duration = lesson.getDurationMinutes() == Lesson.DEFAULT_DURATION_MINUTES ? ""
+                : " (" + lesson.getDurationMinutes() + " min)";
+        return DISPLAY_DATE.format(lesson.getDate()) + " " + DISPLAY_TIME.format(lesson.getTime()) + duration;
     }
 
     /** Formats attendance the way it is typed and shown, e.g. "present" or "not recorded". */
