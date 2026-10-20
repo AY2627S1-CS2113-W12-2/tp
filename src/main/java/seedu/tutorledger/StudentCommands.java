@@ -166,15 +166,22 @@ public class StudentCommands {
                     .append(String.format(Locale.ROOT, "%02d%02d",
                             lesson.getTime().getHour(), lesson.getTime().getMinute()))
                     .append("  ").append(lesson.getSubject()).append("  ").append(money(lesson.getFee()))
-                    .append("  ").append(lesson.getAttendance().name().toLowerCase(Locale.ROOT).replace('_', ' '))
+                    .append("  ").append(lesson.isCancelled() ? "cancelled"
+                            : lesson.getAttendance().name().toLowerCase(Locale.ROOT).replace('_', ' '))
                     .append("  ").append(lesson.getPaymentStatus());
             if (lesson.getDurationMinutes() != Lesson.DEFAULT_DURATION_MINUTES) {
                 output.append("  ").append(lesson.getDurationMinutes()).append(" min");
             }
+            if (lesson.isCancelled()) {
+                output.append(System.lineSeparator()).append("       Reason: ").append(lesson.getCancellationReason());
+            }
             if (!lesson.getNotes().isBlank()) {
                 output.append(System.lineSeparator()).append("       ").append(lesson.getNotes());
             }
-            if (!lesson.getDate().isAfter(today) && lesson.getPaymentStatus().equalsIgnoreCase("unpaid")) {
+            // A cancelled lesson did not take place, so it is not owed.
+            boolean isOwed = !lesson.isCancelled() && !lesson.getDate().isAfter(today)
+                    && lesson.getPaymentStatus().equalsIgnoreCase("unpaid");
+            if (isOwed) {
                 owed = owed.add(lesson.getFee());
                 unpaidCount++;
             }

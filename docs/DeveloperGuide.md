@@ -321,6 +321,10 @@ and represents the entire lesson charge, regardless of duration. Otherwise, the 
 student's default rate. If neither source is available, it returns an error explaining both remedies:
 set the student's rate or supply `f/FEE`.
 
+Single and weekly scheduling share `resolveLessonFee`, so `schedule ... dur/90 w/3` gives each of the
+three lessons the same fixed duration-based fee. Weekly scheduling still validates every slot before
+inserting any lessons. A conflict in a later week therefore leaves records and ID counters unchanged.
+
 ![Sequence diagram showing a 90-minute lesson calculated from a student's default rate](diagrams/hourly-rate-schedule-sequence.svg)
 
 *Figure 3. Calculation happens before insertion; the result is stored as the lesson's fixed charge.*
@@ -352,9 +356,17 @@ changes, calculation results and rejected commands without adding messages to no
 
 The data file keeps the legacy student layout because every trailing student field is already a
 subject. Inserting a rate into that layout could misread an existing subject as money. Instead, an
-optional `R | S1 | 60` record stores a student's rate. New lesson lines append a duration field after
-notes; old ten-field lesson lines remain accepted and mean 60 minutes. Loading preserves the saved
-total fee and never recalculates it from current rates.
+optional `R | S1 | 60` record stores a student's rate. New lesson lines end with `NOTES |
+CANCELLATION_REASON | MINUTES`, using an empty cancellation reason for active lessons. Separate fields
+prevent a cancellation reason such as `90` from being confused with a 90-minute duration. Legacy
+ten-field rows and upstream eleven-field cancellation rows still load, with a default duration of 60.
+Files saved by the earlier hourly-rate branch used field eleven for duration; their generated
+`NOTES | MINUTES` header identifies that layout. Headerless eleven-field rows retain upstream's
+cancellation semantics. Loading preserves the saved total fee and never recalculates it from current rates.
+
+Immutable lesson copies retain both cancellation and duration. Rescheduling keeps the chosen fee;
+cancelling retains its recorded amount for history while excluding it from amounts owed. An edit to a
+cancelled lesson cannot give it attendance, even if it also changes the duration.
 
 Students load in the first pass. The second pass applies rates and imports linked records, allowing
 lines in any order. Invalid or orphaned rate lines are skipped with their line numbers; a duplicate

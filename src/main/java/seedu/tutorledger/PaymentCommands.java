@@ -199,6 +199,8 @@ public class PaymentCommands {
     private List<Lesson> unpaidLessons(LocalDate today, String studentId) {
         return data.getLessons().stream()
                 .filter(lesson -> Lesson.PAYMENT_UNPAID.equalsIgnoreCase(lesson.getPaymentStatus()))
+                // A cancelled lesson did not take place, so there is nothing to charge for it.
+                .filter(lesson -> !lesson.isCancelled())
                 .filter(lesson -> !lesson.getDate().isAfter(today))
                 .filter(lesson -> studentId == null || studentId.equalsIgnoreCase(lesson.getStudentId()))
                 .sorted(Comparator.comparing(Lesson::getDate)

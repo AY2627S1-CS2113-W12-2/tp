@@ -242,8 +242,8 @@ class DefaultHourlyRateTest {
         Storage.LoadResult result = Storage.decode(List.of(
                 "R | S1 | -1", "r | s1 | 60", "R | S1 | 70", "R | S9 | 30", "R | S1",
                 "S | S1 | Amirah | Sec 3 | 91234567 | E Math",
-                "L | L1 | S1 | 20-10-2026 | 1600 | E Math | 25 | present | paid | notes | 0",
-                "L | L2 | S1 | 20-10-2026 | 1800 | E Math | 25 | present | paid | notes | 90"));
+                "L | L1 | S1 | 20-10-2026 | 1600 | E Math | 25 | present | paid | notes |  | 0",
+                "L | L2 | S1 | 20-10-2026 | 1800 | E Math | 25 | present | paid | notes |  | 90"));
         assertEquals(List.of(1, 3, 4, 5, 7), result.problems().stream()
                 .map(problem -> Integer.parseInt(problem.split("[: ]")[1])).toList());
         assertEquals(new BigDecimal("60"), result.data().getStudent("S1").getDefaultHourlyRate().orElseThrow());
@@ -286,6 +286,113 @@ class DefaultHourlyRateTest {
         assertEquals(30, data.getLesson("L1").getDurationMinutes());
         assertEquals(new BigDecimal("90.00"), data.getLesson("L1").getFee());
         assertEquals(changed, Files.readString(file));
+    }
+
+    @Test
+    void weeklySchedule_defaultRateAndDuration_keepFixedFeesForEveryWeek() {
+        students.execute("edit S1 r/60");
+        String result = lessons.execute("schedule" + SLOT + " dur/90 w/3");
+        assertTrue(result.contains("3 weekly lessons"));
+        assertTrue(result.contains("(90 min)"));
+        assertTrue(result.contains("$90.00 each"));
+        students.execute("edit S1 r/100");
+        assertEquals(3, data.getLessons().size());
+        for (Lesson lesson : data.getLessons()) {
+            assertEquals(90, lesson.getDurationMinutes());
+            assertEquals(new BigDecimal("90.00"), lesson.getFee());
+        }
+        assertEquals(4, data.getNextLessonNumber());
+    }
+
+    @Test
+    void weeklySchedule_explicitFeeOverridesRateAndClashesAreAtomic() {
+        students.execute("edit S1 r/60");
+        lessons.execute("schedule S1 d/27-10-2026 t/1600 s/E Math f/25");
+        String before = Storage.encode(data);
+        assertTrue(lessons.execute("schedule" + SLOT + " dur/90 w/3").startsWith("Error:"));
+        assertEquals(before, Storage.encode(data));
+        assertTrue(lessons.execute("schedule" + SLOT + " dur/0 w/3").startsWith("Error:"));
+        assertEquals(before, Storage.encode(data));
+        lessons.execute("schedule S1 d/20-10-2026 t/1800 s/E Math dur/90 f/40 w/2");
+        assertEquals(new BigDecimal("40"), data.getLesson("L2").getFee());
+        assertEquals(new BigDecimal("40"), data.getLesson("L3").getFee());
+        assertEquals(90, data.getLesson("L3").getDurationMinutes());
+    }
+
+    @Test
+    void cancellationAndDurationEdits_preserveBothFieldsAndExcludeTheFeeFromOwed() {
+        students.execute("edit S1 r/60");
+        lessons.execute("schedule" + SLOT + " dur/90");
+        assertTrue(lessons.execute("cancel L1 r/90").startsWith("Cancelled"));
+        lessons.execute("edit L1 dur/45");
+        Lesson cancelled = data.getLesson("L1");
+        assertEquals("90", cancelled.getCancellationReason());
+        assertEquals(45, cancelled.getDurationMinutes());
+        assertEquals(new BigDecimal("90.00"), cancelled.getFee());
+        assertEquals(45, cancelled.withPaymentStatus("paid").getDurationMinutes());
+        assertTrue(cancelled.withDurationMinutes(30).isCancelled());
+        assertTrue(students.execute("view S1").contains("Amount owed: $0.00"));
+        String before = Storage.encode(data);
+        assertTrue(lessons.execute("edit L1 a/present dur/60").startsWith("Error:"));
+        assertEquals(before, Storage.encode(data));
+        // Cancellation frees the slot while retaining the original lesson and its fixed charge.
+        assertTrue(lessons.execute("schedule" + SLOT + " dur/30").startsWith("Scheduled L2"));
+    }
+
+    @Test
+    void reschedule_preservesRateBasedFeeAndDuration() {
+        students.execute("edit S1 r/60");
+        lessons.execute("schedule S1 d/21-10-2026 t/1600 s/E Math dur/90");
+        students.execute("edit S1 r/100");
+        assertTrue(lessons.execute("reschedule L1 d/22-10-2026 t/1800").startsWith("Rescheduled"));
+        assertEquals(90, data.getLesson("L1").getDurationMinutes());
+        assertEquals(new BigDecimal("90.00"), data.getLesson("L1").getFee());
+    }
+
+    @Test
+    void storage_earlierRateBranchHeader_preservesDurationWithoutInventingCancellation() {
+        Storage.LoadResult loaded = Storage.decode(List.of(
+                "#   L | LESSON_ID | STUDENT_ID | DATE | TIME | SUBJECT | FEE"
+                        + " | ATTENDANCE | PAYMENT | NOTES | MINUTES",
+                "S | S1 | Amirah | Sec 3 | 91234567 | E Math", "R | S1 | 100",
+                "L | L1 | S1 | 20-10-2026 | 1600 | E Math | 25 | present | paid | notes | 90"));
+        assertTrue(loaded.problems().isEmpty());
+        Lesson lesson = loaded.data().getLesson("L1");
+        assertEquals(90, lesson.getDurationMinutes());
+        assertFalse(lesson.isCancelled());
+        assertEquals(new BigDecimal("25"), lesson.getFee());
+        String combined = Storage.encode(loaded.data());
+        Storage.LoadResult roundTrip = Storage.decode(combined.lines().toList());
+        assertTrue(roundTrip.problems().isEmpty());
+        assertEquals(combined, Storage.encode(roundTrip.data()));
+    }
+
+    @Test
+    void storage_oldAndNewCancellationFormats_preserveNumericReasonsAndDurations() {
+        Storage.LoadResult loaded = Storage.decode(List.of(
+                "S | S1 | Amirah | Sec 3 | 91234567 | E Math",
+                "L | L1 | S1 | 20-10-2026 | 1600 | E Math | 25 | not recorded | paid | notes | 90",
+                "L | L2 | S1 | 20-10-2026 | 1800 | E Math | 42 | not recorded | unpaid | notes | sick | 90",
+                "L | L3 | S1 | 20-10-2026 | 1900 | E Math | 50 | present | paid | notes |  | 30"));
+        assertTrue(loaded.problems().isEmpty());
+        assertEquals("90", loaded.data().getLesson("L1").getCancellationReason());
+        assertEquals(60, loaded.data().getLesson("L1").getDurationMinutes());
+        assertEquals("sick", loaded.data().getLesson("L2").getCancellationReason());
+        assertEquals(90, loaded.data().getLesson("L2").getDurationMinutes());
+        assertFalse(loaded.data().getLesson("L3").isCancelled());
+        assertEquals(30, loaded.data().getLesson("L3").getDurationMinutes());
+        String text = Storage.encode(loaded.data());
+        assertEquals(text, Storage.encode(Storage.decode(text.lines().toList()).data()));
+    }
+
+    @Test
+    void help_listsRateDurationAndAllNewUpstreamCommands() {
+        String help = HelpCommand.getHelpText();
+        assertTrue(help.contains("s/SUBJECT [dur/MINUTES] [f/FEE] [w/WEEKS]"));
+        assertTrue(help.contains("log STUDENT_ID"));
+        assertTrue(help.contains("reschedule LESSON_ID"));
+        assertTrue(help.contains("cancel LESSON_ID r/REASON"));
+        assertTrue(help.contains("[s/SUBJECT]... [r/RATE]"));
     }
 
     @Test

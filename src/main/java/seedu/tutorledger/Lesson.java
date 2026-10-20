@@ -14,6 +14,9 @@ import java.util.logging.Logger;
 
 /**
  * Represents a lesson, including its schedule, attendance, fee, and payment status.
+ *
+ * <p>A lesson can also be cancelled with a reason. Cancelling is kept apart from attendance, so a
+ * lesson the tutor called off is never mistaken for one the student missed.
  */
 public class Lesson {
     public static final String PAYMENT_PAID = "paid";
@@ -39,6 +42,8 @@ public class Lesson {
     private final String paymentStatus;
     /** Billing duration; changing it does not implicitly recalculate the saved fee. */
     private final int durationMinutes;
+    /** Why the lesson was called off, or an empty string if it was not cancelled. */
+    private final String cancellationReason;
 
     /**
      * Creates a lesson after validating and converting its details.
@@ -64,6 +69,7 @@ public class Lesson {
         this.notes = requireNonNull(notes, "Notes");
         this.paymentStatus = validatePaymentStatus(PAYMENT_UNPAID);
         this.durationMinutes = DEFAULT_DURATION_MINUTES;
+        this.cancellationReason = "";
         LOGGER.log(Level.INFO, "Lesson created: {0}", this.lessonId);
     }
 
@@ -87,6 +93,7 @@ public class Lesson {
         this.notes = requireNonNull(notes, "Notes");
         this.paymentStatus = validatePaymentStatus(PAYMENT_UNPAID);
         this.durationMinutes = validateDuration(durationMinutes);
+        this.cancellationReason = "";
         LOGGER.log(Level.INFO, "Lesson created: {0}", this.lessonId);
     }
 
@@ -103,12 +110,14 @@ public class Lesson {
         this.notes = requireNonNull(notes, "Notes");
         this.paymentStatus = validatePaymentStatus(paymentStatus);
         this.durationMinutes = DEFAULT_DURATION_MINUTES;
+        this.cancellationReason = "";
         LOGGER.log(Level.INFO, "Lesson creation complete: {0}", this.lessonId);
     }
 
     /** Creates a lesson from values that have already been validated and converted. */
     private Lesson(String lessonId, String studentId, String subject, LocalDate date, LocalTime time,
-            Attendance attendance, BigDecimal fee, String notes, String paymentStatus, int durationMinutes) {
+            Attendance attendance, BigDecimal fee, String notes, String paymentStatus,
+            String cancellationReason, int durationMinutes) {
         LOGGER.log(Level.INFO, "Creating validated lesson {0}", lessonId);
         // This constructor skips validation, so check that its caller really did validate everything.
         assert lessonId != null && !lessonId.isBlank() : "Lesson ID should already be validated";
@@ -120,6 +129,7 @@ public class Lesson {
         assert durationMinutes >= 1 && durationMinutes <= 1440 : "Duration should already be validated";
         assert PAYMENT_PAID.equals(paymentStatus) || PAYMENT_UNPAID.equals(paymentStatus)
                 : "Payment status should already be validated";
+        assert cancellationReason != null : "A lesson that is not cancelled has an empty reason, not null";
         this.lessonId = lessonId;
         this.studentId = studentId;
         this.subject = subject;
@@ -130,6 +140,7 @@ public class Lesson {
         this.notes = notes;
         this.paymentStatus = paymentStatus;
         this.durationMinutes = durationMinutes;
+        this.cancellationReason = cancellationReason;
         LOGGER.log(Level.INFO, "Validated lesson created: {0}", lessonId);
     }
 
@@ -146,6 +157,7 @@ public class Lesson {
         this.notes = lesson.notes;
         this.paymentStatus = validatePaymentStatus(paymentStatus);
         this.durationMinutes = lesson.durationMinutes;
+        this.cancellationReason = lesson.cancellationReason;
         LOGGER.log(Level.INFO, "Lesson payment status updated: {0}", this.lessonId);
     }
 
@@ -207,7 +219,7 @@ public class Lesson {
     /** Returns a copy with a new duration, retaining its saved fee and all historical details. */
     public Lesson withDurationMinutes(int minutes) {
         return new Lesson(lessonId, studentId, subject, date, time, attendance, fee, notes, paymentStatus,
-                validateDuration(minutes));
+                cancellationReason, validateDuration(minutes));
     }
 
     public String getNotes() {
@@ -220,6 +232,15 @@ public class Lesson {
         return paymentStatus;
     }
 
+    public String getCancellationReason() {
+        return cancellationReason;
+    }
+
+    /** Returns true if the lesson was called off, so it will not take place and is not charged. */
+    public boolean isCancelled() {
+        return !cancellationReason.isEmpty();
+    }
+
     /** Returns true once attendance has been recorded for this lesson. */
     public boolean isRecorded() {
         boolean recorded = attendance != Attendance.NOT_RECORDED;
@@ -230,8 +251,9 @@ public class Lesson {
     /**
      * Returns a copy of this lesson with some details changed, leaving this lesson untouched.
      *
-     * <p>Pass {@code null} for any detail that should stay as it is. The lesson ID, student and
-     * payment status are always kept, because recording or editing a lesson never changes them.
+     * <p>Pass {@code null} for any detail that should stay as it is. The lesson ID, student,
+     * payment status and cancellation are always kept, because recording or editing a lesson never
+     * changes them.
      *
      * @param newSubject The new subject, or null to keep the current one.
      * @param newDate The new date in DD-MM-YYYY format, or null to keep the current one.
@@ -253,11 +275,12 @@ public class Lesson {
                 newAttendance == null ? attendance : Attendance.parse(newAttendance),
                 newFee == null ? fee : parseFee(newFee),
                 newNotes == null ? notes : newNotes,
-                paymentStatus, durationMinutes);
+                paymentStatus, cancellationReason, durationMinutes);
         // As documented above, recording or editing must never change who or what the lesson is.
         assert updated.lessonId.equals(lessonId) : "withDetails changed the lesson ID";
         assert Objects.equals(updated.studentId, studentId) : "withDetails changed the student";
         assert updated.paymentStatus.equals(paymentStatus) : "withDetails changed the payment status";
+        assert updated.cancellationReason.equals(cancellationReason) : "withDetails changed the cancellation";
         LOGGER.log(Level.INFO, "Lesson {0} details updated", lessonId);
         return updated;
     }
@@ -269,6 +292,31 @@ public class Lesson {
         LOGGER.log(Level.INFO, "Lesson {0} payment status changed to {1}",
                 new Object[]{lessonId, updated.paymentStatus});
         return updated;
+    }
+
+    /**
+     * Returns a cancelled copy of this lesson that keeps every other detail.
+     *
+     * @param reason Why the lesson was called off, such as "Student sick".
+     * @return The cancelled copy.
+     * @throws IllegalArgumentException If the reason is blank.
+     */
+    public Lesson withCancellation(String reason) {
+        LOGGER.log(Level.INFO, "Cancelling lesson {0}: {1}", new Object[]{lessonId, reason});
+        Lesson cancelled = new Lesson(lessonId, studentId, subject, date, time, attendance, fee, notes,
+                paymentStatus, requireText(reason, "Reason").strip(), durationMinutes);
+        assert cancelled.isCancelled() : "A lesson given a non-blank reason should count as cancelled";
+        return cancelled;
+    }
+
+    /**
+     * Formats a date the way it is typed, e.g. 22-09-2026.
+     *
+     * @param date The date to format.
+     * @return The date in DD-MM-YYYY format.
+     */
+    static String formatDate(LocalDate date) {
+        return DATE_FORMATTER.format(date);
     }
 
     private static String validatePaymentStatus(String value) {
@@ -297,7 +345,15 @@ public class Lesson {
         return value;
     }
 
-    private static LocalDate parseDate(String value) {
+    /**
+     * Returns the date typed in DD-MM-YYYY format.
+     * It is shared with the lesson commands so that they reject a bad date with the same message.
+     *
+     * @param value The date as typed.
+     * @return The parsed date.
+     * @throws IllegalArgumentException If the value is not a real date in DD-MM-YYYY format.
+     */
+    static LocalDate parseDate(String value) {
         LOGGER.log(Level.FINE, "Parsing date value: {0}", value);
         requireNonNull(value, "Date");
         try {
@@ -307,7 +363,14 @@ public class Lesson {
         }
     }
 
-    private static LocalTime parseTime(String value) {
+    /**
+     * Returns the time typed in 24-hour HHMM format.
+     *
+     * @param value The time as typed.
+     * @return The parsed time.
+     * @throws IllegalArgumentException If the value is not a valid 24-hour HHMM time.
+     */
+    static LocalTime parseTime(String value) {
         LOGGER.log(Level.FINE, "Parsing time value: {0}", value);
         requireNonNull(value, "Time");
         if (!value.matches("\\d{4}")) {

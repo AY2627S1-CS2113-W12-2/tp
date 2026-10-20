@@ -5,18 +5,21 @@ import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAdjusters;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * Parses and runs the lesson commands: {@code schedule}, {@code lessons} and {@code record},
- * plus {@code edit} and {@code delete} when they are given a lesson ID.
+ * Parses and runs the lesson commands: {@code schedule}, {@code log}, {@code lessons}, {@code next},
+ * {@code record}, {@code reschedule} and {@code cancel}, plus {@code edit} and {@code delete} when they
+ * are given a lesson ID.
  * Like {@link StudentCommands}, each command returns its display text, and validation problems
  * are reported as an "Error: ..." message instead of crashing the program.
  */
@@ -28,7 +31,8 @@ public class LessonCommands {
     private static final Logger LOGGER = Logger.getLogger(LessonCommands.class.getName());
 
     /** Command words that always belong to lessons, used by the main loop to route input here. */
-    private static final Set<String> COMMAND_WORDS = Set.of("schedule", "lessons", "record");
+    private static final Set<String> COMMAND_WORDS = Set.of("schedule", "log", "lessons", "next", "record",
+            "reschedule", "cancel");
 
     /** Command words shared with students; they are lesson commands only when given a lesson ID. */
     private static final Set<String> SHARED_COMMAND_WORDS = Set.of("edit", "delete");
@@ -42,6 +46,17 @@ public class LessonCommands {
 
     /** Time format shown to the user, e.g. 1600. */
     private static final DateTimeFormatter DISPLAY_TIME = DateTimeFormatter.ofPattern("HHmm", Locale.ROOT);
+
+    /** Day-of-week format shown for a weekly slot, e.g. Tue. */
+    private static final DateTimeFormatter DISPLAY_WEEKDAY = DateTimeFormatter.ofPattern("EEE", Locale.ENGLISH);
+
+    /** Most weekly lessons one {@code schedule} can add: a year, which is longer than any school term. */
+    private static final int MAX_WEEKS = 52;
+
+    /** Orders lessons by when they start, using the ID to break a tie between cancelled lessons. */
+    private static final Comparator<Lesson> BY_START = Comparator.comparing(Lesson::getDate)
+            .thenComparing(Lesson::getTime)
+            .thenComparing(Lesson::getLessonId);
 
     private final TutorLedgerData data;
     /** Source of today's date; injected so tests can fix the date instead of depending on the real one. */
@@ -92,8 +107,12 @@ public class LessonCommands {
         try {
             return switch (command) {
             case "schedule" -> schedule(arguments);
+            case "log" -> log(arguments);
             case "lessons" -> listLessons(arguments);
+            case "next" -> showNext(arguments);
             case "record" -> record(arguments);
+            case "reschedule" -> reschedule(arguments);
+            case "cancel" -> cancel(arguments);
             case "edit" -> edit(arguments);
             default -> {
                 // handles() let only lesson command words through, so delete is the only one left.
@@ -109,9 +128,9 @@ public class LessonCommands {
         }
     }
 
-    /** Handles scheduling with an optional fee override and duration (US5). */
+    /** Schedules single or weekly lessons with an optional fee override and billing duration. */
     private String schedule(String arguments) {
-        IdAndFields input = splitIdAndFields(arguments, List.of("d", "t", "s", "f", "dur"));
+        IdAndFields input = splitIdAndFields(arguments, List.of("d", "t", "s", "f", "dur", "w"));
         Student student = data.getStudent(input.id());
         String date = input.fields().single("d", true);
         String time = input.fields().single("t", true);
@@ -119,6 +138,10 @@ public class LessonCommands {
         String fee = input.fields().singleOr("f", null);
         int duration = input.fields().has("dur") ? Lesson.parseDuration(input.fields().single("dur", true))
                 : Lesson.DEFAULT_DURATION_MINUTES;
+        if (input.fields().has("w")) {
+            int weekCount = parseWeekCount(input.fields().single("w", true));
+            return scheduleWeekly(student, subject, date, time, fee, weekCount, duration);
+        }
         Lesson lesson = data.addLesson(student.getStudentId(), subject, date, time, fee, duration);
         assert lesson.getStudentId().equals(student.getStudentId()) : "Lesson was scheduled for the wrong student";
         assert !lesson.isRecorded() : "A newly scheduled lesson should not have attendance yet";
@@ -126,6 +149,53 @@ public class LessonCommands {
         return "Scheduled " + lesson.getLessonId() + " for " + formatStudent(student) + System.lineSeparator()
                 + "  " + formatSlot(lesson) + ", " + lesson.getSubject() + ", "
                 + formatMoney(lesson.getFee());
+    }
+
+    /** Schedules a weekly slot and describes the lessons it added. */
+    private String scheduleWeekly(Student student, String subject, String date, String time, String fee,
+            int weekCount, int duration) {
+        List<Lesson> lessons = data.addWeeklyLessons(student.getStudentId(), subject, date, time, fee,
+                weekCount, duration);
+        assert lessons.size() == weekCount : "Every week of the slot should have its own lesson";
+        Lesson first = lessons.getFirst();
+        Lesson last = lessons.getLast();
+        assert last.getDate().equals(first.getDate().plusWeeks(weekCount - 1)) : "Lessons should be a week apart";
+        LOGGER.log(Level.FINE, "Scheduled {0} weekly lessons for {1}",
+                new Object[]{weekCount, student.getStudentId()});
+        return "Scheduled " + weekCount + " weekly lessons for " + formatStudent(student) + ": "
+                + first.getLessonId() + " to " + last.getLessonId() + System.lineSeparator()
+                + "  Every " + DISPLAY_WEEKDAY.format(first.getDate()) + " " + DISPLAY_TIME.format(first.getTime())
+                + (duration == Lesson.DEFAULT_DURATION_MINUTES ? "" : " (" + duration + " min)")
+                + ", " + subject + ", " + formatMoney(first.getFee()) + " each" + System.lineSeparator()
+                + "  From " + DISPLAY_DATE.format(first.getDate()) + " to " + DISPLAY_DATE.format(last.getDate());
+    }
+
+    /**
+     * Handles {@code log STUDENT_ID d/DATE t/TIME s/SUBJECT f/FEE a/ATTENDANCE [note/NOTES]}.
+     * It adds a lesson that has already happened, with its outcome, in one step.
+     */
+    private String log(String arguments) {
+        IdAndFields input = splitIdAndFields(arguments, List.of("d", "t", "s", "f", "a", "note"));
+        ArgumentParser.Fields fields = input.fields();
+        Student student = data.getStudent(input.id());
+        String date = fields.single("d", true);
+        String time = fields.single("t", true);
+        String subject = findSubjectTakenBy(student, fields.single("s", true));
+        String fee = fields.single("f", true);
+        String attendance = parseAttendance(fields.single("a", true));
+        String notes = parseNotes(fields);
+        // The same rule as record: a lesson that has not happened yet has no outcome to log.
+        if (Lesson.parseDate(date).isAfter(LocalDate.now(clock))) {
+            throw new IllegalArgumentException("Only a lesson dated today or earlier can be logged. "
+                    + "Use schedule for a lesson that has not happened yet.");
+        }
+        Lesson lesson = data.addLesson(student.getStudentId(), subject, date, time, fee, attendance,
+                notes == null ? "" : notes);
+        assert lesson.isRecorded() : "A logged lesson should already have its attendance";
+        LOGGER.log(Level.FINE, "Logged {0} for {1}", new Object[]{lesson.getLessonId(), student.getStudentId()});
+        return "Logged " + lesson.getLessonId() + " for " + formatStudent(student) + System.lineSeparator()
+                + "  " + formatSlot(lesson) + ", " + lesson.getSubject() + ", " + formatMoney(lesson.getFee())
+                + ", " + formatAttendance(lesson) + formatNotesLine(lesson);
     }
 
     /** Handles {@code lessons [week]}: lists today's lessons, or this week's, earliest first. */
@@ -148,9 +218,7 @@ public class LessonCommands {
 
         List<Lesson> lessons = data.getLessons().stream()
                 .filter(lesson -> !lesson.getDate().isBefore(firstDay) && !lesson.getDate().isAfter(lastDay))
-                .sorted(Comparator.comparing(Lesson::getDate)
-                        .thenComparing(Lesson::getTime)
-                        .thenComparing(Lesson::getLessonId))
+                .sorted(BY_START)
                 .toList();
         LOGGER.log(Level.FINE, "Listing {0} lessons from {1} to {2}",
                 new Object[]{lessons.size(), firstDay, lastDay});
@@ -173,8 +241,91 @@ public class LessonCommands {
             output.append(System.lineSeparator())
                     .append(String.format(rowFormat, lesson.getLessonId(), formatSlot(lesson), studentLabel,
                             lesson.getSubject()));
+            if (lesson.isCancelled()) {
+                output.append("  (cancelled: ").append(lesson.getCancellationReason()).append(")");
+            }
         }
         return output.toString();
+    }
+
+    /**
+     * Handles {@code next [STUDENT_ID]}: summarises the next lesson, or that student's next lesson,
+     * with everything needed to prepare for it.
+     */
+    private String showNext(String arguments) {
+        if (arguments.split("\\s+").length > 1) {
+            throw new IllegalArgumentException("Use: next [STUDENT_ID]");
+        }
+        Student chosen = arguments.isEmpty() ? null : data.getStudent(arguments);
+        LocalDateTime now = LocalDateTime.now(clock);
+        // A lesson that started earlier, or already has attendance, is no longer the one to prepare for.
+        Optional<Lesson> upcoming = data.getLessons().stream()
+                .filter(lesson -> !lesson.isCancelled() && !lesson.isRecorded())
+                .filter(lesson -> chosen == null || chosen.getStudentId().equals(lesson.getStudentId()))
+                .filter(lesson -> !startOf(lesson).isBefore(now))
+                .min(BY_START);
+        if (upcoming.isEmpty()) {
+            return chosen == null ? "No upcoming lessons." : "No upcoming lessons for " + formatStudent(chosen) + ".";
+        }
+        Lesson lesson = upcoming.get();
+        Student student = data.getStudent(lesson.getStudentId());
+        LOGGER.log(Level.FINE, "Next lesson is {0}", lesson.getLessonId());
+        return "Next lesson: " + lesson.getLessonId() + ", " + formatSlot(lesson) + System.lineSeparator()
+                + "  Student: " + formatStudent(student) + " (" + student.getLevel() + ")" + System.lineSeparator()
+                + "  Subject: " + lesson.getSubject() + System.lineSeparator()
+                + "  Last topic: " + describeLastTopic(lesson) + System.lineSeparator()
+                + describeOutstandingHomework(student) + System.lineSeparator()
+                + "  Unpaid: " + describeUnpaid(student);
+    }
+
+    /** Describes the notes of the student's latest lesson before {@code upcoming}, where they left off. */
+    private String describeLastTopic(Lesson upcoming) {
+        LocalDateTime start = startOf(upcoming);
+        return data.getLessons().stream()
+                .filter(lesson -> lesson.getStudentId().equals(upcoming.getStudentId()))
+                .filter(lesson -> !lesson.isCancelled() && !lesson.getNotes().isBlank())
+                .filter(lesson -> startOf(lesson).isBefore(start))
+                .max(BY_START)
+                .map(lesson -> lesson.getNotes() + " (" + lesson.getLessonId() + ", "
+                        + DISPLAY_DATE.format(lesson.getDate()) + ")")
+                .orElse("none recorded yet");
+    }
+
+    /** Lists the student's homework that is not submitted, soonest due first, flagging overdue work. */
+    private String describeOutstandingHomework(Student student) {
+        LocalDate today = LocalDate.now(clock);
+        List<Homework> outstanding = data.getHomework().stream()
+                .filter(item -> student.getStudentId().equalsIgnoreCase(item.getStudentId()))
+                .filter(item -> !item.isSubmitted())
+                .sorted(Comparator.comparing(Homework::getDueDate).thenComparing(Homework::getHomeworkId))
+                .toList();
+        if (outstanding.isEmpty()) {
+            return "  Outstanding homework: none";
+        }
+        StringBuilder text = new StringBuilder("  Outstanding homework: " + outstanding.size());
+        for (Homework item : outstanding) {
+            text.append(System.lineSeparator()).append("    ").append(item.getHomeworkId()).append("  ")
+                    .append(item.getDescription()).append(", due ").append(DISPLAY_DATE.format(item.getDueDate()));
+            if (item.getDueDate().isBefore(today)) {
+                text.append(" (overdue)");
+            }
+        }
+        return text.toString();
+    }
+
+    /** Describes the student's unpaid lessons up to today, counted the same way as the owed command. */
+    private String describeUnpaid(Student student) {
+        LocalDate today = LocalDate.now(clock);
+        List<Lesson> unpaid = data.getLessons().stream()
+                .filter(lesson -> lesson.getStudentId().equals(student.getStudentId()))
+                .filter(lesson -> Lesson.PAYMENT_UNPAID.equals(lesson.getPaymentStatus()))
+                .filter(lesson -> !lesson.isCancelled() && !lesson.getDate().isAfter(today))
+                .toList();
+        if (unpaid.isEmpty()) {
+            return "none";
+        }
+        BigDecimal total = unpaid.stream().map(Lesson::getFee).reduce(BigDecimal.ZERO, BigDecimal::add);
+        return formatCount(unpaid.size(), "lesson") + ", " + formatMoney(total);
     }
 
     /** Handles {@code record LESSON_ID a/ATTENDANCE [note/NOTES]}. */
@@ -182,6 +333,9 @@ public class LessonCommands {
         IdAndFields input = splitIdAndFields(arguments, List.of("a", "note"));
         Lesson lesson = data.getLesson(input.id());
         String attendance = parseAttendance(input.fields().single("a", true));
+        if (lesson.isCancelled()) {
+            throw new IllegalArgumentException(lesson.getLessonId() + " was cancelled, so it has no attendance.");
+        }
         // A lesson that has not happened yet has no outcome to record.
         if (lesson.getDate().isAfter(LocalDate.now(clock))) {
             throw new IllegalArgumentException("Only a lesson dated today or earlier can be recorded.");
@@ -215,9 +369,11 @@ public class LessonCommands {
         if (fields.has("dur")) {
             edited = edited.withDurationMinutes(Lesson.parseDuration(fields.single("dur", true)));
         }
+        if (edited.isCancelled() && edited.isRecorded()) {
+            throw new IllegalArgumentException(edited.getLessonId() + " was cancelled, so it has no attendance.");
+        }
         // The same rule as record: attendance and notes describe a lesson that has already happened.
-        boolean hasOutcome = edited.isRecorded() || !edited.getNotes().isBlank();
-        if (hasOutcome && edited.getDate().isAfter(LocalDate.now(clock))) {
+        if (hasOutcome(edited) && edited.getDate().isAfter(LocalDate.now(clock))) {
             throw new IllegalArgumentException("A lesson dated after today cannot have attendance or notes.");
         }
         data.replaceLesson(edited);
@@ -227,6 +383,70 @@ public class LessonCommands {
                 + "  " + formatSlot(edited) + ", " + edited.getSubject() + ", " + formatMoney(edited.getFee())
                 + ", " + formatAttendance(edited) + ", " + edited.getPaymentStatus()
                 + formatNotesLine(edited);
+    }
+
+    /**
+     * Handles {@code reschedule LESSON_ID [d/DATE] [t/TIME]}: moves a lesson that has not happened yet
+     * to a new slot. Unlike {@code edit}, it checks that the move makes sense as a real-life change.
+     */
+    private String reschedule(String arguments) {
+        IdAndFields input = splitIdAndFields(arguments, List.of("d", "t"));
+        ArgumentParser.Fields fields = input.fields();
+        if (fields.isEmpty()) {
+            throw new IllegalArgumentException("Give a new date d/, a new time t/, or both.");
+        }
+        Lesson lesson = data.getLesson(input.id());
+        if (lesson.isCancelled()) {
+            throw new IllegalArgumentException(lesson.getLessonId()
+                    + " was cancelled. Schedule a make-up lesson instead.");
+        }
+        if (hasOutcome(lesson)) {
+            throw new IllegalArgumentException(lesson.getLessonId()
+                    + " already has attendance or notes, so it has taken place. Use edit to correct its slot.");
+        }
+        Lesson moved = lesson.withDetails(null, fields.singleOr("d", null), fields.singleOr("t", null),
+                null, null, null);
+        if (startOf(moved).equals(startOf(lesson))) {
+            throw new IllegalArgumentException(lesson.getLessonId() + " is already at " + formatSlot(lesson) + ".");
+        }
+        if (startOf(moved).isBefore(LocalDateTime.now(clock))) {
+            throw new IllegalArgumentException("A lesson can only be rescheduled to a time that has not passed.");
+        }
+        data.replaceLesson(moved);
+        LOGGER.log(Level.FINE, "Rescheduled {0} from {1} to {2}",
+                new Object[]{lesson.getLessonId(), startOf(lesson), startOf(moved)});
+        Student student = data.getStudent(moved.getStudentId());
+        return "Rescheduled " + moved.getLessonId() + " for " + formatStudent(student) + System.lineSeparator()
+                + "  From: " + formatSlot(lesson) + System.lineSeparator()
+                + "  To:   " + formatSlot(moved);
+    }
+
+    /**
+     * Handles {@code cancel LESSON_ID r/REASON}. The lesson is kept but marked cancelled, so it can be
+     * told apart from a lesson the student missed. It frees its slot and is no longer charged.
+     */
+    private String cancel(String arguments) {
+        IdAndFields input = splitIdAndFields(arguments, List.of("r"));
+        Lesson lesson = data.getLesson(input.id());
+        String reason = input.fields().single("r", true);
+        if (lesson.isCancelled()) {
+            throw new IllegalArgumentException(lesson.getLessonId() + " is already cancelled ("
+                    + lesson.getCancellationReason() + ").");
+        }
+        if (lesson.isRecorded()) {
+            throw new IllegalArgumentException(lesson.getLessonId()
+                    + " already has attendance, so it took place and cannot be cancelled.");
+        }
+        Lesson cancelled = lesson.withCancellation(reason);
+        data.replaceLesson(cancelled);
+        LOGGER.log(Level.FINE, "Cancelled {0}: {1}", new Object[]{cancelled.getLessonId(), reason});
+        Student student = data.getStudent(cancelled.getStudentId());
+        String paidReminder = Lesson.PAYMENT_PAID.equals(cancelled.getPaymentStatus())
+                ? System.lineSeparator() + "  This lesson was already paid for, so refund or carry over the fee."
+                : "";
+        return "Cancelled " + cancelled.getLessonId() + " for " + formatStudent(student)
+                + " (" + formatSlot(cancelled) + ")" + System.lineSeparator()
+                + "  Reason: " + cancelled.getCancellationReason() + paidReminder;
     }
 
     /** Handles {@code delete LESSON_ID}. The student and their homework are not affected. */
@@ -239,6 +459,31 @@ public class LessonCommands {
         Student student = data.getStudent(lesson.getStudentId());
         return "Deleted " + lesson.getLessonId() + " for " + formatStudent(student) + ": "
                 + formatSlot(lesson) + ", " + lesson.getSubject();
+    }
+
+    /**
+     * Returns the number of weeks typed for {@code w/}.
+     *
+     * @throws IllegalArgumentException If it is not a whole number from 2 to {@value #MAX_WEEKS}.
+     */
+    private static int parseWeekCount(String value) {
+        // At most two digits, so parseInt below can never overflow.
+        boolean isInRange = value.matches("\\d{1,2}")
+                && Integer.parseInt(value) >= 2 && Integer.parseInt(value) <= MAX_WEEKS;
+        if (!isInRange) {
+            throw new IllegalArgumentException("Weeks must be a whole number from 2 to " + MAX_WEEKS + ".");
+        }
+        return Integer.parseInt(value);
+    }
+
+    /** Returns true if the lesson has attendance or notes, which only a lesson that took place can have. */
+    private static boolean hasOutcome(Lesson lesson) {
+        return lesson.isRecorded() || !lesson.getNotes().isBlank();
+    }
+
+    /** Returns the date and time the lesson starts. */
+    private static LocalDateTime startOf(Lesson lesson) {
+        return LocalDateTime.of(lesson.getDate(), lesson.getTime());
     }
 
     /**

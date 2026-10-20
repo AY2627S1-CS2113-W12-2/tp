@@ -15,7 +15,8 @@ your own tutoring work.
 * [Notes about the command format](#notes-about-the-command-format)
 * [Features](#features)
   * [Student book](#student-book): `add`, `subject`, `view`, `list`, `edit`, `delete`
-  * [Lessons](#lessons): `schedule`, `lessons`, `filter`, `record`, `edit`, `delete`
+  * [Lessons](#lessons): `schedule`, `log`, `lessons`, `filter`, `next`, `record`, `reschedule`,
+    `cancel`, `edit`, `delete`
   * [Homework](#homework): `assign`, `submit`, `homework`
   * [Payments](#payments): `mark`, `unpaid`, `owed`
   * [Scores and progress](#scores-and-progress): `score`, `scores`, `progress`
@@ -82,6 +83,8 @@ An ID is never reused, even after its item is deleted.
 | `MINUTES`        | `dur/`  | Whole minutes from 1 to 1440; defaults to 60 when scheduling.                 | `dur/90`             |
 | `ATTENDANCE`     | `a/`    | `present`, `absent` or `late`.                                                  | `a/late`             |
 | `NOTES`          | `note/` | Any text: what was covered and anything to remember. See [Known issues](#known-issues). | `note/Started vectors` |
+| `WEEKS`          | `w/`    | A whole number of weeks from 2 to 52.                                           | `w/10`               |
+| `REASON`         | `r/`    | Any text saying why a lesson was called off. Same limits as `NOTES`.            | `r/Student sick`     |
 | `STATUS`         | (none)  | `paid` or `unpaid`.                                                             | `paid`               |
 | `DESCRIPTION`    | (none)  | Any text, written straight after the student ID.                                | `Worksheet 3B`       |
 | `TEST_NAME`      | (none)  | Any text, written straight after the student ID.                                | `Mid-year exam`      |
@@ -303,11 +306,12 @@ Also deleted 1 lesson and 0 homework items.
 
 #### Scheduling a lesson: `schedule`
 
-Feature F2.1 · Story US4
+Feature F2.1 · Stories US4, US6
 
-Schedules a lesson for a student and gives it a lesson ID.
+Schedules a lesson for a student and gives it a lesson ID. With `w/`, schedules the same weekly slot for
+several weeks at once.
 
-Format: `schedule STUDENT_ID d/DATE t/TIME s/SUBJECT [dur/MINUTES] [f/FEE]`
+Format: `schedule STUDENT_ID d/DATE t/TIME s/SUBJECT [dur/MINUTES] [f/FEE] [w/WEEKS]`
 
 * `SUBJECT` must be one of the student's subjects. Case is ignored, and the lesson uses the spelling on the
   student's record.
@@ -319,11 +323,15 @@ Format: `schedule STUDENT_ID d/DATE t/TIME s/SUBJECT [dur/MINUTES] [f/FEE]`
 * Duration is used for billing; TutorLedger still checks conflicts by identical start time, not overlap.
 * Two lessons cannot start at the same date and time, even for different students.
 * A new lesson starts as not recorded and unpaid.
+* `w/WEEKS` adds one lesson a week, on the same day and at the same time, starting on `DATE`. Each lesson gets
+  its own ID, so you can record, reschedule or cancel one week without affecting the others.
+* If any week's slot is already taken, no lessons are added, and the error names the lesson in the way.
 
 Examples:
 
 * `schedule S1 d/20-10-2026 t/1600 s/A Math f/60`
 * `schedule S2 s/Pure Chemistry f/62.50 d/10-10-2026 t/0900`
+* `schedule S1 d/20-10-2026 t/1600 s/A Math f/60 w/10`
 
 Example output:
 
@@ -331,6 +339,38 @@ Example output:
 > schedule S1 d/20-10-2026 t/1600 s/A Math f/60
 Scheduled L4 for S1 Amirah Binte Rahman
   Tue 20-10-2026 1600, A Math, $60.00
+
+> schedule S1 d/20-10-2026 t/1600 s/A Math f/60 w/10
+Scheduled 10 weekly lessons for S1 Amirah Binte Rahman: L11 to L20
+  Every Tue 1600, A Math, $60.00 each
+  From Tue 20-10-2026 to Tue 22-12-2026
+```
+
+#### Logging a past lesson: `log`
+
+Feature F2.6 · Story US21
+
+Adds a lesson that has already happened, with its attendance and notes, in one step. Use it when you forgot to
+schedule a lesson beforehand.
+
+Format: `log STUDENT_ID d/DATE t/TIME s/SUBJECT f/FEE a/ATTENDANCE [note/NOTES]`
+
+* Only a lesson dated today or earlier can be logged. Use `schedule` for a lesson that has not happened yet.
+* The same rules as `schedule` and `record` apply. For example, the slot must be free.
+* A logged lesson starts unpaid.
+
+Examples:
+
+* `log S1 d/06-10-2026 t/1600 s/A Math f/60 a/present note/Completing the square`
+* `log S2 d/03-10-2026 t/0900 s/Pure Chemistry f/62.50 a/absent`
+
+Example output:
+
+```
+> log S1 d/06-10-2026 t/1600 s/A Math f/60 a/present note/Completing the square
+Logged L21 for S1 Amirah Binte Rahman
+  Tue 06-10-2026 1600, A Math, $60.00, present
+  Notes: Completing the square
 ```
 
 #### Listing lessons: `lessons`
@@ -343,6 +383,7 @@ Format: `lessons [week]`
 
 * `lessons` shows today's lessons.
 * `lessons week` shows lessons from Monday to Sunday of the current week, including any earlier this week.
+* A cancelled lesson is still listed, with `(cancelled: REASON)` after it.
 
 Examples:
 
@@ -398,6 +439,42 @@ Example output:
 Total fees: $120.00
 ```
 
+#### Preparing for the next lesson: `next`
+
+Feature F2.7 · Story US13
+
+Shows everything you need for your next lesson in one place: who it is with, when, where you left off last
+time, and what the student still owes you.
+
+Format: `next [STUDENT_ID]`
+
+* `next` shows the next lesson with anyone. `next STUDENT_ID` shows the next lesson with that student.
+* The next lesson is the earliest one that has not started yet. Cancelled lessons and lessons that already
+  have attendance are skipped.
+* **Last topic** is the notes from the student's most recent earlier lesson that has notes.
+* **Outstanding homework** lists homework that has not been submitted, soonest due first. Homework past its due
+  date is marked `(overdue)`.
+* **Unpaid** counts the student's unpaid lessons up to today, the same way as [`owed`](#showing-what-each-student-owes-owed).
+
+Examples:
+
+* `next`
+* `next S2`
+
+Example output (it is 1000 on Wed 14-10-2026):
+
+```
+> next
+Next lesson: L9, Wed 14-10-2026 1700
+  Student: S3 Tan Wei Ling (Sec 2)
+  Subject: Math
+  Last topic: Simultaneous equations (L5, Wed 07-10-2026)
+  Outstanding homework: 2
+    H3  Textbook p.42 Q1-10, due Mon 12-10-2026 (overdue)
+    H6  Worksheet 5B, due Fri 16-10-2026
+  Unpaid: 1 lesson, $45.00
+```
+
 #### Recording a lesson: `record`
 
 Feature F2.3 · Stories US15, US16, US10
@@ -407,6 +484,7 @@ Records whether the student came to a lesson, and what you covered.
 Format: `record LESSON_ID a/ATTENDANCE [note/NOTES]`
 
 * Only a lesson dated today or earlier can be recorded.
+* A cancelled lesson cannot be recorded, because it did not take place.
 * Recording a lesson again replaces its attendance, and its notes if `note/` is given. Leave out `note/` to keep
   the notes the lesson already has.
 * The notes are shown under the lesson in `view`, ready for the next lesson.
@@ -425,6 +503,66 @@ Recorded L3 for S1 Amirah Binte Rahman (Tue 13-10-2026 1600)
   Notes: Discriminant recap. Started simultaneous equations.
 ```
 
+#### Rescheduling a lesson: `reschedule`
+
+Feature F2.8 · Story US32
+
+Moves a lesson that has not happened yet to a new date, time, or both.
+
+Format: `reschedule LESSON_ID [d/DATE] [t/TIME]`
+
+* Give a new date, a new time, or both. The part you leave out stays the same.
+* The new slot must not have passed yet, must be different from the current one, and must not be taken by
+  another lesson.
+* A lesson that already has attendance or notes has taken place, so it cannot be rescheduled. To correct its
+  date or time, use [`edit`](#editing-a-lesson-edit).
+* A cancelled lesson cannot be rescheduled. Schedule a make-up lesson instead, so the cancellation stays on
+  record.
+
+Examples:
+
+* `reschedule L6 d/16-10-2026 t/1800`
+* `reschedule L8 t/1030`
+
+Example output:
+
+```
+> reschedule L6 d/16-10-2026 t/1800
+Rescheduled L6 for S4 Daniel Lim
+  From: Thu 15-10-2026 1900
+  To:   Fri 16-10-2026 1800
+```
+
+#### Cancelling a lesson: `cancel`
+
+Feature F2.9 · Story US33
+
+Marks a lesson as called off and records why. A cancelled lesson is kept, so you can tell it apart from a
+lesson the student missed.
+
+Format: `cancel LESSON_ID r/REASON`
+
+* A cancelled lesson frees its slot, so another lesson can be scheduled at that time.
+* A cancelled lesson is not charged: it is left out of `unpaid`, `owed` and the amount owed in `view`. It is
+  also left out of the attendance figures in `progress`.
+* A lesson that already has attendance took place, so it cannot be cancelled.
+* If the lesson was already marked paid, TutorLedger reminds you to refund or carry over the fee.
+* A cancellation cannot be undone from inside TutorLedger. If you cancelled the wrong lesson, schedule it
+  again, or see [Known issues](#known-issues).
+
+Examples:
+
+* `cancel L8 r/Student sick`
+* `cancel L10 r/Public holiday`
+
+Example output:
+
+```
+> cancel L8 r/Student sick
+Cancelled L8 for S2 Tan Wei Ming (Sat 17-10-2026 0900)
+  Reason: Student sick
+```
+
 #### Editing a lesson: `edit`
 
 Feature F2.4 · Story US30
@@ -438,6 +576,7 @@ Format: `edit LESSON_ID [d/DATE] [t/TIME] [s/SUBJECT] [f/FEE] [dur/MINUTES] [a/A
   slot another lesson already has, and a lesson dated after today cannot have attendance or notes.
 * Type `note/` with nothing after it to clear the lesson's notes.
 * `dur/MINUTES` changes duration but keeps the saved fee. Give `f/FEE` explicitly to change the charge.
+* A cancelled lesson stays cancelled when edited, and cannot be given attendance.
 * This is the same `edit` command used for students. The ID tells TutorLedger which kind of item to change.
 * To change whether a lesson is paid, use [`mark`](#marking-a-lesson-paid-or-unpaid-mark).
 
@@ -474,7 +613,8 @@ Example output:
 Deleted L10 for S3 Tan Wei Ling: Sat 17-10-2026 1030, Science
 ```
 
-> **Tip:** If you do not charge for a lesson the student missed, delete it so it is not counted in what they owe.
+> **Tip:** If a lesson was called off, use [`cancel`](#cancelling-a-lesson-cancel) instead, so you keep a record
+> of it. If you do not charge for a lesson the student missed, delete it so it is not counted in what they owe.
 
 ### Homework
 
@@ -856,12 +996,17 @@ A | A1 | S1 | 07-09-2026 | 28 | 40 | WA1
 | `NEXT` | the IDs the next new student, lesson, homework item and score will get                              |
 | `R`    | student ID, default hourly rate; omit the record when no rate is set |
 | `S`    | student ID, name, level, phone number, then any number of subjects                                  |
-| `L`    | lesson ID, student ID, date, time, subject, fee, attendance (`not recorded`, `present`, `absent` or `late`), `paid` or `unpaid`, notes, duration in minutes |
+| `L`    | lesson ID, student ID, date, time, subject, fee, attendance (`not recorded`, `present`, `absent` or `late`), `paid` or `unpaid`, notes, cancellation reason (empty if active), duration in minutes |
 | `H`    | homework ID, student ID, due date, `outstanding` or `submitted`, description                        |
 | `A`    | score ID, student ID, test date, marks, total marks, test name                                      |
 
 * Older lesson lines without duration load as 60 minutes. Existing student lines without `R` records
   load with no default rate. New saves include duration; keep a backup if you may return to an older version.
+* New lesson lines have twelve fields: the cancellation reason comes before duration. For an active
+  90-minute lesson, end the line with `NOTES |  | 90`. Old eleven-field cancellation lines remain accepted.
+* If you saved data with the earlier hourly-rate branch, keep its generated `NOTES | MINUTES` header
+  when loading it. That identifies its old duration field; without the header, an eleven-field row is
+  interpreted as an old cancellation record. A new save uses the combined twelve-field layout.
 * Example rate record: `R | S1 | 60`. Clearing a rate removes its record. Loading never recalculates saved fees.
   If a rate record is invalid, the student and their lessons still load; the invalid rate is reported by line number.
 * Values follow the same rules as when you type them in a command, for example dates as `DD-MM-YYYY`.
@@ -906,14 +1051,22 @@ STUDENTS
       delete S5
 
 LESSONS
-  schedule STUDENT_ID d/DATE t/TIME s/SUBJECT [dur/MINUTES] [f/FEE]
-      schedule S1 d/22-09-2026 t/1600 s/A Math f/60
+  schedule STUDENT_ID d/DATE t/TIME s/SUBJECT [dur/MINUTES] [f/FEE] [w/WEEKS]
+      schedule S1 d/22-09-2026 t/1600 s/A Math f/60 w/10
+  log STUDENT_ID d/DATE t/TIME s/SUBJECT f/FEE a/ATTENDANCE [note/NOTES]
+      log S1 d/15-09-2026 t/1600 s/A Math f/60 a/present note/Discriminant
   lessons [week]
       lessons week
   filter [STUDENT_ID] [from/DATE] [to/DATE] [pay/STATUS]
       filter S1 from/01-09-2026 pay/unpaid
+  next [STUDENT_ID]
+      next
   record LESSON_ID a/ATTENDANCE [note/NOTES]
       record L41 a/present note/Started simultaneous equations
+  reschedule LESSON_ID [d/DATE] [t/TIME]
+      reschedule L42 d/25-09-2026 t/1800
+  cancel LESSON_ID r/REASON
+      cancel L43 r/Student sick
   edit LESSON_ID [d/DATE] [t/TIME] [s/SUBJECT] [f/FEE] [dur/MINUTES] [a/ATTENDANCE] [note/NOTES]
       edit L42 d/25-09-2026 t/1800
   delete LESSON_ID
@@ -1016,7 +1169,9 @@ from, then start TutorLedger.
 
 **Q**: A student missed a lesson and I am not charging for it. What should I do?
 
-**A**: Delete the lesson with `delete LESSON_ID`, so it is not counted in what they owe.
+**A**: If the lesson was called off beforehand, cancel it with `cancel LESSON_ID r/REASON`. It is then not
+charged, and you keep a record of why it did not happen. If the student simply did not turn up, record them
+as absent; if you also do not want to charge for it, delete the lesson with `delete LESSON_ID`.
 
 **Q**: Does TutorLedger need an internet connection?
 
@@ -1031,6 +1186,8 @@ from, then start TutorLedger.
    Write "and or" or "km per h" instead. Homework descriptions are not affected.
 1. **A lesson's attendance cannot be set back to "not recorded"** once it has been recorded. Edit its line in
    `data/tutorledger.txt` and run `reload` if you need to.
+1. **A cancellation cannot be undone from inside TutorLedger.** Remove the reason at the end of the lesson's
+   line in `data/tutorledger.txt` and run `reload`.
 
 ## Command summary
 
@@ -1043,10 +1200,14 @@ from, then start TutorLedger.
 | **Edit student**        | `edit STUDENT_ID [n/NAME] [l/LEVEL] [p/PHONE_NUMBER] [s/SUBJECT]… [r/RATE]`<br>e.g. `edit S1 l/Sec 4`                            |
 | **Set / clear hourly rate** | `edit STUDENT_ID r/RATE` or `edit STUDENT_ID r/`<br>e.g. `edit S1 r/60` |
 | **Delete student**      | `delete STUDENT_ID`<br>e.g. `delete S5`                                                                                  |
-| **Schedule lesson**     | `schedule STUDENT_ID d/DATE t/TIME s/SUBJECT [dur/MINUTES] [f/FEE]`<br>e.g. `schedule S1 d/20-10-2026 t/1600 s/A Math f/60`             |
+| **Schedule lesson**     | `schedule STUDENT_ID d/DATE t/TIME s/SUBJECT [dur/MINUTES] [f/FEE] [w/WEEKS]`<br>e.g. `schedule S1 d/20-10-2026 t/1600 s/A Math f/60 w/10` |
+| **Log past lesson**     | `log STUDENT_ID d/DATE t/TIME s/SUBJECT f/FEE a/ATTENDANCE [note/NOTES]`<br>e.g. `log S1 d/06-10-2026 t/1600 s/A Math f/60 a/present` |
 | **List lessons**        | `lessons [week]`<br>e.g. `lessons week`                                                                                  |
 | **Filter lessons**      | `filter [STUDENT_ID] [from/DATE] [to/DATE] [pay/STATUS]`<br>e.g. `filter S1 from/01-10-2026 pay/unpaid`                 |
+| **Next lesson**         | `next [STUDENT_ID]`<br>e.g. `next`                                                                                       |
 | **Record lesson**       | `record LESSON_ID a/ATTENDANCE [note/NOTES]`<br>e.g. `record L3 a/present note/Started simultaneous equations`          |
+| **Reschedule lesson**   | `reschedule LESSON_ID [d/DATE] [t/TIME]`<br>e.g. `reschedule L6 d/16-10-2026 t/1800`                                     |
+| **Cancel lesson**       | `cancel LESSON_ID r/REASON`<br>e.g. `cancel L8 r/Student sick`                                                           |
 | **Edit lesson**         | `edit LESSON_ID [d/DATE] [t/TIME] [s/SUBJECT] [f/FEE] [dur/MINUTES] [a/ATTENDANCE] [note/NOTES]`<br>e.g. `edit L6 d/16-10-2026 t/1800` |
 | **Delete lesson**       | `delete LESSON_ID`<br>e.g. `delete L10`                                                                                  |
 | **Assign homework**     | `assign STUDENT_ID DESCRIPTION d/DUE_DATE`<br>e.g. `assign S1 Worksheet 4A d/20-10-2026`                                |

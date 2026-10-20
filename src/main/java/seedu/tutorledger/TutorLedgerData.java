@@ -144,15 +144,98 @@ public class TutorLedgerData {
     }
 
     /**
-     * Schedules a lesson with its duration and a fixed total fee.
-     * A null fee requests the student's default hourly rate; an explicit fee always wins.
-     * Validation finishes before storing the lesson or advancing its ID counter.
+     * Adds a lesson whose attendance and notes are already known, and assigns it the next lesson ID.
+     * This is how a lesson that has already happened is logged after the fact. It starts unpaid.
+     *
+     * @param studentId The ID of the student taking the lesson, in either case.
+     * @param subject The subject being taught.
+     * @param date The lesson date in DD-MM-YYYY format.
+     * @param time The lesson start time in HHMM format.
+     * @param fee The fee charged for this lesson.
+     * @param attendance The attendance status, such as present.
+     * @param notes What was covered, or an empty string for none.
+     * @return The newly stored lesson.
+     * @throws IllegalArgumentException If a value is invalid or another lesson starts at the same time.
      */
     public Lesson addLesson(String studentId, String subject, String date, String time, String fee,
+            String attendance, String notes) {
+        return addLesson(studentId, subject, date, time, fee, attendance, notes, Lesson.DEFAULT_DURATION_MINUTES);
+    }
+
+    /** Schedules an unrecorded lesson with an explicit duration and optional fee override. */
+    public Lesson addLesson(String studentId, String subject, String date, String time, String fee,
             int durationMinutes) {
-        LOGGER.log(Level.INFO, "Scheduling lesson for student {0} subject={1} date={2} time={3} fee={4}",
+        return addLesson(studentId, subject, date, time, fee, Lesson.Attendance.NOT_RECORDED.name(), "",
+                durationMinutes);
+    }
+
+    /** Validates a complete lesson before insertion, shared by scheduling and after-the-fact logging. */
+    private Lesson addLesson(String studentId, String subject, String date, String time, String fee,
+            String attendance, String notes, int durationMinutes) {
+        LOGGER.log(Level.INFO, "Adding lesson for student {0} subject={1} date={2} time={3} fee={4}",
                 new Object[]{studentId, subject, date, time, fee});
         Student student = getStudent(studentId);
+        fee = resolveLessonFee(student, fee, durationMinutes);
+        int lessonNumber = nextLessonNumber;
+        Lesson lesson = new Lesson("L" + lessonNumber, student.getStudentId(), subject, date, time,
+                attendance, fee, notes, durationMinutes);
+        ensureSlotFree(lesson);
+        putLesson(lesson);
+        // putLesson must move the counter past the ID just used, or the next lesson would overwrite this one.
+        assert nextLessonNumber == lessonNumber + 1 : "Lesson counter did not advance after scheduling";
+        assert lessons.get(lesson.getLessonId()) == lesson : "Scheduled lesson was not stored";
+        LOGGER.log(Level.INFO, "Lesson scheduled: {0}", lesson.getLessonId());
+        return lesson;
+    }
+
+    /**
+     * Schedules the same weekly slot for several weeks in a row, giving each lesson the next lesson ID.
+     *
+     * <p>Either every lesson is added or none is: all the slots are checked before any lesson is
+     * stored, so a clash in a later week never leaves the earlier weeks half-scheduled.
+     *
+     * @param studentId The ID of the student taking the lessons, in either case.
+     * @param subject The subject being taught.
+     * @param firstDate The date of the first lesson in DD-MM-YYYY format.
+     * @param time The start time of every lesson in HHMM format.
+     * @param fee The fee charged for each lesson.
+     * @param weekCount How many weekly lessons to add, counting the first one.
+     * @return The new lessons, earliest first.
+     * @throws IllegalArgumentException If a value is invalid or any week's slot is already taken.
+     */
+    public List<Lesson> addWeeklyLessons(String studentId, String subject, String firstDate, String time,
+            String fee, int weekCount) {
+        return addWeeklyLessons(studentId, subject, firstDate, time, fee, weekCount, Lesson.DEFAULT_DURATION_MINUTES);
+    }
+
+    /** Schedules every week with the same fixed fee and duration, or stores nothing if a slot conflicts. */
+    public List<Lesson> addWeeklyLessons(String studentId, String subject, String firstDate, String time,
+            String fee, int weekCount, int durationMinutes) {
+        assert weekCount >= 1 : "A weekly slot needs at least one lesson";
+        LOGGER.log(Level.INFO, "Scheduling {0} weekly lessons for student {1} from {2}",
+                new Object[]{weekCount, studentId, firstDate});
+        Student student = getStudent(studentId);
+        fee = resolveLessonFee(student, fee, durationMinutes);
+        LocalDate start = Lesson.parseDate(firstDate);
+        int firstNumber = nextLessonNumber;
+        List<Lesson> planned = new ArrayList<>();
+        for (int week = 0; week < weekCount; week++) {
+            Lesson lesson = new Lesson("L" + (firstNumber + week), student.getStudentId(), subject,
+                    Lesson.formatDate(start.plusWeeks(week)), time, Lesson.Attendance.NOT_RECORDED.name(),
+                    fee, "", durationMinutes);
+            ensureSlotFree(lesson);
+            planned.add(lesson);
+        }
+        planned.forEach(this::putLesson);
+        assert nextLessonNumber == firstNumber + weekCount
+                : "Lesson counter did not advance past every new lesson";
+        LOGGER.log(Level.INFO, "Weekly lessons scheduled: L{0} to L{1}",
+                new Object[]{firstNumber, firstNumber + weekCount - 1});
+        return planned;
+    }
+
+    /** Resolves a fixed total once; explicit fees and prior lessons are never repriced. */
+    private static String resolveLessonFee(Student student, String fee, int durationMinutes) {
         Lesson.validateDuration(durationMinutes);
         if (fee == null) {
             BigDecimal rate = student.getDefaultHourlyRate().orElseThrow(() -> new IllegalArgumentException(
@@ -162,16 +245,7 @@ public class TutorLedgerData {
             LOGGER.log(Level.FINE, "Calculated fee {0} for {1} minutes for student {2}",
                     new Object[]{fee, durationMinutes, student.getStudentId()});
         }
-        int lessonNumber = nextLessonNumber;
-        Lesson lesson = new Lesson("L" + lessonNumber, student.getStudentId(), subject, date, time,
-                Lesson.Attendance.NOT_RECORDED.name(), fee, "", durationMinutes);
-        ensureSlotFree(lesson);
-        putLesson(lesson);
-        // putLesson must move the counter past the ID just used, or the next lesson would overwrite this one.
-        assert nextLessonNumber == lessonNumber + 1 : "Lesson counter did not advance after scheduling";
-        assert lessons.get(lesson.getLessonId()) == lesson : "Scheduled lesson was not stored";
-        LOGGER.log(Level.INFO, "Lesson scheduled: {0}", lesson.getLessonId());
-        return lesson;
+        return fee;
     }
 
     /**
@@ -469,13 +543,20 @@ public class TutorLedgerData {
         }
     }
 
-    /** Rejects a lesson that would start at the same date and time as a different lesson. */
+    /**
+     * Rejects a lesson that would start at the same date and time as a different lesson.
+     * A cancelled lesson will not take place, so it neither blocks a slot nor is blocked by one.
+     */
     private void ensureSlotFree(Lesson candidate) {
         assert candidate != null : "Cannot check the slot of a null lesson";
+        if (candidate.isCancelled()) {
+            return;
+        }
         LOGGER.log(Level.FINE, "Checking slot availability for lesson {0} at {1} {2}",
                 new Object[]{candidate.getLessonId(), candidate.getDate(), candidate.getTime()});
         for (Lesson existing : lessons.values()) {
             if (!existing.getLessonId().equalsIgnoreCase(candidate.getLessonId())
+                    && !existing.isCancelled()
                     && existing.getDate().equals(candidate.getDate())
                     && existing.getTime().equals(candidate.getTime())) {
                 throw new IllegalArgumentException(existing.getLessonId()
