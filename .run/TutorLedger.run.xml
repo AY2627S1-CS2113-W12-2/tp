@@ -1,0 +1,11 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="TutorLedger (assertions enabled)" type="Application" factoryName="Application">
+    <option name="MAIN_CLASS_NAME" value="seedu.tutorledger.TutorLedger" />
+    <module name="tp.main" />
+    <option name="VM_PARAMETERS" value="-ea" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

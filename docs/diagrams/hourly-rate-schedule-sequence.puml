@@ -1,0 +1,36 @@
+@startuml
+skinparam backgroundColor white
+skinparam defaultFontSize 14
+skinparam shadowing false
+hide footbox
+title Schedule with a default: 90 minutes at $60/hour
+
+participant ":LessonCommands" as Commands
+participant ":TutorLedgerData" as Data
+participant "student:Student" as Student
+participant "lesson:Lesson" as Lesson
+
+[-> Commands : execute("schedule S1 ... dur/90")
+activate Commands
+Commands -> Data : getStudent("S1")
+Data --> Commands : student
+Commands -> Commands : parse and validate input
+Commands -> Data : addLesson(..., null, 90)
+activate Data
+Data -> Data : validateDuration(90)
+Data -> Student : getDefaultHourlyRate()
+Student --> Data : 60
+Data -> Data : fee = 60 x 90 / 60\ntotal: 90.00
+create Lesson
+Data -> Lesson : new Lesson(..., fee, ..., 90)
+Data -> Data : ensureSlotFree(lesson)
+Data -> Data : putLesson(lesson)
+Data --> Commands : lesson
+deactivate Data
+Commands -->[ : Scheduled L1 ... $90.00
+deactivate Commands
+note over Commands, Lesson
+  The main loop then saves changed data.
+  The stored fee is independent of later rate changes.
+end note
+@enduml

@@ -120,7 +120,7 @@ class LessonCommandsTest {
 
     @Test
     void schedule_missingOrInvalidValues_storesNothing() {
-        assertEquals("Error: Give a non-blank f/ value.",
+        assertEquals("Error: Set a default hourly rate with edit S1 r/RATE, or give f/FEE.",
                 commands.execute("schedule S1 d/22-09-2026 t/1600 s/A Math"));
         assertEquals("Error: Give a non-blank d/ value.",
                 commands.execute("schedule S1 d/ t/1600 s/A Math f/60"));

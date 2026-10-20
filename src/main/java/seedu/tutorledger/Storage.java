@@ -7,9 +7,11 @@ import java.nio.file.Path;
 import java.time.DateTimeException;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -48,8 +50,10 @@ public class Storage {
             "# Lines starting with # are ignored. Fields are separated by |. Write \\| for a | inside a value.",
             "#   NEXT | next student ID | next lesson ID | next homework ID | next score ID",
             "#   S | STUDENT_ID | NAME | LEVEL | PHONE_NUMBER | SUBJECT | SUBJECT ...",
-            "#   L | LESSON_ID | STUDENT_ID | DATE | TIME | SUBJECT | FEE | ATTENDANCE | PAYMENT | NOTES",
-            "#       A cancelled lesson has one more field at the end: | CANCELLATION_REASON",
+            "#   R | STUDENT_ID | DEFAULT_HOURLY_RATE (omit the line if no rate is set)",
+            "#   L | LESSON_ID | STUDENT_ID | DATE | TIME | SUBJECT | FEE | ATTENDANCE | PAYMENT | NOTES"
+                    + " | CANCELLATION_REASON | MINUTES",
+            "#   Leave CANCELLATION_REASON empty for active lessons. Saved fees are never recalculated on load.",
             "#   H | HOMEWORK_ID | STUDENT_ID | DUE_DATE | STATUS | DESCRIPTION",
             "#   A | SCORE_ID | STUDENT_ID | DATE | MARKS | TOTAL_MARKS | TEST_NAME");
 
@@ -129,17 +133,16 @@ public class Storage {
                     student.getLevel(), student.getPhoneNumber()));
             fields.addAll(student.getSubjects());
             lines.add(join(fields.toArray(String[]::new)));
+            student.getDefaultHourlyRate().ifPresent(rate ->
+                    lines.add(join("R", student.getStudentId(), rate.toPlainString())));
         }
         for (Lesson lesson : data.getLessons()) {
             List<String> fields = new ArrayList<>(List.of("L", lesson.getLessonId(), lesson.getStudentId(),
                     DATE.format(lesson.getDate()), TIME.format(lesson.getTime()), lesson.getSubject(),
                     lesson.getFee().toPlainString(),
                     lesson.getAttendance().name().toLowerCase(Locale.ROOT).replace('_', ' '),
-                    lesson.getPaymentStatus(), lesson.getNotes()));
-            // Only a cancelled lesson gets the extra field, so lines for other lessons stay as they were.
-            if (lesson.isCancelled()) {
-                fields.add(lesson.getCancellationReason());
-            }
+                    lesson.getPaymentStatus(), lesson.getNotes(), lesson.getCancellationReason(),
+                    Integer.toString(lesson.getDurationMinutes())));
             lines.add(join(fields.toArray(String[]::new)));
         }
         for (Homework item : data.getHomework()) {
@@ -150,16 +153,18 @@ public class Storage {
             lines.add(join("A", score.getScoreId(), score.getStudentId(), DATE.format(score.getDate()),
                     score.getMarks().toPlainString(), score.getTotalMarks().toPlainString(), score.getTestName()));
         }
-        // One line per record, plus the header and the NEXT line; anything else means a record was missed.
+        long rateCount = data.getStudents().stream()
+                .filter(student -> student.getDefaultHourlyRate().isPresent()).count();
+        // Student rates have their own lines so legacy subjects remain unambiguous.
         assert lines.size() == HEADER.size() + 1 + data.getStudents().size() + data.getLessons().size()
-                + data.getHomework().size() + data.getScores().size() : "Some records were not encoded";
+                + data.getHomework().size() + data.getScores().size() + rateCount : "Some records were not encoded";
         return String.join(System.lineSeparator(), lines) + System.lineSeparator();
     }
 
     /**
      * Rebuilds the records from the lines of a data file.
      *
-     * <p>Students are read first, then lessons, homework and scores, because those must belong to a student
+     * <p>Students are read first, then rates, lessons, homework and scores, which must belong to a student
      * that already exists. This means the lines may appear in any order in the file.
      */
     public static LoadResult decode(List<String> lines) {
@@ -167,14 +172,18 @@ public class Storage {
         // Sorted by line number, so problems are reported in file order even though there are two passes.
         Map<Integer, String> problems = new TreeMap<>();
         int[] savedNextIds = null;
+        // The pre-merge hourly-rate branch used field 11 for minutes; upstream used it for a reason.
+        // Only that branch's explicit header disambiguates old duration rows. Never guess from a numeric reason.
+        boolean legacyDurationFormat = lines.stream()
+                .anyMatch(line -> line.strip().startsWith("#") && line.contains("| NOTES | MINUTES"));
 
         for (int i = 0; i < lines.size(); i++) {
             List<String> fields = splitFields(lines.get(i));
             String type = fields.getFirst().toUpperCase(Locale.ROOT);
             try {
                 switch (type) {
-                case "", "L", "H", "A" -> {
-                    // Blank and comment lines are ignored; lessons, homework and scores wait for the second pass.
+                case "", "L", "H", "A", "R" -> {
+                    // Linked records and rates wait for the second pass; blank and comment lines are ignored.
                 }
                 case "NEXT" -> {
                     if (savedNextIds != null) {
@@ -184,19 +193,22 @@ public class Storage {
                 }
                 case "S" -> data.importStudent(parseStudent(fields));
                 default -> throw new IllegalArgumentException("Unknown record type \"" + fields.getFirst()
-                        + "\". A line must start with S, L, H, A or NEXT.");
+                        + "\". A line must start with S, R, L, H, A or NEXT.");
                 }
             } catch (IllegalArgumentException exception) {
                 problems.put(i + 1, exception.getMessage());
             }
         }
 
+        Set<String> ratedStudents = new HashSet<>();
         for (int i = 0; i < lines.size(); i++) {
             List<String> fields = splitFields(lines.get(i));
             String type = fields.getFirst().toUpperCase(Locale.ROOT);
             try {
-                if (type.equals("L")) {
-                    data.importLesson(parseLesson(fields, data));
+                if (type.equals("R")) {
+                    importRate(fields, data, ratedStudents);
+                } else if (type.equals("L")) {
+                    data.importLesson(parseLesson(fields, data, legacyDurationFormat));
                 } else if (type.equals("H")) {
                     data.importHomework(parseHomework(fields, data));
                 } else if (type.equals("A")) {
@@ -259,26 +271,48 @@ public class Storage {
         return new Student(fields.get(1), fields.get(2), fields.get(3), fields.get(4), subjects);
     }
 
-    private static Lesson parseLesson(List<String> fields, TutorLedgerData data) {
-        // A cancelled lesson has one extra field holding the reason.
-        boolean hasReason = fields.size() == LESSON_FIELD_COUNT + 1;
-        if (fields.size() != LESSON_FIELD_COUNT && !hasReason) {
-            throw new IllegalArgumentException("A lesson line needs " + LESSON_FIELD_COUNT + " fields, or "
-                    + (LESSON_FIELD_COUNT + 1) + " if cancelled, but has " + fields.size() + ".");
+    /** Reads legacy upstream rows, earlier rate-branch rows, and the combined twelve-field format. */
+    private static Lesson parseLesson(List<String> fields, TutorLedgerData data, boolean legacyDurationFormat) {
+        if (fields.size() < LESSON_FIELD_COUNT || fields.size() > LESSON_FIELD_COUNT + 2) {
+            throw new IllegalArgumentException("A lesson line needs 10 to 12 fields but has " + fields.size() + ".");
         }
-        // Looking the student up checks they exist and gives their ID in its usual upper-case form.
         String studentId = data.getStudent(fields.get(2)).getStudentId();
         Lesson lesson = new Lesson(fields.get(1).toUpperCase(Locale.ROOT), studentId, fields.get(5),
                 fields.get(3), fields.get(4), fields.get(7), fields.get(6), fields.get(9))
                 .withPaymentStatus(fields.get(8));
-        // A blank reason field, such as one left by a stray | at the end, means the lesson is not cancelled.
-        if (hasReason && !fields.get(LESSON_FIELD_COUNT).isBlank()) {
+        String reason = "";
+        if (fields.size() == LESSON_FIELD_COUNT + 2) {
+            reason = fields.get(10);
+            lesson = lesson.withDurationMinutes(Lesson.parseDuration(fields.get(11)));
+        } else if (fields.size() == LESSON_FIELD_COUNT + 1) {
+            if (legacyDurationFormat) {
+                lesson = lesson.withDurationMinutes(Lesson.parseDuration(fields.get(10)));
+            } else {
+                reason = fields.get(10);
+            }
+        }
+        // Preserve upstream's rule: cancellation and recorded attendance cannot coexist.
+        if (!reason.isBlank()) {
             if (lesson.isRecorded()) {
                 throw new IllegalArgumentException("A cancelled lesson cannot have attendance.");
             }
-            return lesson.withCancellation(fields.get(LESSON_FIELD_COUNT));
+            return lesson.withCancellation(reason);
         }
         return lesson;
+    }
+
+    /** Applies the first valid rate for a student without disturbing their profile or history. */
+    private static void importRate(List<String> fields, TutorLedgerData data, Set<String> ratedStudents) {
+        if (fields.size() != 3) {
+            throw new IllegalArgumentException(wrongFieldCount("A rate", 3, fields));
+        }
+        Student student = data.getStudent(fields.get(1));
+        String id = student.getStudentId();
+        if (ratedStudents.contains(id)) {
+            throw new IllegalArgumentException("Duplicate hourly rate for student " + id + ".");
+        }
+        data.replaceStudent(student.withDefaultHourlyRate(fields.get(2)));
+        ratedStudents.add(id);
     }
 
     private static Homework parseHomework(List<String> fields, TutorLedgerData data) {

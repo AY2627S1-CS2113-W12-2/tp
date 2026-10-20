@@ -1,5 +1,7 @@
 package seedu.tutorledger;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -29,9 +31,14 @@ public class TutorLedgerData {
 
     /** Adds a student and assigns the next permanent ID. */
     public Student addStudent(String name, String level, String phoneNumber) {
+        return addStudent(name, level, phoneNumber, List.of(), null);
+    }
+
+    /** Validates the complete profile before storing it or consuming its permanent ID. */
+    public Student addStudent(String name, String level, String phoneNumber, List<String> subjects, String hourlyRate) {
         LOGGER.log(Level.INFO, "Adding student: name={0}, level={1}, phone={2}",
                 new Object[]{name, level, phoneNumber});
-        Student candidate = new Student("S" + nextStudentNumber, name, level, phoneNumber);
+        Student candidate = new Student("S" + nextStudentNumber, name, level, phoneNumber, subjects, hourlyRate);
         ensureUnique(candidate, null);
         students.put(candidate.getStudentId(), candidate);
         nextStudentNumber++;
@@ -128,12 +135,12 @@ public class TutorLedgerData {
      * @param subject The subject being taught.
      * @param date The lesson date in DD-MM-YYYY format.
      * @param time The lesson start time in HHMM format.
-     * @param fee The fee charged for this lesson.
+     * @param fee The total fee charged for this lesson, or null to use the student's hourly rate.
      * @return The newly stored lesson.
      * @throws IllegalArgumentException If a value is invalid or another lesson starts at the same time.
      */
     public Lesson addLesson(String studentId, String subject, String date, String time, String fee) {
-        return addLesson(studentId, subject, date, time, fee, Lesson.Attendance.NOT_RECORDED.name(), "");
+        return addLesson(studentId, subject, date, time, fee, Lesson.DEFAULT_DURATION_MINUTES);
     }
 
     /**
@@ -152,12 +159,26 @@ public class TutorLedgerData {
      */
     public Lesson addLesson(String studentId, String subject, String date, String time, String fee,
             String attendance, String notes) {
+        return addLesson(studentId, subject, date, time, fee, attendance, notes, Lesson.DEFAULT_DURATION_MINUTES);
+    }
+
+    /** Schedules an unrecorded lesson with an explicit duration and optional fee override. */
+    public Lesson addLesson(String studentId, String subject, String date, String time, String fee,
+            int durationMinutes) {
+        return addLesson(studentId, subject, date, time, fee, Lesson.Attendance.NOT_RECORDED.name(), "",
+                durationMinutes);
+    }
+
+    /** Validates a complete lesson before insertion, shared by scheduling and after-the-fact logging. */
+    private Lesson addLesson(String studentId, String subject, String date, String time, String fee,
+            String attendance, String notes, int durationMinutes) {
         LOGGER.log(Level.INFO, "Adding lesson for student {0} subject={1} date={2} time={3} fee={4}",
                 new Object[]{studentId, subject, date, time, fee});
         Student student = getStudent(studentId);
+        fee = resolveLessonFee(student, fee, durationMinutes);
         int lessonNumber = nextLessonNumber;
         Lesson lesson = new Lesson("L" + lessonNumber, student.getStudentId(), subject, date, time,
-                attendance, fee, notes);
+                attendance, fee, notes, durationMinutes);
         ensureSlotFree(lesson);
         putLesson(lesson);
         // putLesson must move the counter past the ID just used, or the next lesson would overwrite this one.
@@ -184,17 +205,24 @@ public class TutorLedgerData {
      */
     public List<Lesson> addWeeklyLessons(String studentId, String subject, String firstDate, String time,
             String fee, int weekCount) {
+        return addWeeklyLessons(studentId, subject, firstDate, time, fee, weekCount, Lesson.DEFAULT_DURATION_MINUTES);
+    }
+
+    /** Schedules every week with the same fixed fee and duration, or stores nothing if a slot conflicts. */
+    public List<Lesson> addWeeklyLessons(String studentId, String subject, String firstDate, String time,
+            String fee, int weekCount, int durationMinutes) {
         assert weekCount >= 1 : "A weekly slot needs at least one lesson";
         LOGGER.log(Level.INFO, "Scheduling {0} weekly lessons for student {1} from {2}",
                 new Object[]{weekCount, studentId, firstDate});
         Student student = getStudent(studentId);
+        fee = resolveLessonFee(student, fee, durationMinutes);
         LocalDate start = Lesson.parseDate(firstDate);
         int firstNumber = nextLessonNumber;
         List<Lesson> planned = new ArrayList<>();
         for (int week = 0; week < weekCount; week++) {
             Lesson lesson = new Lesson("L" + (firstNumber + week), student.getStudentId(), subject,
                     Lesson.formatDate(start.plusWeeks(week)), time, Lesson.Attendance.NOT_RECORDED.name(),
-                    fee, "");
+                    fee, "", durationMinutes);
             ensureSlotFree(lesson);
             planned.add(lesson);
         }
@@ -204,6 +232,20 @@ public class TutorLedgerData {
         LOGGER.log(Level.INFO, "Weekly lessons scheduled: L{0} to L{1}",
                 new Object[]{firstNumber, firstNumber + weekCount - 1});
         return planned;
+    }
+
+    /** Resolves a fixed total once; explicit fees and prior lessons are never repriced. */
+    private static String resolveLessonFee(Student student, String fee, int durationMinutes) {
+        Lesson.validateDuration(durationMinutes);
+        if (fee == null) {
+            BigDecimal rate = student.getDefaultHourlyRate().orElseThrow(() -> new IllegalArgumentException(
+                    "Set a default hourly rate with edit " + student.getStudentId() + " r/RATE, or give f/FEE."));
+            fee = rate.multiply(BigDecimal.valueOf(durationMinutes))
+                    .divide(BigDecimal.valueOf(60), 2, RoundingMode.HALF_UP).toPlainString();
+            LOGGER.log(Level.FINE, "Calculated fee {0} for {1} minutes for student {2}",
+                    new Object[]{fee, durationMinutes, student.getStudentId()});
+        }
+        return fee;
     }
 
     /**

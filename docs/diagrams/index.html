@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Default hourly rate UML preview — TutorLedger</title>
+  <style>
+    body { max-width: 960px; margin: 40px auto; padding: 0 20px; font: 16px/1.6 system-ui, sans-serif; color: #202830; }
+    h1 { line-height: 1.2; }
+    figure { margin: 36px 0 56px; }
+    img { display: block; max-width: 100%; height: auto; margin: 20px auto; }
+    figcaption { margin-top: 12px; }
+    a { color: #175c88; }
+    nav a { display: inline-block; margin-right: 16px; }
+    code { background: #f0f3f5; padding: 2px 4px; }
+  </style>
+</head>
+<body>
+  <h1>Default hourly rates: UML preview</h1>
+  <p>Yan Hern · v2.0 · US5 / issue #11</p>
+  <p>Review the class, sequence and activity diagrams below alongside the
+    <a href="../DeveloperGuide.md#default-hourly-rates--yan-hern">Developer Guide explanation</a>.
+    These SVGs are generated from editable PlantUML sources and can be opened locally.</p>
+  <nav aria-label="Diagrams">
+    <a href="#classes">Classes</a>
+    <a href="#edit">Set a rate</a>
+    <a href="#schedule">Schedule a lesson</a>
+    <a href="#fee">Choose a fee</a>
+  </nav>
+  <figure id="classes">
+    <h2>Responsibilities and relationships</h2>
+    <img src="hourly-rate-class.svg" alt="Class diagram of commands, shared records, Student, Lesson and Storage">
+    <figcaption>Students have optional hourly rates; lessons retain fixed fees and durations.
+      <a href="hourly-rate-class.puml">PlantUML source</a></figcaption>
+  </figure>
+  <figure id="edit">
+    <h2>Setting a rate</h2>
+    <img src="hourly-rate-edit-sequence.svg" alt="Sequence of parsing a rate edit and storing a validated student copy">
+    <figcaption><code>edit S1 r/60</code> validates a replacement before storing it.
+      <a href="hourly-rate-edit-sequence.puml">PlantUML source</a></figcaption>
+  </figure>
+  <figure id="schedule">
+    <h2>Scheduling with a default rate</h2>
+    <img src="hourly-rate-schedule-sequence.svg" alt="Sequence calculating and saving a 90-minute lesson fee of 90 dollars">
+    <figcaption>A 90-minute lesson at $60/hour saves a $90.00 total.
+      <a href="hourly-rate-schedule-sequence.puml">PlantUML source</a></figcaption>
+  </figure>
+  <figure id="fee">
+    <h2>Choosing the fee</h2>
+    <img src="hourly-rate-fee-activity.svg" alt="Activity diagram of explicit fee overrides and hourly rate fallback">
+    <figcaption>An explicit fee takes priority. Invalid input leaves records and counters unchanged.
+      <a href="hourly-rate-fee-activity.puml">PlantUML source</a></figcaption>
+  </figure>
+</body>
+</html>

@@ -128,22 +128,21 @@ public class LessonCommands {
         }
     }
 
-    /**
-     * Handles {@code schedule STUDENT_ID d/DATE t/TIME s/SUBJECT f/FEE [w/WEEKS]}.
-     * With {@code w/}, the same slot is scheduled every week for that many weeks.
-     */
+    /** Schedules single or weekly lessons with an optional fee override and billing duration. */
     private String schedule(String arguments) {
-        IdAndFields input = splitIdAndFields(arguments, List.of("d", "t", "s", "f", "w"));
+        IdAndFields input = splitIdAndFields(arguments, List.of("d", "t", "s", "f", "dur", "w"));
         Student student = data.getStudent(input.id());
         String date = input.fields().single("d", true);
         String time = input.fields().single("t", true);
         String subject = findSubjectTakenBy(student, input.fields().single("s", true));
-        String fee = input.fields().single("f", true);
+        String fee = input.fields().singleOr("f", null);
+        int duration = input.fields().has("dur") ? Lesson.parseDuration(input.fields().single("dur", true))
+                : Lesson.DEFAULT_DURATION_MINUTES;
         if (input.fields().has("w")) {
             int weekCount = parseWeekCount(input.fields().single("w", true));
-            return scheduleWeekly(student, subject, date, time, fee, weekCount);
+            return scheduleWeekly(student, subject, date, time, fee, weekCount, duration);
         }
-        Lesson lesson = data.addLesson(student.getStudentId(), subject, date, time, fee);
+        Lesson lesson = data.addLesson(student.getStudentId(), subject, date, time, fee, duration);
         assert lesson.getStudentId().equals(student.getStudentId()) : "Lesson was scheduled for the wrong student";
         assert !lesson.isRecorded() : "A newly scheduled lesson should not have attendance yet";
         LOGGER.log(Level.FINE, "Scheduled {0} for {1}", new Object[]{lesson.getLessonId(), student.getStudentId()});
@@ -154,8 +153,9 @@ public class LessonCommands {
 
     /** Schedules a weekly slot and describes the lessons it added. */
     private String scheduleWeekly(Student student, String subject, String date, String time, String fee,
-            int weekCount) {
-        List<Lesson> lessons = data.addWeeklyLessons(student.getStudentId(), subject, date, time, fee, weekCount);
+            int weekCount, int duration) {
+        List<Lesson> lessons = data.addWeeklyLessons(student.getStudentId(), subject, date, time, fee,
+                weekCount, duration);
         assert lessons.size() == weekCount : "Every week of the slot should have its own lesson";
         Lesson first = lessons.getFirst();
         Lesson last = lessons.getLast();
@@ -165,6 +165,7 @@ public class LessonCommands {
         return "Scheduled " + weekCount + " weekly lessons for " + formatStudent(student) + ": "
                 + first.getLessonId() + " to " + last.getLessonId() + System.lineSeparator()
                 + "  Every " + DISPLAY_WEEKDAY.format(first.getDate()) + " " + DISPLAY_TIME.format(first.getTime())
+                + (duration == Lesson.DEFAULT_DURATION_MINUTES ? "" : " (" + duration + " min)")
                 + ", " + subject + ", " + formatMoney(first.getFee()) + " each" + System.lineSeparator()
                 + "  From " + DISPLAY_DATE.format(first.getDate()) + " to " + DISPLAY_DATE.format(last.getDate());
     }
@@ -351,9 +352,9 @@ public class LessonCommands {
                 + "  Attendance: " + formatAttendance(recorded) + formatNotesLine(recorded);
     }
 
-    /** Handles {@code edit LESSON_ID [d/DATE] [t/TIME] [s/SUBJECT] [f/FEE] [a/ATTENDANCE] [note/NOTES]}. */
+    /** Edits lesson details; changing duration alone preserves the saved total fee. */
     private String edit(String arguments) {
-        IdAndFields input = splitIdAndFields(arguments, List.of("d", "t", "s", "f", "a", "note"));
+        IdAndFields input = splitIdAndFields(arguments, List.of("d", "t", "s", "f", "a", "note", "dur"));
         ArgumentParser.Fields fields = input.fields();
         if (fields.isEmpty()) {
             throw new IllegalArgumentException("Give at least one value to edit.");
@@ -365,6 +366,9 @@ public class LessonCommands {
         String attendance = fields.has("a") ? parseAttendance(fields.single("a", true)) : null;
         Lesson edited = lesson.withDetails(subject, fields.singleOr("d", null), fields.singleOr("t", null),
                 attendance, fields.singleOr("f", null), parseNotes(fields));
+        if (fields.has("dur")) {
+            edited = edited.withDurationMinutes(Lesson.parseDuration(fields.single("dur", true)));
+        }
         if (edited.isCancelled() && edited.isRecorded()) {
             throw new IllegalArgumentException(edited.getLessonId() + " was cancelled, so it has no attendance.");
         }
@@ -540,7 +544,9 @@ public class LessonCommands {
 
     /** Formats when a lesson starts as "Tue 22-09-2026 1600". */
     private static String formatSlot(Lesson lesson) {
-        return DISPLAY_DATE.format(lesson.getDate()) + " " + DISPLAY_TIME.format(lesson.getTime());
+        String duration = lesson.getDurationMinutes() == Lesson.DEFAULT_DURATION_MINUTES ? ""
+                : " (" + lesson.getDurationMinutes() + " min)";
+        return DISPLAY_DATE.format(lesson.getDate()) + " " + DISPLAY_TIME.format(lesson.getTime()) + duration;
     }
 
     /** Formats attendance the way it is typed and shown, e.g. "present" or "not recorded". */

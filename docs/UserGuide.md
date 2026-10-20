@@ -79,6 +79,8 @@ An ID is never reused, even after its item is deleted.
 | `DUE_DATE`       | `d/`    | Same as `DATE`.                                                                 | `d/20-10-2026`       |
 | `TIME`           | `t/`    | 24-hour time as `HHMM`, from `0000` to `2359`.                                  | `t/1600`             |
 | `FEE`            | `f/`    | Dollars without the `$`, up to 2 decimal places. Zero or more.                  | `f/62.50`            |
+| `RATE`           | `r/`    | Default dollars per hour, up to 2 decimal places. Zero or more.                | `r/60`               |
+| `MINUTES`        | `dur/`  | Whole minutes from 1 to 1440; defaults to 60 when scheduling.                 | `dur/90`             |
 | `ATTENDANCE`     | `a/`    | `present`, `absent` or `late`.                                                  | `a/late`             |
 | `NOTES`          | `note/` | Any text: what was covered and anything to remember. See [Known issues](#known-issues). | `note/Started vectors` |
 | `WEEKS`          | `w/`    | A whole number of weeks from 2 to 52.                                           | `w/10`               |
@@ -102,9 +104,10 @@ Feature F1.1 · Story US2
 
 Adds a student to TutorLedger and gives them a student ID.
 
-Format: `add n/NAME l/LEVEL p/PHONE_NUMBER [s/SUBJECT]…`
+Format: `add n/NAME l/LEVEL p/PHONE_NUMBER [s/SUBJECT]… [r/RATE]`
 
 * `n/`, `l/` and `p/` are required.
+* `r/` optionally sets a default hourly rate (see [default rates](#setting-a-default-hourly-rate-r)).
 * `s/` is optional and can be given more than once, so you can enter the whole record, subjects included, in
   one line. A subject repeated in a different case (such as `s/E Math s/e math`) is only added once.
 * A student with the same name (ignoring case) and phone number as an existing student is not added, since they
@@ -177,6 +180,7 @@ Example output (today is Wed 14-10-2026):
 > view S1
 S1  Amirah Binte Rahman  (Sec 3)  91234567
 Subjects: E Math, A Math
+Default hourly rate: not set
 Lessons
   L4  Tue 20-10-2026 1600  A Math  $60.00  not recorded  unpaid
   L3  Tue 13-10-2026 1600  A Math  $60.00  present  unpaid
@@ -223,12 +227,13 @@ Feature F1.5 · Story US30
 
 Changes the details of an existing student.
 
-Format: `edit STUDENT_ID [n/NAME] [l/LEVEL] [p/PHONE_NUMBER] [s/SUBJECT]…`
+Format: `edit STUDENT_ID [n/NAME] [l/LEVEL] [p/PHONE_NUMBER] [s/SUBJECT]… [r/RATE]`
 
 * Give at least one value to change. Values you leave out stay the same.
 * Giving any `s/` replaces *all* of the student's subjects with the ones listed, so list every subject you want
   them to keep. Type `s/` with nothing after it to remove every subject.
-* Lessons already scheduled keep the subject they were scheduled with.
+* Lessons already scheduled keep the subject and total fee they were scheduled with.
+* `r/RATE` sets a default hourly rate; a bare `r/` clears it. See the rate section below.
 
 Examples:
 
@@ -243,6 +248,37 @@ Example output:
 Edited S1: Amirah Binte Rahman (Sec 4), 91234567
 Subjects: E Math, A Math
 ```
+
+#### Setting a default hourly rate: `r/`
+
+v2.0 · Story US5
+
+Set a rate once so scheduling does not require typing the fee for every lesson. Rates apply per student,
+not per subject. They accept non-negative dollar amounts with at most two decimal places; `r/0` means
+free lessons. New students have no rate unless one is supplied.
+
+* Create a complete record: `add n/Amirah l/Sec 3 p/91234567 s/E Math r/60`.
+* Set or replace a rate: `edit S1 r/65.50`.
+* Check the rate: `view S1` displays `Default hourly rate: $65.50/hour`.
+* Clear it: `edit S1 r/`. An omitted `r/` during an edit preserves the rate.
+* `add ... r/` is rejected; omit `r/` when adding a student without a default rate.
+* Repeated `r/`, negative values, scientific notation and values such as `60.001` are rejected.
+
+For a student charging $60/hour:
+
+```
+> schedule S1 d/20-10-2026 t/1600 s/E Math dur/90
+Scheduled L1 for S1 Amirah
+  Tue 20-10-2026 1600 (90 min), E Math, $90.00
+```
+
+Omitting `dur/` means a one-hour lesson. An explicit `f/25` charges $25 for the entire lesson,
+even with `dur/90`. A supplied blank or invalid `f/` is an error, not a request to use the rate.
+If no rate is set and `f/` is omitted, scheduling asks you to set a rate or give an explicit fee.
+
+**Existing charges stay fixed.** Changing a student's rate affects newly scheduled lessons only,
+including when older lessons are still in the future. Editing a lesson's duration also keeps its fee.
+Use `edit L1 f/AMOUNT` to deliberately change an existing charge.
 
 #### Deleting a student: `delete`
 
@@ -275,11 +311,16 @@ Feature F2.1 · Stories US4, US6
 Schedules a lesson for a student and gives it a lesson ID. With `w/`, schedules the same weekly slot for
 several weeks at once.
 
-Format: `schedule STUDENT_ID d/DATE t/TIME s/SUBJECT f/FEE [w/WEEKS]`
+Format: `schedule STUDENT_ID d/DATE t/TIME s/SUBJECT [dur/MINUTES] [f/FEE] [w/WEEKS]`
 
 * `SUBJECT` must be one of the student's subjects. Case is ignored, and the lesson uses the spelling on the
   student's record.
-* `FEE` is what you charge for this lesson. It is used to work out how much a student owes.
+* `f/FEE` is an optional total charge for this lesson. It overrides the student's default hourly rate.
+* Without `f/`, a default rate must be set. The fee is `rate × duration ÷ 60`, rounded to cents
+  using half-up rounding. At $60/hour, `dur/90` costs $90.00.
+* `dur/MINUTES` is optional, defaults to 60, and accepts whole minutes from 1 to 1440.
+  Durations other than 60 minutes are shown in scheduling confirmations, lesson lists and student views.
+* Duration is used for billing; TutorLedger still checks conflicts by identical start time, not overlap.
 * Two lessons cannot start at the same date and time, even for different students.
 * A new lesson starts as not recorded and unpaid.
 * `w/WEEKS` adds one lesson a week, on the same day and at the same time, starting on `DATE`. Each lesson gets
@@ -528,12 +569,13 @@ Feature F2.4 · Story US30
 
 Changes the details of an existing lesson, such as moving it to another day.
 
-Format: `edit LESSON_ID [d/DATE] [t/TIME] [s/SUBJECT] [f/FEE] [a/ATTENDANCE] [note/NOTES]`
+Format: `edit LESSON_ID [d/DATE] [t/TIME] [s/SUBJECT] [f/FEE] [dur/MINUTES] [a/ATTENDANCE] [note/NOTES]`
 
 * Give at least one value to change. Values you leave out stay the same.
 * The same rules as `schedule` and `record` apply to the new values. For example, a lesson cannot be moved to a
   slot another lesson already has, and a lesson dated after today cannot have attendance or notes.
 * Type `note/` with nothing after it to clear the lesson's notes.
+* `dur/MINUTES` changes duration but keeps the saved fee. Give `f/FEE` explicitly to change the charge.
 * A cancelled lesson stays cancelled when edited, and cannot be given attendance.
 * This is the same `edit` command used for students. The ID tells TutorLedger which kind of item to change.
 * To change whether a lesson is paid, use [`mark`](#marking-a-lesson-paid-or-unpaid-mark).
@@ -952,11 +994,21 @@ A | A1 | S1 | 07-09-2026 | 28 | 40 | WA1
 | Line   | Fields, in order                                                                                    |
 |--------|-----------------------------------------------------------------------------------------------------|
 | `NEXT` | the IDs the next new student, lesson, homework item and score will get                              |
+| `R`    | student ID, default hourly rate; omit the record when no rate is set |
 | `S`    | student ID, name, level, phone number, then any number of subjects                                  |
-| `L`    | lesson ID, student ID, date, time, subject, fee, attendance (`not recorded`, `present`, `absent` or `late`), `paid` or `unpaid`, notes, then the cancellation reason if the lesson was cancelled |
+| `L`    | lesson ID, student ID, date, time, subject, fee, attendance (`not recorded`, `present`, `absent` or `late`), `paid` or `unpaid`, notes, cancellation reason (empty if active), duration in minutes |
 | `H`    | homework ID, student ID, due date, `outstanding` or `submitted`, description                        |
 | `A`    | score ID, student ID, test date, marks, total marks, test name                                      |
 
+* Older lesson lines without duration load as 60 minutes. Existing student lines without `R` records
+  load with no default rate. New saves include duration; keep a backup if you may return to an older version.
+* New lesson lines have twelve fields: the cancellation reason comes before duration. For an active
+  90-minute lesson, end the line with `NOTES |  | 90`. Old eleven-field cancellation lines remain accepted.
+* If you saved data with the earlier hourly-rate branch, keep its generated `NOTES | MINUTES` header
+  when loading it. That identifies its old duration field; without the header, an eleven-field row is
+  interpreted as an old cancellation record. A new save uses the combined twelve-field layout.
+* Example rate record: `R | S1 | 60`. Clearing a rate removes its record. Loading never recalculates saved fees.
+  If a rate record is invalid, the student and their lessons still load; the invalid rate is reported by line number.
 * Values follow the same rules as when you type them in a command, for example dates as `DD-MM-YYYY`.
 * To put a `|` inside a value, write `\|`. To put a `\` there, write `\\`.
 * Lines may be in any order, and spaces around `|` do not matter.
@@ -985,7 +1037,7 @@ Example output:
 Commands (UPPER_CASE = value you supply, [ ] = optional)
 
 STUDENTS
-  add n/NAME l/LEVEL p/PHONE_NUMBER [s/SUBJECT]...
+  add n/NAME l/LEVEL p/PHONE_NUMBER [s/SUBJECT]... [r/RATE]
       add n/Amirah Binte Rahman l/Sec 3 p/91234567 s/E Math s/A Math
   subject STUDENT_ID s/SUBJECT [s/SUBJECT]...
       subject S1 s/E Math s/A Math
@@ -993,13 +1045,13 @@ STUDENTS
       view S1
   list [NAME]
       list wei
-  edit STUDENT_ID [n/NAME] [l/LEVEL] [p/PHONE_NUMBER] [s/SUBJECT]...
+  edit STUDENT_ID [n/NAME] [l/LEVEL] [p/PHONE_NUMBER] [s/SUBJECT]... [r/RATE]
       edit S1 l/Sec 4
   delete STUDENT_ID
       delete S5
 
 LESSONS
-  schedule STUDENT_ID d/DATE t/TIME s/SUBJECT f/FEE [w/WEEKS]
+  schedule STUDENT_ID d/DATE t/TIME s/SUBJECT [dur/MINUTES] [f/FEE] [w/WEEKS]
       schedule S1 d/22-09-2026 t/1600 s/A Math f/60 w/10
   log STUDENT_ID d/DATE t/TIME s/SUBJECT f/FEE a/ATTENDANCE [note/NOTES]
       log S1 d/15-09-2026 t/1600 s/A Math f/60 a/present note/Discriminant
@@ -1015,7 +1067,7 @@ LESSONS
       reschedule L42 d/25-09-2026 t/1800
   cancel LESSON_ID r/REASON
       cancel L43 r/Student sick
-  edit LESSON_ID [d/DATE] [t/TIME] [s/SUBJECT] [f/FEE] [a/ATTENDANCE] [note/NOTES]
+  edit LESSON_ID [d/DATE] [t/TIME] [s/SUBJECT] [f/FEE] [dur/MINUTES] [a/ATTENDANCE] [note/NOTES]
       edit L42 d/25-09-2026 t/1800
   delete LESSON_ID
       delete L44
@@ -1141,13 +1193,14 @@ as absent; if you also do not want to charge for it, delete the lesson with `del
 
 | Action                  | Format, Examples                                                                                                        |
 |-------------------------|-------------------------------------------------------------------------------------------------------------------------|
-| **Add student**         | `add n/NAME l/LEVEL p/PHONE_NUMBER [s/SUBJECT]…`<br>e.g. `add n/Amirah Binte Rahman l/Sec 3 p/91234567 s/E Math`       |
+| **Add student**         | `add n/NAME l/LEVEL p/PHONE_NUMBER [s/SUBJECT]… [r/RATE]`<br>e.g. `add n/Amirah Binte Rahman l/Sec 3 p/91234567 s/E Math`       |
 | **Add subjects**        | `subject STUDENT_ID s/SUBJECT [s/SUBJECT]…`<br>e.g. `subject S1 s/E Math s/A Math`                                      |
 | **View student**        | `view STUDENT_ID`<br>e.g. `view S1`                                                                                      |
 | **List / find students**| `list [NAME]`<br>e.g. `list wei`                                                                                         |
-| **Edit student**        | `edit STUDENT_ID [n/NAME] [l/LEVEL] [p/PHONE_NUMBER] [s/SUBJECT]…`<br>e.g. `edit S1 l/Sec 4`                            |
+| **Edit student**        | `edit STUDENT_ID [n/NAME] [l/LEVEL] [p/PHONE_NUMBER] [s/SUBJECT]… [r/RATE]`<br>e.g. `edit S1 l/Sec 4`                            |
+| **Set / clear hourly rate** | `edit STUDENT_ID r/RATE` or `edit STUDENT_ID r/`<br>e.g. `edit S1 r/60` |
 | **Delete student**      | `delete STUDENT_ID`<br>e.g. `delete S5`                                                                                  |
-| **Schedule lesson**     | `schedule STUDENT_ID d/DATE t/TIME s/SUBJECT f/FEE [w/WEEKS]`<br>e.g. `schedule S1 d/20-10-2026 t/1600 s/A Math f/60 w/10` |
+| **Schedule lesson**     | `schedule STUDENT_ID d/DATE t/TIME s/SUBJECT [dur/MINUTES] [f/FEE] [w/WEEKS]`<br>e.g. `schedule S1 d/20-10-2026 t/1600 s/A Math f/60 w/10` |
 | **Log past lesson**     | `log STUDENT_ID d/DATE t/TIME s/SUBJECT f/FEE a/ATTENDANCE [note/NOTES]`<br>e.g. `log S1 d/06-10-2026 t/1600 s/A Math f/60 a/present` |
 | **List lessons**        | `lessons [week]`<br>e.g. `lessons week`                                                                                  |
 | **Filter lessons**      | `filter [STUDENT_ID] [from/DATE] [to/DATE] [pay/STATUS]`<br>e.g. `filter S1 from/01-10-2026 pay/unpaid`                 |
@@ -1155,7 +1208,7 @@ as absent; if you also do not want to charge for it, delete the lesson with `del
 | **Record lesson**       | `record LESSON_ID a/ATTENDANCE [note/NOTES]`<br>e.g. `record L3 a/present note/Started simultaneous equations`          |
 | **Reschedule lesson**   | `reschedule LESSON_ID [d/DATE] [t/TIME]`<br>e.g. `reschedule L6 d/16-10-2026 t/1800`                                     |
 | **Cancel lesson**       | `cancel LESSON_ID r/REASON`<br>e.g. `cancel L8 r/Student sick`                                                           |
-| **Edit lesson**         | `edit LESSON_ID [d/DATE] [t/TIME] [s/SUBJECT] [f/FEE] [a/ATTENDANCE] [note/NOTES]`<br>e.g. `edit L6 d/16-10-2026 t/1800` |
+| **Edit lesson**         | `edit LESSON_ID [d/DATE] [t/TIME] [s/SUBJECT] [f/FEE] [dur/MINUTES] [a/ATTENDANCE] [note/NOTES]`<br>e.g. `edit L6 d/16-10-2026 t/1800` |
 | **Delete lesson**       | `delete LESSON_ID`<br>e.g. `delete L10`                                                                                  |
 | **Assign homework**     | `assign STUDENT_ID DESCRIPTION d/DUE_DATE`<br>e.g. `assign S1 Worksheet 4A d/20-10-2026`                                |
 | **Submit homework**     | `submit HOMEWORK_ID`<br>e.g. `submit H1`                                                                                 |

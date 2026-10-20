@@ -1,0 +1,45 @@
+@startuml
+!pragma layout smetana
+skinparam backgroundColor white
+skinparam defaultFontSize 14
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+hide empty members
+title Default hourly rates: responsibilities
+
+class StudentCommands {
+  +execute(input) : String
+}
+class LessonCommands {
+  +execute(input) : String
+}
+class TutorLedgerData {
+  +addStudent(..., subjects, rate) : Student
+  +replaceStudent(student)
+  +addLesson(..., fee, duration) : Lesson
+}
+class Student {
+  -defaultHourlyRate : BigDecimal [0..1]
+  +withDefaultHourlyRate(rate) : Student
+  +withDetails(...) : Student
+}
+class Lesson {
+  -fee : BigDecimal
+  -durationMinutes : int
+  +withDurationMinutes(minutes) : Lesson
+}
+class Storage {
+  +encode(data) : String
+  +decode(lines) : LoadResult
+}
+StudentCommands --> TutorLedgerData : updates profiles
+LessonCommands --> TutorLedgerData : schedules lessons
+TutorLedgerData "1" *--> "0..*" Student : stores
+TutorLedgerData "1" *--> "0..*" Lesson : stores
+Lesson "0..*" --> "1" Student : studentId
+Storage ..> TutorLedgerData : saves / rebuilds
+note bottom of Lesson
+  The fee is a saved total.
+  It is not a live reference to the rate.
+end note
+@enduml
