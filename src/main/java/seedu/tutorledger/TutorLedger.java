@@ -17,12 +17,14 @@ public class TutorLedger {
         PaymentCommands paymentCommands = new PaymentCommands(data, clock);
         LessonCommands lessonCommands = new LessonCommands(data, clock);
         ScoreCommands scoreCommands = new ScoreCommands(data, clock);
+        LessonFilterCommand filterCommand = new LessonFilterCommand(data);
         StorageCommands storageCommands = new StorageCommands(data, new Storage(Storage.DEFAULT_FILE_PATH));
         System.out.println("TutorLedger student book. Type exit to close.");
         System.out.println(storageCommands.loadOnStartup());
         Scanner input = new Scanner(System.in);
         while (input.hasNextLine()) {
-            String line = input.nextLine();
+            // Short aliases such as "ls" are turned into full command words before anything else sees them.
+            String line = CommandAliases.expand(input.nextLine());
             if (line.strip().equalsIgnoreCase("exit")) {
                 break;
             }
@@ -42,6 +44,8 @@ public class TutorLedger {
                 System.out.println(lessonCommands.execute(line));
             } else if (ScoreCommands.handles(line)) {
                 System.out.println(scoreCommands.execute(line));
+            } else if (LessonFilterCommand.handles(line)) {
+                System.out.println(filterCommand.execute(line));
             } else {
                 System.out.println(commands.execute(line));
             }

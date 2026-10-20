@@ -9,6 +9,8 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Runs the storage commands {@code save} and {@code reload}, and saves automatically after any
@@ -18,6 +20,9 @@ import java.util.Set;
  * reported as messages instead of crashing the program.
  */
 public class StorageCommands {
+    /** Traces storage commands and file errors at FINE level, shown only when debug logging is enabled. */
+    private static final Logger LOGGER = Logger.getLogger(StorageCommands.class.getName());
+
     /** Command words this class understands, used by the main loop to route input here. */
     private static final Set<String> COMMAND_WORDS = Set.of("save", "reload");
 
@@ -31,6 +36,8 @@ public class StorageCommands {
      * @param storage The data file that is saved to automatically.
      */
     public StorageCommands(TutorLedgerData data, Storage storage) {
+        assert data != null : "StorageCommands needs the records to save";
+        assert storage != null : "StorageCommands needs a data file to save to";
         this.data = data;
         this.storage = storage;
     }
@@ -52,6 +59,7 @@ public class StorageCommands {
         String[] words = input.strip().split("\\s+", 2);
         String command = words[0].toLowerCase(Locale.ROOT);
         String arguments = words.length == 2 ? words[1].trim() : "";
+        LOGGER.log(Level.FINE, "Running storage command {0} with arguments: {1}", new Object[]{command, arguments});
         // Words typed after reload are ignored, as the user guide says.
         return command.equals("save") ? save(arguments) : reload();
     }
@@ -67,9 +75,11 @@ public class StorageCommands {
             return "Loaded " + describeContents(data) + " from " + storage.getDisplayPath() + "."
                     + describeProblems(result.problems());
         } catch (NoSuchFileException exception) {
+            LOGGER.log(Level.FINE, "No data file at startup; starting empty");
             return "No saved data yet. TutorLedger will create " + storage.getDisplayPath()
                     + " when you add something.";
         } catch (IOException exception) {
+            LOGGER.log(Level.FINE, "Could not read data file at startup", exception);
             return "Could not read " + storage.getDisplayPath() + " (" + describe(exception) + ")."
                     + System.lineSeparator() + "Starting with no data.";
         }
@@ -98,10 +108,12 @@ public class StorageCommands {
         if (snapshot().equals(snapshotBefore)) {
             return "";
         }
+        LOGGER.log(Level.FINE, "Data changed, saving automatically");
         try {
             storage.save(data);
             return "";
         } catch (IOException exception) {
+            LOGGER.log(Level.FINE, "Automatic save failed", exception);
             return "Warning: your change could not be saved to " + storage.getDisplayPath()
                     + " (" + describe(exception) + ").";
         }
@@ -121,6 +133,7 @@ public class StorageCommands {
         } catch (InvalidPathException exception) {
             return "Error: " + filePath + " is not a valid file path.";
         } catch (IOException exception) {
+            LOGGER.log(Level.FINE, "save command failed", exception);
             String target = filePath.isEmpty() ? storage.getDisplayPath() : filePath;
             return "Error: could not save to " + target + " (" + describe(exception) + ").";
         }
@@ -139,6 +152,8 @@ public class StorageCommands {
                     + System.lineSeparator() + "Your current data has not been changed.";
         }
         data.replaceAllWith(result.data());
+        // The file was just read in full, so saving now would write back exactly the records it gave.
+        assert snapshot().equals(Storage.encode(result.data())) : "Reload did not copy every record";
         return "Reloaded " + storage.getDisplayPath() + System.lineSeparator()
                 + "Loaded " + describeContents(data) + "." + describeProblems(result.problems());
     }

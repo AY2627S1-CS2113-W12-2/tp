@@ -34,6 +34,19 @@ class StudentCommandsTest {
     }
 
     @Test
+    void addWithSubjectsCreatesTheWholeRecordInOneLine() {
+        String output = commands.execute("add n/Tan Wei Ming l/Sec 3 p/91234567 s/E Math s/A Math s/e math");
+        assertEquals("Added S1: Tan Wei Ming (Sec 3), 91234567" + System.lineSeparator()
+                + "Subjects: E Math, A Math" + System.lineSeparator()
+                + "You now have 1 student.", output);
+        assertEquals(2, data.getStudent("S1").getSubjects().size());
+        // A blank subject is rejected before the student is added, so no half-entered record is left.
+        assertTrue(commands.execute("add n/Tan Wei Ling l/Sec 2 p/81234567 s/").startsWith("Error:"));
+        assertEquals(1, data.getStudents().size());
+        assertEquals(2, data.getNextStudentNumber());
+    }
+
+    @Test
     void subjectAndEditAddReplaceAndClearWithoutPartialChanges() {
         commands.execute("add n/Tan Wei Ming l/Sec 3 p/91234567");
         commands.execute("subject s1 s/E Math S/A Math s/e math");
