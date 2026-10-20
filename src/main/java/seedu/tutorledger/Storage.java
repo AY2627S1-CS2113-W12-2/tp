@@ -49,6 +49,7 @@ public class Storage {
             "#   NEXT | next student ID | next lesson ID | next homework ID | next score ID",
             "#   S | STUDENT_ID | NAME | LEVEL | PHONE_NUMBER | SUBJECT | SUBJECT ...",
             "#   L | LESSON_ID | STUDENT_ID | DATE | TIME | SUBJECT | FEE | ATTENDANCE | PAYMENT | NOTES",
+            "#       A cancelled lesson has one more field at the end: | CANCELLATION_REASON",
             "#   H | HOMEWORK_ID | STUDENT_ID | DUE_DATE | STATUS | DESCRIPTION",
             "#   A | SCORE_ID | STUDENT_ID | DATE | MARKS | TOTAL_MARKS | TEST_NAME");
 
@@ -130,10 +131,16 @@ public class Storage {
             lines.add(join(fields.toArray(String[]::new)));
         }
         for (Lesson lesson : data.getLessons()) {
-            lines.add(join("L", lesson.getLessonId(), lesson.getStudentId(), DATE.format(lesson.getDate()),
-                    TIME.format(lesson.getTime()), lesson.getSubject(), lesson.getFee().toPlainString(),
+            List<String> fields = new ArrayList<>(List.of("L", lesson.getLessonId(), lesson.getStudentId(),
+                    DATE.format(lesson.getDate()), TIME.format(lesson.getTime()), lesson.getSubject(),
+                    lesson.getFee().toPlainString(),
                     lesson.getAttendance().name().toLowerCase(Locale.ROOT).replace('_', ' '),
                     lesson.getPaymentStatus(), lesson.getNotes()));
+            // Only a cancelled lesson gets the extra field, so lines for other lessons stay as they were.
+            if (lesson.isCancelled()) {
+                fields.add(lesson.getCancellationReason());
+            }
+            lines.add(join(fields.toArray(String[]::new)));
         }
         for (Homework item : data.getHomework()) {
             lines.add(join("H", item.getHomeworkId(), item.getStudentId(), DATE.format(item.getDueDate()),
@@ -253,14 +260,25 @@ public class Storage {
     }
 
     private static Lesson parseLesson(List<String> fields, TutorLedgerData data) {
-        if (fields.size() != LESSON_FIELD_COUNT) {
-            throw new IllegalArgumentException(wrongFieldCount("A lesson", LESSON_FIELD_COUNT, fields));
+        // A cancelled lesson has one extra field holding the reason.
+        boolean hasReason = fields.size() == LESSON_FIELD_COUNT + 1;
+        if (fields.size() != LESSON_FIELD_COUNT && !hasReason) {
+            throw new IllegalArgumentException("A lesson line needs " + LESSON_FIELD_COUNT + " fields, or "
+                    + (LESSON_FIELD_COUNT + 1) + " if cancelled, but has " + fields.size() + ".");
         }
         // Looking the student up checks they exist and gives their ID in its usual upper-case form.
         String studentId = data.getStudent(fields.get(2)).getStudentId();
         Lesson lesson = new Lesson(fields.get(1).toUpperCase(Locale.ROOT), studentId, fields.get(5),
-                fields.get(3), fields.get(4), fields.get(7), fields.get(6), fields.get(9));
-        return lesson.withPaymentStatus(fields.get(8));
+                fields.get(3), fields.get(4), fields.get(7), fields.get(6), fields.get(9))
+                .withPaymentStatus(fields.get(8));
+        // A blank reason field, such as one left by a stray | at the end, means the lesson is not cancelled.
+        if (hasReason && !fields.get(LESSON_FIELD_COUNT).isBlank()) {
+            if (lesson.isRecorded()) {
+                throw new IllegalArgumentException("A cancelled lesson cannot have attendance.");
+            }
+            return lesson.withCancellation(fields.get(LESSON_FIELD_COUNT));
+        }
+        return lesson;
     }
 
     private static Homework parseHomework(List<String> fields, TutorLedgerData data) {

@@ -1,6 +1,7 @@
 package seedu.tutorledger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Clock;
@@ -181,5 +182,17 @@ class PaymentCommandsTest {
         assertTrue(PaymentCommands.handles("owed"));
         assertTrue(commands.execute("owed S1").startsWith("Error:"));
         assertTrue(PaymentCommands.handles("fee_statement S1"));
+    }
+
+    @Test
+    void unpaidAndOwed_cancelledLesson_isNotCharged() {
+        data.putLesson(new Lesson("L33", "S1", "E Math", "08-09-2026", "1600", "not recorded", "60", "")
+                .withCancellation("Student sick"));
+        data.putLesson(new Lesson("L34", "S1", "E Math", "15-09-2026", "1600", "present", "60", ""));
+
+        String unpaid = commands.execute("unpaid");
+        assertTrue(unpaid.contains("1 unpaid lesson" + System.lineSeparator()));
+        assertFalse(unpaid.contains("L33"));
+        assertTrue(commands.execute("owed").contains("S1 Tan Wei Ming  $60.00  (1 lesson)"));
     }
 }

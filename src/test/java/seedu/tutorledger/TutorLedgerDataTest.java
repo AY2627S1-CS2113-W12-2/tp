@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -120,5 +121,48 @@ class TutorLedgerDataTest {
     void deleteLesson_unknownOrMalformedId_throws() {
         assertThrows(IllegalArgumentException.class, () -> data.deleteLesson("L9"));
         assertThrows(IllegalArgumentException.class, () -> data.deleteLesson("S1"));
+    }
+
+    @Test
+    void addLesson_withAttendanceAndNotes_storesThemOnTheNewLesson() {
+        Lesson lesson = data.addLesson("S1", "A Math", "15-09-2026", "1600", "60", "late", "Vectors");
+
+        assertEquals("L1", lesson.getLessonId());
+        assertEquals(Lesson.Attendance.LATE, lesson.getAttendance());
+        assertEquals("Vectors", lesson.getNotes());
+        assertEquals(Lesson.PAYMENT_UNPAID, lesson.getPaymentStatus());
+    }
+
+    @Test
+    void addWeeklyLessons_freeSlots_addsOneLessonAWeekAcrossTheNewYear() {
+        List<Lesson> lessons = data.addWeeklyLessons("s1", "A Math", "29-12-2026", "1600", "60", 3);
+
+        assertEquals(List.of("L1", "L2", "L3"), lessons.stream().map(Lesson::getLessonId).toList());
+        assertEquals(LocalDate.of(2027, 1, 5), lessons.get(1).getDate());
+        assertEquals(LocalDate.of(2027, 1, 12), lessons.get(2).getDate());
+        assertEquals("S1", lessons.get(2).getStudentId());
+        assertEquals(3, data.getLessons().size());
+        assertEquals(4, data.getNextLessonNumber());
+    }
+
+    @Test
+    void addWeeklyLessons_clashInAnyWeek_storesNothing() {
+        data.addLesson("S2", "Pure Chemistry", "12-01-2027", "1600", "62.50");
+
+        assertThrows(IllegalArgumentException.class,
+                () -> data.addWeeklyLessons("S1", "A Math", "29-12-2026", "1600", "60", 3));
+        assertEquals(1, data.getLessons().size());
+        assertEquals(2, data.getNextLessonNumber());
+    }
+
+    @Test
+    void addLesson_slotOfACancelledLesson_isAllowed() {
+        Lesson first = data.addLesson("S1", "A Math", "22-09-2026", "1600", "60");
+        data.replaceLesson(first.withCancellation("Student sick"));
+
+        Lesson second = data.addLesson("S2", "Pure Chemistry", "22-09-2026", "1600", "62.50");
+
+        assertEquals("L2", second.getLessonId());
+        assertEquals(2, data.getLessons().size());
     }
 }
