@@ -45,6 +45,18 @@ class HelpCommandTest {
     }
 
     @Test
+    void getHelpText_listsFilterAndEveryShortcut() {
+        String help = HelpCommand.getHelpText();
+        assertTrue(help.contains("filter [STUDENT_ID] [from/DATE] [to/DATE] [pay/STATUS]"));
+        assertTrue(help.contains("add n/NAME l/LEVEL p/PHONE_NUMBER [s/SUBJECT]..."));
+        assertTrue(help.contains("SHORTCUTS"));
+        for (CommandAliases.Alias alias : CommandAliases.all()) {
+            assertTrue(help.contains(String.format("  %-5s%s", alias.shortForm(), alias.command())),
+                    "missing shortcut " + alias.shortForm());
+        }
+    }
+
+    @Test
     void getHelpText_givesAnExampleForEachCommand() {
         String help = HelpCommand.getHelpText();
         assertTrue(help.contains("add n/Amirah Binte Rahman l/Sec 3 p/91234567"));

@@ -17,8 +17,8 @@ public final class HelpCommand {
     /** All feature sections, in the order they appear in the user guide. */
     private static final List<Section> SECTIONS = List.of(
             new Section("STUDENTS", List.of(
-                    new Entry("add n/NAME l/LEVEL p/PHONE_NUMBER",
-                            "add n/Amirah Binte Rahman l/Sec 3 p/91234567"),
+                    new Entry("add n/NAME l/LEVEL p/PHONE_NUMBER [s/SUBJECT]...",
+                            "add n/Amirah Binte Rahman l/Sec 3 p/91234567 s/E Math s/A Math"),
                     new Entry("subject STUDENT_ID s/SUBJECT [s/SUBJECT]...",
                             "subject S1 s/E Math s/A Math"),
                     new Entry("view STUDENT_ID", "view S1"),
@@ -32,6 +32,8 @@ public final class HelpCommand {
                     new Entry("log STUDENT_ID d/DATE t/TIME s/SUBJECT f/FEE a/ATTENDANCE [note/NOTES]",
                             "log S1 d/15-09-2026 t/1600 s/A Math f/60 a/present note/Discriminant"),
                     new Entry("lessons [week]", "lessons week"),
+                    new Entry("filter [STUDENT_ID] [from/DATE] [to/DATE] [pay/STATUS]",
+                            "filter S1 from/01-09-2026 pay/unpaid"),
                     new Entry("next [STUDENT_ID]", "next"),
                     new Entry("record LESSON_ID a/ATTENDANCE [note/NOTES]",
                             "record L41 a/present note/Started simultaneous equations"),
@@ -62,6 +64,9 @@ public final class HelpCommand {
                     new Entry("help", "help"),
                     new Entry("exit", "exit"))));
 
+    /** Width of the alias column in the shortcuts section, so the commands line up. */
+    private static final int ALIAS_WIDTH = 5;
+
     /** The complete help text, built once when the class is loaded. */
     private static final String HELP_TEXT = buildHelpText();
 
@@ -88,6 +93,17 @@ public final class HelpCommand {
                 text.append(System.lineSeparator()).append(FORMAT_INDENT).append(entry.format());
                 text.append(System.lineSeparator()).append(EXAMPLE_INDENT).append(entry.example());
             }
+        }
+        text.append(System.lineSeparator()).append(System.lineSeparator())
+                .append("SHORTCUTS (type the short form instead of the command word)");
+        for (CommandAliases.Alias alias : CommandAliases.all()) {
+            // An alias for a command that help does not list would be a shortcut nobody can look up.
+            assert SECTIONS.stream().flatMap(section -> section.entries().stream())
+                    .anyMatch(entry -> entry.format().startsWith(alias.command()))
+                    : "Alias " + alias.shortForm() + " points to an unlisted command " + alias.command();
+            text.append(System.lineSeparator()).append(FORMAT_INDENT)
+                    .append(String.format("%-" + ALIAS_WIDTH + "s", alias.shortForm()))
+                    .append(alias.command());
         }
         return text.toString();
     }

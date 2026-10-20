@@ -15,13 +15,13 @@ your own tutoring work.
 * [Notes about the command format](#notes-about-the-command-format)
 * [Features](#features)
   * [Student book](#student-book): `add`, `subject`, `view`, `list`, `edit`, `delete`
-  * [Lessons](#lessons): `schedule`, `log`, `lessons`, `next`, `record`, `reschedule`, `cancel`, `edit`,
-    `delete`
+  * [Lessons](#lessons): `schedule`, `log`, `lessons`, `filter`, `next`, `record`, `reschedule`,
+    `cancel`, `edit`, `delete`
   * [Homework](#homework): `assign`, `submit`, `homework`
   * [Payments](#payments): `mark`, `unpaid`, `owed`
   * [Scores and progress](#scores-and-progress): `score`, `scores`, `progress`
   * [Storage](#storage): `save`, `reload`
-  * [Help and exiting](#help-and-exiting): `help`, `exit`
+  * [Help and exiting](#help-and-exiting): `help`, `exit`, [shortcuts](#shortcuts-for-common-commands)
 * [FAQ](#faq)
 * [Known issues](#known-issues)
 * [Command summary](#command-summary)
@@ -102,9 +102,11 @@ Feature F1.1 · Story US2
 
 Adds a student to TutorLedger and gives them a student ID.
 
-Format: `add n/NAME l/LEVEL p/PHONE_NUMBER`
+Format: `add n/NAME l/LEVEL p/PHONE_NUMBER [s/SUBJECT]…`
 
-* All three values are required.
+* `n/`, `l/` and `p/` are required.
+* `s/` is optional and can be given more than once, so you can enter the whole record, subjects included, in
+  one line. A subject repeated in a different case (such as `s/E Math s/e math`) is only added once.
 * A student with the same name (ignoring case) and phone number as an existing student is not added, since they
   are almost certainly the same person.
 
@@ -112,6 +114,7 @@ Examples:
 
 * `add n/Amirah Binte Rahman l/Sec 3 p/91234567`
 * `add l/Sec 4 p/98765432 n/Tan Wei Ming`
+* `add n/Amirah Binte Rahman l/Sec 3 p/91234567 s/E Math s/A Math`
 
 Example output:
 
@@ -119,10 +122,15 @@ Example output:
 > add n/Amirah Binte Rahman l/Sec 3 p/91234567
 Added S1: Amirah Binte Rahman (Sec 3), 91234567
 You now have 1 student.
+
+> add n/Daniel Lim l/Sec 4 p/87654321 s/E Math s/A Math
+Added S5: Daniel Lim (Sec 4), 87654321
+Subjects: E Math, A Math
+You now have 5 students.
 ```
 
-> **Tip:** Give the student their subjects straight away with `subject`. A lesson can only be scheduled in a
-> subject the student takes.
+> **Tip:** Give the student their subjects straight away, with `s/` in `add` or later with `subject`. A lesson
+> can only be scheduled in a subject the student takes.
 
 #### Adding subjects to a student: `subject`
 
@@ -355,6 +363,39 @@ This week, Mon 12-10-2026 to Sun 18-10-2026: 5 lessons
   L6   Thu 15-10-2026 1900  S4 Daniel Lim           E Math
   L8   Sat 17-10-2026 0900  S2 Tan Wei Ming         Pure Chemistry
   L10  Sat 17-10-2026 1030  S3 Tan Wei Ling         Science
+```
+
+#### Filtering lessons: `filter`
+
+Story US37
+
+Lists every lesson that matches all the filters you give, earliest first, with the total of their fees. Use it
+to look at one slice of your records, such as one student's unpaid lessons this month.
+
+Format: `filter [STUDENT_ID] [from/DATE] [to/DATE] [pay/STATUS]`
+
+* Every filter is optional, and they can be combined. A lesson is listed only if it matches all of them.
+* `STUDENT_ID` lists only that student's lessons. It must come straight after `filter`.
+* `from/DATE` and `to/DATE` list only lessons on or after, and on or before, those dates. Both dates are
+  included. `from/` cannot be later than `to/`.
+* `pay/STATUS` lists only lessons that are `paid` or `unpaid`. Unlike `unpaid`, this includes lessons that
+  have not happened yet.
+* `filter` on its own lists every lesson, past and future.
+
+Examples:
+
+* `filter S1` lists all of Amirah's lessons.
+* `filter from/01-10-2026 to/31-10-2026` lists every lesson in October.
+* `filter S1 from/01-10-2026 pay/unpaid` lists Amirah's unpaid lessons since 1 October.
+
+Example output:
+
+```
+> filter S1 from/01-10-2026 pay/unpaid
+2 lessons (S1 Amirah Binte Rahman, from Thu 01-10-2026, unpaid)
+  L3  Tue 13-10-2026 1600  S1 Amirah Binte Rahman  A Math  $60.00  unpaid
+  L7  Tue 20-10-2026 1600  S1 Amirah Binte Rahman  A Math  $60.00  unpaid
+Total fees: $120.00
 ```
 
 #### Preparing for the next lesson: `next`
@@ -944,8 +985,8 @@ Example output:
 Commands (UPPER_CASE = value you supply, [ ] = optional)
 
 STUDENTS
-  add n/NAME l/LEVEL p/PHONE_NUMBER
-      add n/Amirah Binte Rahman l/Sec 3 p/91234567
+  add n/NAME l/LEVEL p/PHONE_NUMBER [s/SUBJECT]...
+      add n/Amirah Binte Rahman l/Sec 3 p/91234567 s/E Math s/A Math
   subject STUDENT_ID s/SUBJECT [s/SUBJECT]...
       subject S1 s/E Math s/A Math
   view STUDENT_ID
@@ -964,6 +1005,8 @@ LESSONS
       log S1 d/15-09-2026 t/1600 s/A Math f/60 a/present note/Discriminant
   lessons [week]
       lessons week
+  filter [STUDENT_ID] [from/DATE] [to/DATE] [pay/STATUS]
+      filter S1 from/01-09-2026 pay/unpaid
   next [STUDENT_ID]
       next
   record LESSON_ID a/ATTENDANCE [note/NOTES]
@@ -1014,7 +1057,42 @@ OTHER
       help
   exit
       exit
+
+SHORTCUTS (type the short form instead of the command word)
+  v    view
+  sch  schedule
+  ls   lessons
+  rec  record
+  fl   filter
+  as   assign
+  sub  submit
+  hw   homework
+  m    mark
+  up   unpaid
+  h    help
 ```
+
+#### Shortcuts for common commands
+
+Story US39
+
+The commands you use most have a short form. Type the short form in place of the command word; everything
+after it stays the same. For example, `ls week` is the same as `lessons week`, and
+`sch S1 d/20-10-2026 t/1600 s/A Math f/60` is the same as `schedule S1 d/20-10-2026 t/1600 s/A Math f/60`.
+
+| Short form | Command    | Short form | Command    |
+|------------|------------|------------|------------|
+| `v`        | `view`     | `as`       | `assign`   |
+| `sch`      | `schedule` | `sub`      | `submit`   |
+| `ls`       | `lessons`  | `hw`       | `homework` |
+| `rec`      | `record`   | `m`        | `mark`     |
+| `fl`       | `filter`   | `up`       | `unpaid`   |
+| `h`        | `help`     |            |            |
+
+* Short forms are not case-sensitive, like command words.
+* Only the first word is replaced, so a short form inside a value (such as `assign S1 hw ls d/20-10-2026`) is
+  left as it is.
+* `help` (or `h`) lists all the short forms under `SHORTCUTS`.
 
 #### Exiting TutorLedger: `exit`
 
@@ -1063,7 +1141,7 @@ as absent; if you also do not want to charge for it, delete the lesson with `del
 
 | Action                  | Format, Examples                                                                                                        |
 |-------------------------|-------------------------------------------------------------------------------------------------------------------------|
-| **Add student**         | `add n/NAME l/LEVEL p/PHONE_NUMBER`<br>e.g. `add n/Amirah Binte Rahman l/Sec 3 p/91234567`                              |
+| **Add student**         | `add n/NAME l/LEVEL p/PHONE_NUMBER [s/SUBJECT]…`<br>e.g. `add n/Amirah Binte Rahman l/Sec 3 p/91234567 s/E Math`       |
 | **Add subjects**        | `subject STUDENT_ID s/SUBJECT [s/SUBJECT]…`<br>e.g. `subject S1 s/E Math s/A Math`                                      |
 | **View student**        | `view STUDENT_ID`<br>e.g. `view S1`                                                                                      |
 | **List / find students**| `list [NAME]`<br>e.g. `list wei`                                                                                         |
@@ -1072,6 +1150,7 @@ as absent; if you also do not want to charge for it, delete the lesson with `del
 | **Schedule lesson**     | `schedule STUDENT_ID d/DATE t/TIME s/SUBJECT f/FEE [w/WEEKS]`<br>e.g. `schedule S1 d/20-10-2026 t/1600 s/A Math f/60 w/10` |
 | **Log past lesson**     | `log STUDENT_ID d/DATE t/TIME s/SUBJECT f/FEE a/ATTENDANCE [note/NOTES]`<br>e.g. `log S1 d/06-10-2026 t/1600 s/A Math f/60 a/present` |
 | **List lessons**        | `lessons [week]`<br>e.g. `lessons week`                                                                                  |
+| **Filter lessons**      | `filter [STUDENT_ID] [from/DATE] [to/DATE] [pay/STATUS]`<br>e.g. `filter S1 from/01-10-2026 pay/unpaid`                 |
 | **Next lesson**         | `next [STUDENT_ID]`<br>e.g. `next`                                                                                       |
 | **Record lesson**       | `record LESSON_ID a/ATTENDANCE [note/NOTES]`<br>e.g. `record L3 a/present note/Started simultaneous equations`          |
 | **Reschedule lesson**   | `reschedule LESSON_ID [d/DATE] [t/TIME]`<br>e.g. `reschedule L6 d/16-10-2026 t/1800`                                     |

@@ -51,13 +51,29 @@ public class StudentCommands {
         }
     }
 
+    /**
+     * Handles {@code add n/NAME l/LEVEL p/PHONE_NUMBER [s/SUBJECT]...}.
+     * Subjects are optional, so a whole student record can be entered in one line (story US38)
+     * instead of following {@code add} with a separate {@code subject} command.
+     */
     private String add(String arguments) {
-        ArgumentParser.Fields fields = ArgumentParser.parseFields(arguments, List.of("n", "l", "p"));
+        ArgumentParser.Fields fields = ArgumentParser.parseFields(arguments, List.of("n", "l", "p", "s"));
         String name = fields.single("n", true);
         String level = fields.single("l", true);
         String phone = fields.single("p", true);
+        List<String> subjects = fields.values("s");
+        // Checked before adding, so a bad subject does not leave a half-entered student behind.
+        if (subjects.stream().anyMatch(String::isBlank)) {
+            throw new IllegalArgumentException("Give a non-blank s/SUBJECT, or leave s/ out.");
+        }
         Student student = data.addStudent(name, level, phone);
-        return "Added " + details(student) + System.lineSeparator()
+        String subjectLine = "";
+        if (!subjects.isEmpty()) {
+            student = student.withDetails(student.getName(), student.getLevel(), student.getPhoneNumber(), subjects);
+            data.replaceStudent(student);
+            subjectLine = System.lineSeparator() + "Subjects: " + subjectText(student);
+        }
+        return "Added " + details(student) + subjectLine + System.lineSeparator()
                 + "You now have " + count(data.getStudents().size(), "student") + ".";
     }
 

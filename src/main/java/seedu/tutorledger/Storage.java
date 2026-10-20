@@ -11,6 +11,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Saves TutorLedger's records to a plain-text file and loads them back (features F5.1 and F5.2).
@@ -33,6 +35,12 @@ import java.util.TreeMap;
 public class Storage {
     /** Where the data is kept, relative to the folder TutorLedger is run from. */
     public static final String DEFAULT_FILE_PATH = "data/tutorledger.txt";
+
+    /**
+     * Traces loading and saving at FINE level, so it only appears when debug logging is enabled
+     * and never clutters the tutor's screen.
+     */
+    private static final Logger LOGGER = Logger.getLogger(Storage.class.getName());
 
     /** Explains the format to anyone who opens the file. Lines starting with # are ignored when loading. */
     private static final List<String> HEADER = List.of(
@@ -64,6 +72,7 @@ public class Storage {
      * @param filePath The data file, relative to the folder TutorLedger is run from, or absolute.
      */
     public Storage(String filePath) {
+        assert filePath != null && !filePath.isBlank() : "Storage needs a data file path";
         this.displayPath = filePath;
         this.filePath = Path.of(filePath);
     }
@@ -81,6 +90,7 @@ public class Storage {
      * @throws IOException If the file exists but cannot be read.
      */
     public LoadResult load() throws IOException {
+        LOGGER.log(Level.FINE, "Loading data from {0}", filePath.toAbsolutePath());
         // Decoding the bytes ourselves replaces invalid characters instead of failing, so a file saved
         // in the wrong encoding still loads, with only the affected lines skipped.
         String text = new String(Files.readAllBytes(filePath), StandardCharsets.UTF_8);
@@ -101,6 +111,7 @@ public class Storage {
      * Any folders in the path that do not exist yet are created.
      */
     public static void saveTo(Path path, TutorLedgerData data) throws IOException {
+        LOGGER.log(Level.FINE, "Saving data to {0}", path.toAbsolutePath());
         Path parent = path.toAbsolutePath().getParent();
         if (parent != null) {
             Files.createDirectories(parent);
@@ -139,6 +150,9 @@ public class Storage {
             lines.add(join("A", score.getScoreId(), score.getStudentId(), DATE.format(score.getDate()),
                     score.getMarks().toPlainString(), score.getTotalMarks().toPlainString(), score.getTestName()));
         }
+        // One line per record, plus the header and the NEXT line; anything else means a record was missed.
+        assert lines.size() == HEADER.size() + 1 + data.getStudents().size() + data.getLessons().size()
+                + data.getHomework().size() + data.getScores().size() : "Some records were not encoded";
         return String.join(System.lineSeparator(), lines) + System.lineSeparator();
     }
 
@@ -205,6 +219,11 @@ public class Storage {
 
         List<String> problemLines = new ArrayList<>();
         problems.forEach((lineNumber, reason) -> problemLines.add("Line " + lineNumber + ": " + reason));
+        // Each line is either read or reported, never both, so there cannot be more problems than lines.
+        assert problemLines.size() <= lines.size() : "More problems were reported than there are lines";
+        LOGGER.log(Level.FINE, "Decoded {0} lines: {1} students, {2} lessons, {3} homework, {4} scores, "
+                + "{5} skipped", new Object[]{lines.size(), data.getStudents().size(), data.getLessons().size(),
+                    data.getHomework().size(), data.getScores().size(), problemLines.size()});
         return new LoadResult(data, problemLines);
     }
 
@@ -328,6 +347,8 @@ public class Storage {
             }
         }
         fields.add(current.toString().strip());
+        // Callers read the record type from the first field, so there must always be one.
+        assert !fields.isEmpty() : "Splitting a line should give at least one field";
         return fields;
     }
 
