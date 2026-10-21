@@ -27,7 +27,7 @@ public class Student {
      *
      * @param studentId the student's identifier
      * @param name the student's name
-     * @param level the student's secondary-school level
+     * @param level the student's primary-school, secondary-school or junior-college level
      * @param phoneNumber the student's eight-digit phone number
      */
     public Student(String studentId, String name, String level, String phoneNumber) {
@@ -157,13 +157,25 @@ public class Student {
         return name;
     }
 
+    /** Validates the supported year ranges and normalises case and the optional single space. */
     private static String validateLevel(String level) {
         LOGGER.log(Level.FINE, "Validating level: {0}", level);
-        requireNonNull(level, "Level");
-        if (!level.matches("(?i)Sec ?[1-5]")) {
-            throw new IllegalArgumentException("Level must be Sec 1 to Sec 5.");
+        String upper = level == null ? "" : level.toUpperCase(Locale.ROOT);
+        String stage;
+        if (upper.matches("PRI ?[1-6]")) {
+            stage = "Pri";
+        } else if (upper.matches("SEC ?[1-5]")) {
+            stage = "Sec";
+        } else if (upper.matches("JC ?[1-2]")) {
+            stage = "JC";
+        } else {
+            throw new IllegalArgumentException("Level must be Pri 1 to Pri 6, Sec 1 to Sec 5, or JC 1 to JC 2.");
         }
-        return "Sec " + level.substring(level.length() - 1);
+        // Every accepted year is one digit; validation above also guarantees that level is non-null.
+        assert level != null : "A validated level cannot be null";
+        String normalised = stage + " " + level.charAt(level.length() - 1);
+        LOGGER.log(Level.FINE, "Normalised student level: {0}", normalised);
+        return normalised;
     }
 
     private static String validatePhoneNumber(String phoneNumber) {

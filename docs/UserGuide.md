@@ -2,9 +2,10 @@
 
 ## Introduction
 
-TutorLedger is a desktop app for independent tutors who teach a small group of secondary-school students. It
-keeps your students, lessons, homework and payments in one place, and it is built to be used by typing: every
-task is a single command, so a tutor who types quickly can log a lesson faster than they could fill in a form.
+TutorLedger is a desktop app for independent tutors who teach primary-school, secondary-school and
+junior-college students. It keeps your students, lessons, homework and payments in one place, and it is built
+to be used by typing: every task is a single command, so a tutor who types quickly can log a lesson faster
+than they could fill in a form.
 
 TutorLedger does not teach online, message students or parents, or process payments. It is a personal record of
 your own tutoring work.
@@ -72,7 +73,7 @@ An ID is never reused, even after its item is deleted.
 | Value            | Prefix  | Accepted input                                                                  | Example              |
 |------------------|---------|---------------------------------------------------------------------------------|----------------------|
 | `NAME`           | `n/`    | Letters, with single spaces, hyphens or apostrophes between them.               | `n/Tan Wei Ming`     |
-| `LEVEL`          | `l/`    | `Sec 1` to `Sec 5`. The space is optional.                                      | `l/Sec 3`            |
+| `LEVEL`          | `l/`    | `Pri 1`–`Pri 6`, `Sec 1`–`Sec 5`, or `JC 1`–`JC 2`. Case is ignored; the space is optional. | `l/Pri5`, `l/JC 2` |
 | `PHONE_NUMBER`   | `p/`    | Exactly 8 digits. Siblings may share a number.                                  | `p/91234567`         |
 | `SUBJECT`        | `s/`    | The subject as you normally write it. Not case-sensitive.                       | `s/Pure Chemistry`   |
 | `DATE`           | `d/`    | A real calendar date as `DD-MM-YYYY`.                                           | `d/20-10-2026`       |
@@ -107,6 +108,8 @@ Adds a student to TutorLedger and gives them a student ID.
 Format: `add n/NAME l/LEVEL p/PHONE_NUMBER [s/SUBJECT]… [r/RATE]`
 
 * `n/`, `l/` and `p/` are required.
+* Levels use `Pri`, `Sec` or `JC` followed by a valid year. For example, `l/pRi5` is displayed and saved
+  as `Pri 5`, and `l/jc1` becomes `JC 1`. Use these short labels rather than `Primary` or `Junior College`.
 * `r/` optionally sets a default hourly rate (see [default rates](#setting-a-default-hourly-rate-r)).
 * `s/` is optional and can be given more than once, so you can enter the whole record, subjects included, in
   one line. A subject repeated in a different case (such as `s/E Math s/e math`) is only added once.
@@ -118,6 +121,8 @@ Examples:
 * `add n/Amirah Binte Rahman l/Sec 3 p/91234567`
 * `add l/Sec 4 p/98765432 n/Tan Wei Ming`
 * `add n/Amirah Binte Rahman l/Sec 3 p/91234567 s/E Math s/A Math`
+* `add n/Alice Tan l/Pri5 p/82345678 s/Math` adds a primary-school student.
+* `add n/Bob Tan l/JC 2 p/92345678 s/H2 Math` adds a junior-college student.
 
 Example output:
 
@@ -230,6 +235,8 @@ Changes the details of an existing student.
 Format: `edit STUDENT_ID [n/NAME] [l/LEVEL] [p/PHONE_NUMBER] [s/SUBJECT]… [r/RATE]`
 
 * Give at least one value to change. Values you leave out stay the same.
+* Use `l/` to change school stage as well as year, such as `edit S1 l/JC1`. The student's other details,
+  default rate, subjects and lesson history stay the same. Update subjects separately if needed.
 * Giving any `s/` replaces *all* of the student's subjects with the ones listed, so list every subject you want
   them to keep. Type `s/` with nothing after it to remove every subject.
 * Lessons already scheduled keep the subject and total fee they were scheduled with.
@@ -1026,7 +1033,8 @@ A | A1 | S1 | 07-09-2026 | 28 | 40 | WA1
 
 Feature F6.1 · Story US1
 
-Shows every command TutorLedger accepts, with its format and one example.
+Shows every command TutorLedger accepts, with its format and one example, plus the supported school-level
+ranges and input examples.
 
 Format: `help`
 
@@ -1109,6 +1117,10 @@ OTHER
       help
   exit
       exit
+
+LEVELS (l/LEVEL; case-insensitive, optional space)
+  Pri 1 to Pri 6, Sec 1 to Sec 5, or JC 1 to JC 2
+      Examples: l/Pri5, l/Sec 3, l/JC1
 
 SHORTCUTS (type the short form instead of the command word)
   v    view

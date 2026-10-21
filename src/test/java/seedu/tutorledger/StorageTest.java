@@ -46,6 +46,38 @@ class StorageTest {
     }
 
     @Test
+    void encodeThenDecode_mixedSchoolLevels_preservesProfilesAndLinkedHistory() {
+        TutorLedgerData data = new TutorLedgerData();
+        data.addStudent("Alice Tan", "pri5", "91234567", List.of("Math"), "40");
+        data.addStudent("Bob Tan", "Sec 3", "81234567");
+        data.addStudent("Carol Tan", "JC2", "87654321");
+        data.addLesson("S1", "Math", "21-10-2026", "1600", null, 90);
+        data.addHomework("S3", "Revision", LocalDate.of(2026, 10, 22));
+        data.addScore("S2", "Test", "8", "10", "20-10-2026");
+        String encoded = Storage.encode(data);
+        Storage.LoadResult result = Storage.decode(encoded.lines().toList());
+        assertTrue(result.problems().isEmpty());
+        assertEquals(List.of("Pri 5", "Sec 3", "JC 2"), result.data().findStudents("").stream()
+                .map(Student::getLevel).toList());
+        assertEquals(encoded, Storage.encode(result.data()));
+    }
+
+    @Test
+    void decode_schoolLevels_normalisesHandEditsAndReportsInvalidLines() {
+        Storage.LoadResult result = Storage.decode(List.of(
+                "S | S1 | Alice Tan | sec3 | 91234567",
+                "S | S2 | Bob Tan | pRi6 | 81234567",
+                "S | S3 | Carol Tan | Pri7 | 87654321",
+                "S | S4 | Daniel Tan | jc 2 | 92345678",
+                "S | S5 | Eve Tan | JC3 | 82345678"));
+        String reason = "Level must be Pri 1 to Pri 6, Sec 1 to Sec 5, or JC 1 to JC 2.";
+        assertEquals(List.of("Line 3: " + reason, "Line 5: " + reason), result.problems());
+        assertEquals(List.of("Sec 3", "Pri 6", "JC 2"), result.data().findStudents("").stream()
+                .map(Student::getLevel).toList());
+        assertEquals(5, result.data().getNextStudentNumber());
+    }
+
+    @Test
     void encodeThenDecode_allRecords_givesBackTheSameRecords() {
         TutorLedgerData original = sampleData();
 
@@ -85,7 +117,7 @@ class StorageTest {
         assertEquals(List.of(
                 "Line 3: Date must be a real date in DD-MM-YYYY format.",
                 "Line 4: No student found with ID S9.",
-                "Line 5: Level must be Sec 1 to Sec 5.",
+                "Line 5: Level must be Pri 1 to Pri 6, Sec 1 to Sec 5, or JC 1 to JC 2.",
                 "Line 6: Unknown record type \"X\". A line must start with S, R, L, H, A or NEXT.",
                 "Line 7: Homework status must be outstanding or submitted.",
                 "Line 8: A lesson line needs 10 to 12 fields but has 6."), result.problems());

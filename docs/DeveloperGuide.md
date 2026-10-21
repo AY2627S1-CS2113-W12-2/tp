@@ -393,6 +393,29 @@ scenario below provides a reproducible acceptance check. UML sources and renderi
 kept in [diagrams/README.md](diagrams/README.md); rendered SVGs display on GitHub Pages without a client-side
 diagram renderer.
 
+### School levels — Yan Hern
+
+[Issue #82](https://github.com/AY2627S1-CS2113-W12-2/tp/issues/82) extends the existing `l/LEVEL` field
+to primary, secondary and junior-college students. Accepted ranges are `Pri 1`–`Pri 6`, `Sec 1`–`Sec 5`,
+and `JC 1`–`JC 2`. Input is case-insensitive and permits the space to be omitted; `pRi5` becomes `Pri 5`.
+
+`Student.validateLevel` checks complete stage/year patterns and returns a canonical string. The level
+stays a `String`; a new type is unnecessary for this small extension. Keeping this check in the model
+means that `add`, `edit`, imports and reloads all follow the same rules. Invalid input, including null,
+throws `IllegalArgumentException` with the supported ranges; validation does not depend on assertions.
+The method logs validation and normalisation at `FINE` level and asserts its internal non-null assumption
+after validation succeeds.
+
+Adding or editing validates a complete candidate before storing it. A failed add consumes no ID, and a
+failed edit preserves the original record. Changing stage keeps the student's ID, contact details,
+subjects and default hourly rate; lessons, homework and scores stay linked by the same student ID.
+
+The student file layout is unchanged and existing secondary-school records still load. Saving uses
+canonical levels. Earlier builds reject primary/JC student lines and their linked records, so keep a
+backup before returning to an older build. Model tests cover every supported year and malformed inputs;
+command and storage tests cover stage changes, preserved history and mixed-stage files. The manual
+scenario below checks the visible behaviour and restart persistence.
+
 ### Fee statements - Izaaz
 
 `fee_statement STUDENT_ID` is handled by `PaymentCommands`. It resolves the student, reads the shared
@@ -553,6 +576,7 @@ date and cancellation filters used by `unpaid` and `owed`.
 |v1.0|new user|see usage instructions|refer to them when I forget how to use the application|
 |v2.0|user|find a to-do item by name|locate a to-do without having to go through the entire list|
 |v2.0 (US5)|independent tutor|set a default hourly rate for each student|avoid re-entering the fee for every lesson|
+|v2.0 (#82)|independent tutor|add and edit primary-school, secondary-school and junior-college students|keep all my students in one place|
 
 ## Non-Functional Requirements
 
@@ -565,6 +589,23 @@ date and cancellation filters used by `unpaid` and `owed`.
 ## Instructions for manual testing
 
 {Give instructions on how to do a manual product testing e.g., how to load sample data to be used for testing}
+
+### School levels (#82)
+
+Use an empty working directory and run the packaged application with Java 25 and `-ea`.
+
+1. Run `add n/Alice Tan l/pRi6 p/91234567 s/Math r/40` and
+   `add n/Bob Tan l/JC2 p/81234567`. Expected: S1 is `Pri 6` and S2 is `JC 2`.
+2. Run `edit S1 l/jc1`, then `edit S1 l/sec1`. Expected: each stage change succeeds and `view S1`
+   finally shows `Sec 1`, subject `Math` and the same $40.00/hour rate.
+3. Run `edit S1 l/JC3 r/99`. Expected: an error lists all three supported ranges; S1 remains `Sec 1`
+   with the $40.00/hour rate.
+4. Try `add n/Carol Tan l/Pri7 p/87654321`, then
+   `add n/Carol Tan l/Pri1 p/87654321`. Expected: the first command fails; the second creates S3,
+   demonstrating that the rejected command consumed no ID.
+5. Run `help`. Expected: the `LEVELS` section lists all ranges and examples such as `l/Pri5` and `l/JC1`.
+6. Exit and restart, then run `list`. Expected: S1 is `Sec 1`, S2 is `JC 2` and S3 is `Pri 1`, without
+   any skipped-line warning. `view S1` still shows its subjects and default rate.
 
 ### Default hourly rates (US5)
 
