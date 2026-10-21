@@ -393,6 +393,150 @@ scenario below provides a reproducible acceptance check. UML sources and renderi
 kept in [diagrams/README.md](diagrams/README.md); rendered SVGs display on GitHub Pages without a client-side
 diagram renderer.
 
+### Fee statements - Izaaz
+
+`fee_statement STUDENT_ID` is handled by `PaymentCommands`. It resolves the student, reads the shared
+lesson collection, and builds the statement when requested; no separate statement record is stored.
+The command includes every stored lesson for that student, whether paid or unpaid and whether in the
+past or future. Rows are ordered by date, start time, then lesson ID, and display the saved fee and
+payment status alongside the lesson ID, date and subject. A missing or extra argument and an unknown
+student produce an error; a valid student with no lessons gets an explicit empty-history message.
+
+```mermaid
+classDiagram
+    class TutorLedger {
+        +main(String[])
+    }
+    class PaymentCommands {
+        -data : TutorLedgerData
+        +handles(String)$ boolean
+        +execute(String) String
+        -feeStatement(String) String
+    }
+    class TutorLedgerData {
+        +getStudent(String) Student
+        +getLessons() Collection~Lesson~
+    }
+    class Student {
+        +getStudentId() String
+        +getName() String
+    }
+    class Lesson {
+        +getLessonId() String
+        +getDate() LocalDate
+        +getTime() LocalTime
+        +getSubject() String
+        +getFee() BigDecimal
+        +getPaymentStatus() String
+    }
+    TutorLedger --> PaymentCommands
+    PaymentCommands --> TutorLedgerData
+    TutorLedgerData "1" *-- "*" Student
+    TutorLedgerData "1" *-- "*" Lesson
+    PaymentCommands ..> Student
+    PaymentCommands ..> Lesson
+```
+
+*Figure 5. The statement is assembled from the selected student and their stored lessons; it does not
+introduce a new domain object.*
+
+The command validates that exactly one student ID was supplied before looking up the student. It then
+filters lessons by that student's ID and sorts them before formatting each row. This is deliberately
+different from `unpaid` and `owed`, which only consider unpaid lessons that have already taken place.
+Fees and payment statuses come from each `Lesson`, so the statement does not recalculate charges or
+change payment state.
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Main as TutorLedger
+    participant PC as PaymentCommands
+    participant Data as TutorLedgerData
+    participant Student
+    participant Lesson
+    participant SC as StorageCommands
+    User->>Main: fee_statement S1
+    Main->>SC: snapshot()
+    SC-->>Main: before
+    Main->>PC: handles(input)
+    PC-->>Main: true
+    Main->>PC: execute(input)
+    PC->>PC: validate one student ID
+    alt missing or extra argument
+        PC-->>Main: usage error
+    else valid argument
+        PC->>Data: getStudent("S1")
+        alt student exists
+            Data-->>PC: Student
+            PC->>Data: getLessons()
+            Data-->>PC: all lessons
+            PC->>PC: filter by student ID
+            PC->>PC: sort by date, time, then lesson ID
+            loop each matching lesson
+                PC->>Lesson: read date, subject, fee and payment status
+                Lesson-->>PC: saved lesson details
+            end
+            PC-->>Main: formatted statement or empty-history message
+        else student does not exist
+            Data-->>PC: lookup error
+            PC-->>Main: student error
+        end
+    end
+    Main-->>User: statement or error
+    Main->>SC: saveIfChanged(before)
+    Note over Main,SC: The command is read-only, so no data change is saved.
+```
+
+*Figure 6. The command reads lesson records and returns a formatted view without changing stored data.*
+
+#### Interaction with payment and lesson features
+
+The statement reads each lesson's saved total fee and payment status. It does not consult the student's
+current hourly rate or recalculate a fee, so changing a rate affects future scheduling but cannot rewrite
+the amounts shown for existing lessons. Likewise, `edit`, `record` and `reschedule` preserve payment
+status; they do not implicitly mark a fee as paid.
+
+`mark LESSON_ID paid` and `mark LESSON_ID unpaid` update payment status on a replacement `Lesson` in
+`TutorLedgerData`. The next fee statement displays that status. By contrast, `unpaid` and `owed` are
+outstanding-balance views: they include only unpaid, non-cancelled lessons dated today or earlier.
+`fee_statement` intentionally shows the full stored history, including paid, future and cancelled
+lessons. A cancellation therefore remains visible in the history, even though it is excluded from the
+amounts due.
+
+#### Defensive checks and persistence
+
+The command requires exactly one student ID: an empty value or any extra whitespace-separated argument
+returns the usage message. `TutorLedgerData.getStudent` validates the ID format, normalises it to the
+canonical uppercase key and reports an unknown student; the statement converts that exception to a
+user-facing error. Matching lessons are filtered against the resolved student ID without regard to case.
+`getLessons()` returns a copy of the collection, and the command sorts a stream into a new list, leaving
+the stored order unchanged. Sorting by date, time and lesson ID produces deterministic output even when
+lessons share a date or start time.
+
+Lesson constructors validate fees as non-negative dollar amounts with at most two decimal places and
+store them as `BigDecimal`. The statement formats those already-validated values to two decimal places
+without converting through floating point. Dates use the English weekday formatter so display is
+consistent regardless of the machine's default locale.
+
+The statement creates no data and writes no statement record. The main loop still takes its usual
+pre-command storage snapshot and calls `saveIfChanged` afterwards, but this read-only command leaves the
+snapshot unchanged, so no file write occurs. `mark` does change a lesson; the standard snapshot check
+then saves its updated payment status along with the lesson's existing fee. The storage format keeps
+these values on the lesson record, so the statement after restart reads the same fee and latest saved
+status.
+
+#### Alternatives, limits and verification
+
+Generating a statement from the live lesson collection avoids a second payment-history store that could
+drift out of sync with lesson edits, deletions or reloads. It also means the statement reflects the
+current stored lesson details rather than preserving a separate point-in-time document. The feature
+formats output for the terminal; exporting or printing a statement would be a separate capability.
+
+`PaymentCommandsTest` checks that statements include only the selected student's lessons, include both
+paid and unpaid fees in date order, and report empty histories and invalid student arguments. The same
+suite checks payment-status updates that the statement reads, as well as the intentionally narrower
+date and cancellation filters used by `unpaid` and `owed`.
+
 ## Product scope
 ### Target user profile
 
@@ -442,6 +586,18 @@ Use an empty working directory and run the packaged application with Java 25 and
    Expected: both are rejected; S1's rate stays unset and L1's fee stays $50.00.
 8. Exit and restart. Run `view S1`.
    Expected: both lessons retain their durations and fees, and the default rate remains unset.
+
+### Fee statements
+
+1. Create two students and schedule or log several lessons for one of them on different dates and times,
+   including a future lesson. Mark at least one lesson as paid, and add a lesson for the other student.
+2. Run `fee_statement S1`. Expected: all of S1's lessons appear in date/time order, including the paid
+   lesson, with each saved fee and current payment status; the other student's lesson is absent.
+3. Run `fee_statement S2` for a student with no lessons. Expected: an empty-history message.
+4. Try `fee_statement`, `fee_statement S99`, and `fee_statement S1 extra`. Expected: usage errors for
+   missing/extra arguments and a student-not-found error for S99.
+5. Run `mark L1 paid`, then `fee_statement S1`. Expected: L1 now shows as paid. Exit and restart TutorLedger,
+   then run the statement again; the paid status and saved fee should be unchanged.
 
 ### Saving and loading data
 
