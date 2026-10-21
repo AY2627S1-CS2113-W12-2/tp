@@ -2,11 +2,15 @@ package seedu.tutorledger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,6 +25,53 @@ class StudentCommandsTest {
         data = new TutorLedgerData();
         Clock clock = Clock.fixed(Instant.parse("2026-09-21T10:00:00Z"), ZoneOffset.UTC);
         commands = new StudentCommands(data, clock);
+    }
+
+    @Test
+    void addAndListSupportPrimaryAndJuniorCollegeLevels() {
+        assertTrue(commands.execute("add n/Alice Tan l/pRi5 p/91234567 r/40").contains("(Pri 5)"));
+        assertTrue(commands.execute("add n/Bob Tan l/jc 2 p/81234567").contains("(JC 2)"));
+        assertTrue(commands.execute("list").contains("Alice Tan (Pri 5)"));
+        assertTrue(commands.execute("list").contains("Bob Tan (JC 2)"));
+        assertTrue(commands.execute("view S1").contains("(Pri 5)"));
+        assertTrue(commands.execute("view S2").contains("(JC 2)"));
+    }
+
+    @Test
+    void editAcrossSchoolStagesPreservesStudentDetailsRateAndHistory() {
+        commands.execute("add n/Alice Tan l/Pri6 p/91234567 s/Math r/40.50");
+        Student original = data.getStudent("S1");
+        Lesson lesson = data.addLesson("S1", "Math", "15-09-2026", "1600", "40.50");
+        Homework homework = data.addHomework("S1", "Revision", LocalDate.of(2026, 9, 22));
+        Score score = data.addScore("S1", "Test", "8", "10", "15-09-2026");
+        for (String level : List.of("Sec1", "jC1", "pri2")) {
+            assertTrue(commands.execute("edit S1 l/" + level).startsWith("Edited S1"));
+            Student updated = data.getStudent("S1");
+            assertEquals("S1", updated.getStudentId());
+            assertEquals("Alice Tan", updated.getName());
+            assertEquals("91234567", updated.getPhoneNumber());
+            assertEquals(List.of("Math"), updated.getSubjects());
+            assertEquals(new BigDecimal("40.50"), updated.getDefaultHourlyRate().orElseThrow());
+            assertSame(lesson, data.getLesson("L1"));
+            assertSame(homework, data.getHomeworkById("H1"));
+            assertSame(score, data.getScores().iterator().next());
+        }
+        assertEquals("Pri 2", data.getStudent("S1").getLevel());
+        assertEquals("Pri 6", original.getLevel());
+    }
+
+    @Test
+    void invalidSchoolLevelsDoNotConsumeIdsOrPartiallyEditRecords() {
+        commands.execute("add n/Alice Tan l/Pri 5 p/91234567 r/40");
+        String before = Storage.encode(data);
+        for (String level : List.of("", "Pri0", "Pri7", "Sec6", "JC0", "JC3", "P5", "Poly 1",
+                "JC 1 extra", "Pri  5", "Pri5 l/JC1")) {
+            assertTrue(commands.execute("add n/Bob Tan l/" + level + " p/81234567 r/60").startsWith("Error:"));
+            assertEquals(before, Storage.encode(data));
+            assertTrue(commands.execute("edit S1 l/" + level + " p/87654321 r/99").startsWith("Error:"));
+            assertEquals(before, Storage.encode(data));
+        }
+        assertTrue(commands.execute("add n/Bob Tan l/JC2 p/81234567").startsWith("Added S2"));
     }
 
     @Test

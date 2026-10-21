@@ -58,6 +58,14 @@ class HelpCommandTest {
     }
 
     @Test
+    void getHelpText_listsAllSchoolLevelRangesAndExamples() {
+        String help = commands.execute("help");
+        assertTrue(help.contains("LEVELS (l/LEVEL; case-insensitive, optional space)"));
+        assertTrue(help.contains("Pri 1 to Pri 6, Sec 1 to Sec 5, or JC 1 to JC 2"));
+        assertTrue(help.contains("l/Pri5, l/Sec 3, l/JC1"));
+    }
+
+    @Test
     void getHelpText_givesAnExampleForEachCommand() {
         String help = HelpCommand.getHelpText();
         assertTrue(help.contains("add n/Amirah Binte Rahman l/Sec 3 p/91234567"));

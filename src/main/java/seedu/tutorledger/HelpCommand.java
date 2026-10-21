@@ -96,6 +96,12 @@ public final class HelpCommand {
             }
         }
         text.append(System.lineSeparator()).append(System.lineSeparator())
+                .append("LEVELS (l/LEVEL; case-insensitive, optional space)")
+                .append(System.lineSeparator()).append(FORMAT_INDENT)
+                .append("Pri 1 to Pri 6, Sec 1 to Sec 5, or JC 1 to JC 2")
+                .append(System.lineSeparator()).append(EXAMPLE_INDENT)
+                .append("Examples: l/Pri5, l/Sec 3, l/JC1");
+        text.append(System.lineSeparator()).append(System.lineSeparator())
                 .append("SHORTCUTS (type the short form instead of the command word)");
         for (CommandAliases.Alias alias : CommandAliases.all()) {
             // An alias for a command that help does not list would be a shortcut nobody can look up.
