@@ -289,25 +289,38 @@ Use `edit L1 f/AMOUNT` to deliberately change an existing charge.
 
 #### Deleting a student: `delete`
 
-Feature F1.6 · Story US31
+Feature F1.6 · Stories US31, US34
 
 Deletes a student, together with all of their lessons, homework and scores. Scores are only mentioned in the
 output if the student had any.
 
-Format: `delete STUDENT_ID`
+Format: `delete STUDENT_ID [confirm]`
 
-Example: `delete S5`
+* If the student has any saved lessons, `delete STUDENT_ID` shows a warning without changing your records.
+  The warning identifies the student and counts all of their lessons, homework and scores, including
+  future, paid and cancelled lessons and submitted homework.
+* To delete the student after reviewing the warning, enter `delete STUDENT_ID confirm`. To keep the
+  records, simply enter another command or exit. Repeating the command without `confirm` keeps warning.
+* `confirm` is case-insensitive and can also be supplied directly, without first requesting the warning.
+* A student with no lessons is deleted immediately, even if they have homework or scores.
 
-Example output:
+Example: deleting S5, who has one lesson and no homework or scores:
 
 ```
 > delete S5
+Warning: deleting S5: Ryan Koh (Sec 1) will permanently remove:
+  1 lesson, 0 homework items and 0 scores.
+This cannot be undone. No records have been deleted.
+To confirm, type: delete S5 confirm
+Otherwise, continue with another command.
+> delete S5 confirm
 Deleted S5: Ryan Koh (Sec 1)
 Also deleted 1 lesson and 0 homework items.
 ```
 
-> **Caution:** TutorLedger does not ask for confirmation, and a deletion cannot be undone. If you are not sure,
-> run `save FILE_PATH` first so you have a backup to go back to.
+> **Caution:** A completed deletion cannot be undone. Run `save FILE_PATH` before confirming if you want
+> a backup. The warning applies to student deletion; `delete LESSON_ID` still deletes a single lesson
+> immediately.
 
 ### Lessons
 
@@ -1055,8 +1068,8 @@ STUDENTS
       list wei
   edit STUDENT_ID [n/NAME] [l/LEVEL] [p/PHONE_NUMBER] [s/SUBJECT]... [r/RATE]
       edit S1 l/Sec 4
-  delete STUDENT_ID
-      delete S5
+  delete STUDENT_ID [confirm]
+      delete S5 confirm
 
 LESSONS
   schedule STUDENT_ID d/DATE t/TIME s/SUBJECT [dur/MINUTES] [f/FEE] [w/WEEKS]
@@ -1122,6 +1135,11 @@ LEVELS (l/LEVEL; case-insensitive, optional space)
   Pri 1 to Pri 6, Sec 1 to Sec 5, or JC 1 to JC 2
       Examples: l/Pri5, l/Sec 3, l/JC1
 
+STUDENT DELETION
+  With lesson records: confirm is required. Without lessons: deletion is immediate.
+  Run delete S5 to review the warning, then delete S5 confirm to delete.
+  To keep the records, continue with another command.
+
 SHORTCUTS (type the short form instead of the command word)
   v    view
   sch  schedule
@@ -1178,6 +1196,7 @@ from, then start TutorLedger.
 
 **A**: Only if you have a backup from `save FILE_PATH`. Copy the backup over `data/tutorledger.txt` and run
 `reload`. Everything goes back to how it was when the backup was made, so changes made since then are lost.
+An unconfirmed student-deletion warning has not removed anything; just continue with another command.
 
 **Q**: A student missed a lesson and I am not charging for it. What should I do?
 
@@ -1211,7 +1230,7 @@ as absent; if you also do not want to charge for it, delete the lesson with `del
 | **List / find students**| `list [NAME]`<br>e.g. `list wei`                                                                                         |
 | **Edit student**        | `edit STUDENT_ID [n/NAME] [l/LEVEL] [p/PHONE_NUMBER] [s/SUBJECT]… [r/RATE]`<br>e.g. `edit S1 l/Sec 4`                            |
 | **Set / clear hourly rate** | `edit STUDENT_ID r/RATE` or `edit STUDENT_ID r/`<br>e.g. `edit S1 r/60` |
-| **Delete student**      | `delete STUDENT_ID`<br>e.g. `delete S5`                                                                                  |
+| **Delete student**      | `delete STUDENT_ID [confirm]`<br>e.g. `delete S5`, then `delete S5 confirm` for a student with lessons |
 | **Schedule lesson**     | `schedule STUDENT_ID d/DATE t/TIME s/SUBJECT [dur/MINUTES] [f/FEE] [w/WEEKS]`<br>e.g. `schedule S1 d/20-10-2026 t/1600 s/A Math f/60 w/10` |
 | **Log past lesson**     | `log STUDENT_ID d/DATE t/TIME s/SUBJECT f/FEE a/ATTENDANCE [note/NOTES]`<br>e.g. `log S1 d/06-10-2026 t/1600 s/A Math f/60 a/present` |
 | **List lessons**        | `lessons [week]`<br>e.g. `lessons week`                                                                                  |

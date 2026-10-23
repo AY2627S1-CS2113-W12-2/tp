@@ -416,6 +416,41 @@ backup before returning to an older build. Model tests cover every supported yea
 command and storage tests cover stage changes, preserved history and mixed-stage files. The manual
 scenario below checks the visible behaviour and restart persistence.
 
+### Student deletion warnings — Yan Hern
+
+[Issue #40](https://github.com/AY2627S1-CS2113-W12-2/tp/issues/40), story US34, protects lesson history
+from accidental student deletion. `StudentCommands.delete` accepts `delete STUDENT_ID [confirm]`.
+It validates the complete argument list and resolves the current student before taking any action.
+An unconfirmed command checks all lessons belonging to that student, regardless of date, attendance,
+payment or cancellation status. If any exist, `deletionWarning` returns the student's identity, counts
+of every linked record type and the exact confirmation command. Submitted homework and all scores are
+included because the existing cascade would remove them too. A warning changes neither records nor
+ID counters, so the existing snapshot-based automatic save performs no write.
+
+Confirmation is an explicit, case-insensitive token on the same command, for example
+`delete S1 confirm`. There is no pending action: `yes` alone cannot delete anything, and another command,
+reload or restart needs no cancellation handling. A repeated unconfirmed command reads the current
+records and warns again. Explicit confirmation may be used directly and always resolves the student
+again before calling `TutorLedgerData.deleteStudent`; that method retains responsibility for deleting
+linked lessons, homework and scores and returning the actual removal counts. The success output and
+permanent-ID rules are unchanged. Students without lessons still delete immediately, including those
+with only homework or scores. Single-lesson deletion is unchanged.
+
+The alternative was a yes/no prompt in the main input loop. That would require tracking the target and
+deciding how unrelated commands, reload and end-of-input affect a pending confirmation. The explicit
+command fits the existing one-line parser and avoids retaining a stale target. This is a warning before
+permanent deletion, rather than an undo or archive mechanism; backups remain necessary for recovery.
+
+Invalid IDs, missing students, unknown confirmation tokens and extra arguments produce normal
+`IllegalArgumentException` messages before mutation; user-input checks work with assertions disabled.
+Internal assertions ensure that the warning is built for an existing student with at least one lesson.
+`FINE` logging records warning and deletion decisions using the student ID. Existing Gradle and shared
+IDEA run configurations enable assertions. No public model API or storage-format change is needed.
+
+`StudentDeletionWarningTest` covers warnings, cascade isolation, all lesson states, counts, invalid
+inputs, intervening commands, fresh data after reload, saved-file preservation and restart persistence.
+The manual scenario below checks the packaged command routing and visible confirmation flow.
+
 ### Fee statements - Izaaz
 
 `fee_statement STUDENT_ID` is handled by `PaymentCommands`. It resolves the student, reads the shared
@@ -577,6 +612,7 @@ date and cancellation filters used by `unpaid` and `owed`.
 |v2.0|user|find a to-do item by name|locate a to-do without having to go through the entire list|
 |v2.0 (US5)|independent tutor|set a default hourly rate for each student|avoid re-entering the fee for every lesson|
 |v2.0 (#82)|independent tutor|add and edit primary-school, secondary-school and junior-college students|keep all my students in one place|
+|v2.0 (US34, #40)|careless tutor|be warned before deleting a student who has lesson history|avoid losing months of records by accident|
 
 ## Non-Functional Requirements
 
@@ -589,6 +625,29 @@ date and cancellation filters used by `unpaid` and `owed`.
 ## Instructions for manual testing
 
 {Give instructions on how to do a manual product testing e.g., how to load sample data to be used for testing}
+
+### Student deletion warnings (US34, #40)
+
+Use an empty working directory and run the packaged application with Java 25 and `-ea`.
+
+1. Run `add n/Alice Tan l/Pri5 p/91234567 s/Math r/60` and
+   `add n/Bob Tan l/JC2 p/81234567 s/Math`.
+   Schedule `schedule S1 d/01-12-2026 t/1600 s/Math`, assign
+   `assign S1 Worksheet d/02-12-2026` and record `score S1 WA1 m/8/10 d/15-09-2026`.
+2. Run `delete s1`. Expected: a warning identifies Alice, lists one lesson, one homework item and one
+   score, and instructs `delete S1 confirm`. No records are deleted. Run `view S1` and `scores S1`
+   to check that the records remain. Repeat `delete S1`; it must warn again.
+3. Run `delete S1 yes` and `delete S1 confirm extra`. Expected: usage errors without deletion.
+   Run `help`; it must list the optional `confirm` token and explain the warning.
+4. Cancel the lesson with `cancel L1 r/Student away`, then run `delete S1`. Expected: the cancelled
+   lesson still triggers the warning. Exit without confirming, restart and run `view S1` and
+   `delete S1` again. All records remain and the warning appears again.
+5. Run `delete S1 confirm`. Expected: Alice and her linked lesson, homework and score are deleted.
+   Bob remains. Restart; Alice's records must remain absent. Add another student; its ID must be S3.
+6. Run `delete S2`. Expected: immediate deletion because Bob has no lessons. This also applies to
+   students with only homework or scores. A single `delete LESSON_ID` remains immediate.
+7. Repeat the warning and malformed-confirmation checks with Java's `-da` option. Expected: the same
+   protection and error messages; input validation does not depend on assertions.
 
 ### School levels (#82)
 
@@ -674,4 +733,5 @@ Use an empty working directory and run the packaged application with Java 25 and
    1. Run `progress S1 from/15-09-2026`. Expected: only lessons and scores from 15-09-2026 onwards.
 1. Saving and deleting
    1. Restart TutorLedger. Expected: `scores S1` shows the same scores.
-   1. Run `delete S1`. Expected: the output says the scores were deleted too.
+   1. Run `delete S1`. Expected: if S1 has lessons, a warning appears and the scores remain;
+      run `delete S1 confirm` to complete the deletion. The success output says the scores were deleted too.

@@ -131,8 +131,28 @@ public class StudentCommands {
                 + (input.fields().has("r") ? System.lineSeparator() + rateText(updated) : "");
     }
 
+    /**
+     * Handles {@code delete STUDENT_ID [confirm]} (US34). Without explicit confirmation,
+     * students with any lesson records receive a warning and all records stay unchanged.
+     */
     private String delete(String arguments) {
-        Student student = data.getStudent(singleId(arguments));
+        String[] words = arguments.split("\\s+");
+        if (arguments.isBlank() || words.length > 2
+                || (words.length == 2 && !words[1].equalsIgnoreCase("confirm"))) {
+            throw new IllegalArgumentException("Use: delete STUDENT_ID [confirm]");
+        }
+        Student student = data.getStudent(singleId(words[0]));
+        boolean confirmed = words.length == 2;
+        if (!confirmed) {
+            long lessonCount = data.getLessons().stream()
+                    .filter(lesson -> student.getStudentId().equalsIgnoreCase(lesson.getStudentId()))
+                    .count();
+            if (lessonCount > 0) {
+                return deletionWarning(student, lessonCount);
+            }
+        }
+        LOGGER.log(Level.FINE, "Deleting student {0}; explicitly confirmed: {1}",
+                new Object[]{student.getStudentId(), confirmed});
         TutorLedgerData.Deletion removed = data.deleteStudent(student.getStudentId());
         String result = "Deleted " + student.getStudentId() + ": " + student.getName() + " (" + student.getLevel()
                 + ")" + System.lineSeparator() + "Also deleted " + count(removed.lessonCount(), "lesson") + " and "
@@ -142,6 +162,26 @@ public class StudentCommands {
             result += System.lineSeparator() + "Also deleted " + count(removed.scoreCount(), "score") + ".";
         }
         return result;
+    }
+
+    /** Describes the current cascade without deleting anything or remembering a pending action. */
+    private String deletionWarning(Student student, long lessonCount) {
+        assert student != null : "A deletion warning needs an existing student";
+        assert lessonCount > 0 : "Only students with lessons require a deletion warning";
+        String id = student.getStudentId();
+        long homeworkCount = data.getHomework().stream()
+                .filter(item -> id.equalsIgnoreCase(item.getStudentId())).count();
+        long scoreCount = data.getScores().stream()
+                .filter(score -> id.equalsIgnoreCase(score.getStudentId())).count();
+        LOGGER.log(Level.FINE, "Deletion requires confirmation for {0}: {1} linked lessons",
+                new Object[]{id, lessonCount});
+        return "Warning: deleting " + id + ": " + student.getName() + " (" + student.getLevel()
+                + ") will permanently remove:" + System.lineSeparator()
+                + "  " + count(lessonCount, "lesson") + ", " + count(homeworkCount, "homework item")
+                + " and " + count(scoreCount, "score") + "." + System.lineSeparator()
+                + "This cannot be undone. No records have been deleted." + System.lineSeparator()
+                + "To confirm, type: delete " + id + " confirm" + System.lineSeparator()
+                + "Otherwise, continue with another command.";
     }
 
     private String view(String arguments) {
@@ -218,7 +258,7 @@ public class StudentCommands {
         return "$" + amount.setScale(2, RoundingMode.UNNECESSARY).toPlainString();
     }
 
-    private static String count(int amount, String noun) {
+    private static String count(long amount, String noun) {
         return amount + " " + noun + (amount == 1 ? "" : "s");
     }
 
