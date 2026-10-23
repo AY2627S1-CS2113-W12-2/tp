@@ -66,6 +66,17 @@ class HelpCommandTest {
     }
 
     @Test
+    void getHelpText_explainsStudentDeletionConfirmation() {
+        String help = commands.execute("help");
+        assertTrue(help.contains("delete STUDENT_ID [confirm]"));
+        assertTrue(help.contains("STUDENT DELETION"));
+        assertTrue(help.contains("With lesson records: confirm is required. Without lessons: deletion is immediate."));
+        assertTrue(help.contains("Run delete S5 to review the warning, then delete S5 confirm to delete."));
+        assertTrue(help.contains("To keep the records, continue with another command."));
+        assertTrue(help.contains("delete LESSON_ID"));
+    }
+
+    @Test
     void getHelpText_givesAnExampleForEachCommand() {
         String help = HelpCommand.getHelpText();
         assertTrue(help.contains("add n/Amirah Binte Rahman l/Sec 3 p/91234567"));

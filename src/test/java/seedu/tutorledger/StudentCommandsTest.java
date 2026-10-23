@@ -135,7 +135,7 @@ class StudentCommandsTest {
         data.putLesson(new Lesson("L1", "S1", "E Math", "15-09-2026", "1600",
                 "present", "60", ""));
         data.putHomework(new Homework("H1", "S1", "Worksheet", "22-09-2026", "outstanding"));
-        assertTrue(commands.execute("delete s1").contains("1 lesson and 1 homework"));
+        assertTrue(commands.execute("delete s1 confirm").contains("1 lesson and 1 homework"));
         assertTrue(data.getLessons().isEmpty());
         assertTrue(data.getHomework().isEmpty());
         assertTrue(commands.execute("add n/Tan Wei Ling l/Sec 2 p/81234567").contains("Added S2"));

@@ -25,7 +25,7 @@ public final class HelpCommand {
                     new Entry("list [NAME]", "list wei"),
                     new Entry("edit STUDENT_ID [n/NAME] [l/LEVEL] [p/PHONE_NUMBER] [s/SUBJECT]... [r/RATE]",
                             "edit S1 l/Sec 4"),
-                    new Entry("delete STUDENT_ID", "delete S5"))),
+                    new Entry("delete STUDENT_ID [confirm]", "delete S5 confirm"))),
             new Section("LESSONS", List.of(
                     new Entry("schedule STUDENT_ID d/DATE t/TIME s/SUBJECT [dur/MINUTES] [f/FEE] [w/WEEKS]",
                             "schedule S1 d/22-09-2026 t/1600 s/A Math f/60 w/10"),
@@ -101,6 +101,14 @@ public final class HelpCommand {
                 .append("Pri 1 to Pri 6, Sec 1 to Sec 5, or JC 1 to JC 2")
                 .append(System.lineSeparator()).append(EXAMPLE_INDENT)
                 .append("Examples: l/Pri5, l/Sec 3, l/JC1");
+        text.append(System.lineSeparator()).append(System.lineSeparator())
+                .append("STUDENT DELETION")
+                .append(System.lineSeparator()).append(FORMAT_INDENT)
+                .append("With lesson records: confirm is required. Without lessons: deletion is immediate.")
+                .append(System.lineSeparator()).append(FORMAT_INDENT)
+                .append("Run delete S5 to review the warning, then delete S5 confirm to delete.")
+                .append(System.lineSeparator()).append(FORMAT_INDENT)
+                .append("To keep the records, continue with another command.");
         text.append(System.lineSeparator()).append(System.lineSeparator())
                 .append("SHORTCUTS (type the short form instead of the command word)");
         for (CommandAliases.Alias alias : CommandAliases.all()) {
