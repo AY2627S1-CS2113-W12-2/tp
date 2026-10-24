@@ -126,6 +126,17 @@ read-only command such as `list` would then overwrite hand edits made while the 
 *Possible improvement:* write to a temporary file and then rename it over the data file. This means a crash
 part-way through writing can never leave a half-written data file.
 
+### Income summaries
+
+1. Create or log several lessons in different months, mark some paid and leave others unpaid. Include a
+   cancelled lesson marked paid.
+2. Run `income 09-2026`. Expected: the total and payment details include only paid, non-cancelled lessons
+   dated in September 2026.
+3. Run `income 2026`. Expected: all 12 months appear with their monthly totals and payment details; months
+   without paid lessons show `$0.00`.
+4. Try `income 13-2026`, `income 0000`, and `income 2026 extra`. Expected: each input is rejected with a
+   usage or date-range error.
+
 ### Scores and progress
 
 These features let a tutor record test results (F7.1 `score`, F7.2 `scores`, story US19) and review a

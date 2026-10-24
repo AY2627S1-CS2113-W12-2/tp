@@ -2,6 +2,7 @@ plugins {
     id 'java'
     id 'application'
     id 'checkstyle'
+    id 'jacoco'
     id 'com.gradleup.shadow' version '9.5.1'
 }
 
@@ -26,6 +27,7 @@ dependencies {
 test {
     useJUnitPlatform()
     enableAssertions = true
+    finalizedBy jacocoTestReport
 
     testLogging {
         events 'passed', 'skipped', 'failed'
@@ -35,6 +37,14 @@ test {
         showCauses = true
         showStackTraces = true
         showStandardStreams = false
+    }
+}
+
+jacocoTestReport {
+    dependsOn test
+    reports {
+        html.required = true
+        xml.required = true
     }
 }
 
