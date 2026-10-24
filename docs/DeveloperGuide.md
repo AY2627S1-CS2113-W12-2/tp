@@ -495,6 +495,34 @@ and rejected scheduling. `ArchiveStudentTest` covers the lifecycle, profile copi
 atomicity, payments and income, metadata errors, save/reload/restart behaviour and deletion confirmation
 for archived profiles with lesson history.
 
+### Covered topics — Yan Hern
+
+[Issue #18](https://github.com/AY2627S1-CS2113-W12-2/tp/issues/18), story US12, adds
+`topics STUDENT_ID [s/SUBJECT]`. `TutorLedger` routes this command to `TopicCommands`, following the
+existing `handles`/`execute` pattern and passing the same data object and clock as the other handlers.
+The parser resolves the student and accepts one optional, non-blank `s/` value. Historical subject
+matching compares against lessons rather than the student's current subject list.
+
+The query reads linked lessons with attendance `PRESENT` or `LATE`, a date no later than today,
+non-blank notes and no cancellation. Payment status is irrelevant to what was taught. It sorts by date,
+time and lesson ID, newest first, and displays complete notes alongside each lesson's identity and
+subject. Date-based eligibility follows the existing recording command, which permits recording any
+lesson dated today. Repeated descriptions remain separate entries because they can represent revision.
+
+There is no separate topic model, cache or storage format. Existing `log`, `record` and lesson edits
+remain the source of truth, so correcting notes or attendance changes the next query immediately.
+Reusing notes also means historical files work without migration. The alternative was introducing
+structured topic names on every lesson; this would duplicate input and require new persistence and
+editing rules beyond this story's needs. Notes are displayed as written, not interpreted as proof of
+mastery or split into inferred topic names.
+
+Validation exceptions produce the standard error output even with assertions disabled. Assertions check
+internal dependencies and selected-note invariants; `FINE` logging records query counts and rejected
+inputs. Because the command is read-only, snapshot-based automatic saving performs no write, preserving
+hand-edited files. `TopicCommandsTest` covers eligibility, ordering, filters, repeated notes, live edits,
+invalid commands, file preservation and save/reload/restart behaviour. Shared ID lookups keep the query
+compatible with archived profiles when the archive enhancement is integrated.
+
 ### Fee statements - Izaaz
 
 `fee_statement STUDENT_ID` is handled by `PaymentCommands`. It resolves the student, reads the shared
@@ -658,6 +686,7 @@ date and cancellation filters used by `unpaid` and `owed`.
 |v2.0 (#82)|independent tutor|add and edit primary-school, secondary-school and junior-college students|keep all my students in one place|
 |v2.0 (US34, #40)|careless tutor|be warned before deleting a student who has lesson history|avoid losing months of records by accident|
 |v2.0b (US45, #51)|independent tutor|archive a student who has stopped lessons|keep my active list uncluttered while preserving history|
+|v2.0b (US12, #18)|independent tutor|list the topics already covered with a student|avoid repeating material we have finished|
 
 ## Non-Functional Requirements
 
@@ -713,6 +742,24 @@ Use an empty working directory and Java 25 with `-ea`.
    Run `restore S1`, then repeat the rejected schedule. Expected: L3 and L4 are created, with no skipped IDs.
 7. Try `list status/other`, `archive S99` and `restore S1 extra`. Expected: errors without data changes.
    Repeat the scheduling guard with `-da`; protection must remain enabled without assertions.
+
+### Covered topics (US12, #18)
+
+Use an empty working directory and Java 25 with `-ea`.
+
+1. Run `add n/Alice Tan l/Pri5 p/91234567 s/Math s/Physics r/60` and
+   `add n/Bob Tan l/JC2 p/81234567 s/Math r/70`.
+2. Run `log S1 d/15-09-2026 t/1600 s/Math f/60 a/present note/Vectors`,
+   `log S1 d/16-09-2026 t/1600 s/Physics f/60 a/late note/Forces` and
+   `log S1 d/17-09-2026 t/1600 s/Math f/60 a/absent note/Not covered`.
+3. Run `topics s1`. Expected: L2 and L1, newest first, with dates, subjects and full notes. The absent
+   lesson is excluded. `topics S1 s/mAtH` lists only L1; `topics S2` reports no topics recorded.
+4. Run `edit S1 s/Physics`, then `topics S1 s/Math`. Expected: L1 is still found despite the subject
+   being removed from the profile. `edit L1 note/` removes L1 from the topics list.
+5. Try `topics`, `topics S99`, `topics S1 s/` and `topics S1 s/Math s/Physics`.
+   Expected: errors without changing any records or consuming IDs. `help` lists the new command.
+6. Exit and restart; `topics S1` should still show Forces. Run with `-da` and repeat the invalid-input
+   checks; validation must remain active without assertions.
 
 ### School levels (#82)
 

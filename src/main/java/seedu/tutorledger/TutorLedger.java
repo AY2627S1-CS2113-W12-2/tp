@@ -16,6 +16,7 @@ public class TutorLedger {
         HomeworkCommands homeworkCommands = new HomeworkCommands(data, clock);
         PaymentCommands paymentCommands = new PaymentCommands(data, clock);
         LessonCommands lessonCommands = new LessonCommands(data, clock);
+        TopicCommands topicCommands = new TopicCommands(data, clock);
         ScoreCommands scoreCommands = new ScoreCommands(data, clock);
         LessonFilterCommand filterCommand = new LessonFilterCommand(data);
         StorageCommands storageCommands = new StorageCommands(data, new Storage(Storage.DEFAULT_FILE_PATH));
@@ -42,6 +43,8 @@ public class TutorLedger {
                 System.out.println(homeworkCommands.execute(line));
             } else if (LessonCommands.handles(line)) {
                 System.out.println(lessonCommands.execute(line));
+            } else if (TopicCommands.handles(line)) {
+                System.out.println(topicCommands.execute(line));
             } else if (ScoreCommands.handles(line)) {
                 System.out.println(scoreCommands.execute(line));
             } else if (LessonFilterCommand.handles(line)) {

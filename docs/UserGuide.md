@@ -16,7 +16,7 @@ your own tutoring work.
 * [Notes about the command format](#notes-about-the-command-format)
 * [Features](#features)
   * [Student book](#student-book): `add`, `subject`, `view`, `list`, `edit`, `archive`, `restore`, `delete`
-  * [Lessons](#lessons): `schedule`, `log`, `lessons`, `filter`, `next`, `record`, `reschedule`,
+  * [Lessons](#lessons): `schedule`, `log`, `lessons`, `filter`, `next`, `topics`, `record`, `reschedule`,
     `cancel`, `edit`, `delete`
   * [Homework](#homework): `assign`, `submit`, `homework`
   * [Payments](#payments): `mark`, `unpaid`, `owed`
@@ -499,6 +499,39 @@ Example output:
   L7  Tue 20-10-2026 1600  S1 Amirah Binte Rahman  A Math  $60.00  unpaid
 Total fees: $120.00
 ```
+
+#### Listing topics already covered: `topics`
+
+Story US12 · [Issue #18](https://github.com/AY2627S1-CS2113-W12-2/tp/issues/18)
+
+Review lesson notes to see what you have already covered with a student.
+
+Format: `topics STUDENT_ID [s/SUBJECT]`
+
+* Results show the complete notes, lesson ID, date, time and subject, newest first.
+* Only lessons dated today or earlier with attendance `present` or `late` and non-blank notes appear.
+  Cancelled, absent, unrecorded and future lessons are excluded. Paid and unpaid lessons both appear.
+* Optional `s/SUBJECT` matches the whole historical subject name, ignoring case. It can find a subject
+  even after you remove that subject from the student's profile.
+* Notes are the topic description for each lesson. They are not split into individual topic names or
+  deduplicated; repeated notes remain separate dated entries.
+* Enter notes with `log` or `record`, and correct or clear them with `edit LESSON_ID note/NOTES` or
+  `edit LESSON_ID note/`. The topics list updates immediately and never changes your data.
+
+Example, after recording two attended A Math lessons with notes:
+
+```
+> topics S1 s/A Math
+Topics covered with S1 Amirah Binte Rahman (subject: A Math): 2 lessons
+  L2  Thu 22-10-2026 1700  A Math
+    Completing the square
+  L1  Wed 21-10-2026 1600  A Math
+    Quadratic equations
+```
+
+If there are no matching lessons, the command reports `No topics recorded for ...`.
+Missing or unknown student IDs, blank subjects, repeated `s/` prefixes and extra unprefixed arguments
+produce errors.
 
 #### Preparing for the next lesson: `next`
 
@@ -1154,6 +1187,8 @@ LESSONS
       filter S1 from/01-09-2026 pay/unpaid
   next [STUDENT_ID]
       next
+  topics STUDENT_ID [s/SUBJECT]
+      topics S1 s/A Math
   record LESSON_ID a/ATTENDANCE [note/NOTES]
       record L41 a/present note/Started simultaneous equations
   reschedule LESSON_ID [d/DATE] [t/TIME]
@@ -1316,6 +1351,7 @@ as absent; if you also do not want to charge for it, delete the lesson with `del
 | **List lessons**        | `lessons [week]`<br>e.g. `lessons week`                                                                                  |
 | **Filter lessons**      | `filter [STUDENT_ID] [from/DATE] [to/DATE] [pay/STATUS]`<br>e.g. `filter S1 from/01-10-2026 pay/unpaid`                 |
 | **Next lesson**         | `next [STUDENT_ID]`<br>e.g. `next`                                                                                       |
+| **Covered topics** | `topics STUDENT_ID [s/SUBJECT]`<br>e.g. `topics S1 s/A Math` |
 | **Record lesson**       | `record LESSON_ID a/ATTENDANCE [note/NOTES]`<br>e.g. `record L3 a/present note/Started simultaneous equations`          |
 | **Reschedule lesson**   | `reschedule LESSON_ID [d/DATE] [t/TIME]`<br>e.g. `reschedule L6 d/16-10-2026 t/1800`                                     |
 | **Cancel lesson**       | `cancel LESSON_ID r/REASON`<br>e.g. `cancel L8 r/Student sick`                                                           |

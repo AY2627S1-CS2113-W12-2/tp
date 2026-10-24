@@ -37,6 +37,7 @@ public final class HelpCommand {
                     new Entry("filter [STUDENT_ID] [from/DATE] [to/DATE] [pay/STATUS]",
                             "filter S1 from/01-09-2026 pay/unpaid"),
                     new Entry("next [STUDENT_ID]", "next"),
+                    new Entry("topics STUDENT_ID [s/SUBJECT]", "topics S1 s/A Math"),
                     new Entry("record LESSON_ID a/ATTENDANCE [note/NOTES]",
                             "record L41 a/present note/Started simultaneous equations"),
                     new Entry("reschedule LESSON_ID [d/DATE] [t/TIME]", "reschedule L42 d/25-09-2026 t/1800"),
