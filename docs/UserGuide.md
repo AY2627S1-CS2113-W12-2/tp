@@ -810,6 +810,27 @@ L3  Tue 13-10-2026  A Math                $60.00  unpaid
        ____________________________________________________________
 ```
 
+#### Viewing income by month or year: `income`
+
+Shows income from paid, non-cancelled lessons, grouped by lesson date. Each listed payment includes its
+lesson ID, date, student, subject and fee. Payments marked unpaid are not included.
+
+Format: `income MM-YYYY` or `income YYYY`
+
+* Use a month and year, such as `income 09-2026`, to see the total and payments for that month.
+* Use a year, such as `income 2026`, to see the total and payments for each of its 12 months.
+* Months with no paid lessons are shown with a `$0.00` total.
+
+Example: `income 09-2026`
+
+```
+> income 09-2026
+        ____________________________________________________________
+Income for September 2026: $62.50
+  L37  Tue 22-09-2026  S1 Tan Wei Ming  Pure Chemistry  $62.50
+       ____________________________________________________________
+```
+
 ### Scores and progress
 
 #### Recording a test score: `score`
@@ -1248,6 +1269,7 @@ as absent; if you also do not want to charge for it, delete the lesson with `del
 | **List unpaid lessons** | `unpaid [STUDENT_ID]`<br>e.g. `unpaid S1`                                                                                |
 | **Show amount owed**    | `owed`                                                                                                                   |
 | **Fee statement**       | `fee_statement STUDENT_ID`<br>e.g. `fee_statement S1`                                                                    |
+| **Show income by month or year** | `income MM-YYYY` or `income YYYY`<br>e.g. `income 09-2026`                                                     |
 | **Record score**        | `score STUDENT_ID TEST_NAME m/MARKS/TOTAL [d/DATE]`<br>e.g. `score S1 WA1 m/28/40 d/07-09-2026`                         |
 | **List scores**         | `scores STUDENT_ID`<br>e.g. `scores S1`                                                                                  |
 | **Progress summary**    | `progress STUDENT_ID [from/DATE] [to/DATE]`<br>e.g. `progress S1 from/01-07-2026`                                       |

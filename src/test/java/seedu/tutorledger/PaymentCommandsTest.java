@@ -175,6 +175,56 @@ class PaymentCommandsTest {
     }
 
     @Test
+    void incomeForMonthTotalsOnlyPaidNonCancelledLessonsInThatMonth() {
+        data.putLesson(new Lesson("L38", "S1", "E Math", "15-09-2026", "1800",
+                "present", "60", ""));
+        data.putLesson(new Lesson("L39", "S1", "Physics", "01-10-2026", "1600",
+                "present", "45.50", ""));
+        commands.execute("mark L37 paid");
+        commands.execute("mark L38 paid");
+
+        String output = commands.execute("income 09-2026");
+
+        assertTrue(output.contains("Income for September 2026: $122.50"));
+        assertTrue(output.contains("L38  Tue 15-09-2026"));
+        assertTrue(output.contains("L37  Tue 22-09-2026"));
+        assertTrue(!output.contains("L39"));
+    }
+
+    @Test
+    void incomeForYearListsEveryMonthWithPaidPaymentDetails() {
+        data.putLesson(new Lesson("L38", "S1", "E Math", "15-09-2026", "1800",
+                "present", "60", ""));
+        data.putLesson(new Lesson("L39", "S1", "Physics", "03-01-2026", "1600",
+                "present", "45.50", ""));
+        data.putLesson(new Lesson("L40", "S1", "Biology", "22-09-2026", "1600",
+                "present", "50", "").withCancellation("Student sick"));
+        commands.execute("mark L37 paid");
+        commands.execute("mark L38 paid");
+        commands.execute("mark L39 paid");
+        commands.execute("mark L40 paid");
+
+        String output = commands.execute("income 2026");
+
+        assertTrue(output.contains("Income for 2026"));
+        assertTrue(output.contains("January: $45.50"));
+        assertTrue(output.contains("September: $122.50"));
+        assertTrue(output.contains("February: $0.00"));
+        assertTrue(output.contains("L39  Sat 03-01-2026"));
+        assertTrue(!output.contains("L40"));
+        assertEquals(12, output.split(": \\$", -1).length - 1);
+    }
+
+    @Test
+    void incomeRejectsMissingMalformedAndOutOfRangePeriods() {
+        assertTrue(commands.execute("income").startsWith("Error: Use: income"));
+        assertTrue(commands.execute("income 13-2026").startsWith("Error: MONTH"));
+        assertTrue(commands.execute("income 0000").startsWith("Error: YEAR"));
+        assertTrue(commands.execute("income 2026 extra").startsWith("Error: Use: income"));
+        assertTrue(PaymentCommands.handles("income 2026"));
+    }
+
+    @Test
     void handlesUnpaidButRejectsExtraArguments() {
         assertTrue(PaymentCommands.handles("unpaid"));
         assertTrue(PaymentCommands.handles("UNPAID s1"));

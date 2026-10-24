@@ -51,7 +51,8 @@ public final class HelpCommand {
                     new Entry("mark LESSON_ID STATUS", "mark L37 paid"),
                     new Entry("unpaid [STUDENT_ID]", "unpaid S1"),
                     new Entry("owed", "owed"),
-                    new Entry("fee_statement STUDENT_ID", "fee_statement S1"))),
+                    new Entry("fee_statement STUDENT_ID", "fee_statement S1"),
+                    new Entry("income MM-YYYY or income YYYY", "income 09-2026"))),
             new Section("SCORES AND PROGRESS", List.of(
                     new Entry("score STUDENT_ID TEST_NAME m/MARKS/TOTAL [d/DATE]",
                             "score S1 WA1 m/28/40 d/07-09-2026"),
