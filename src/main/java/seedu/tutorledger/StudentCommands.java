@@ -11,12 +11,16 @@ import java.util.List;
 import java.util.Locale;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /** Parses student commands, including the optional default hourly rate (US5). */
 public class StudentCommands {
     /** Records rejected commands when debug logging is enabled. */
     private static final Logger LOGGER = Logger.getLogger(StudentCommands.class.getName());
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("EEE dd-MM-uuuu", Locale.ENGLISH);
+    /** Locates the first list prefix, leaving the preceding text as the existing free-text name query. */
+    private static final Pattern LIST_PREFIX = Pattern.compile("(?i)(?<!\\S)[a-z]+/");
     private final TutorLedgerData data;
     private final Clock clock;
 
@@ -43,6 +47,8 @@ public class StudentCommands {
             case "list" -> list(arguments);
             case "edit" -> edit(arguments);
             case "delete" -> delete(arguments);
+            case "archive" -> setArchived(arguments, true);
+            case "restore" -> setArchived(arguments, false);
             case "help" -> HelpCommand.getHelpText();
             default -> "Unknown command: " + words[0] + ".";
             };
@@ -72,7 +78,16 @@ public class StudentCommands {
         String subjectLine = subjects.isEmpty() ? "" : System.lineSeparator() + "Subjects: " + subjectText(student);
         String rateLine = fields.has("r") ? System.lineSeparator() + rateText(student) : "";
         return "Added " + details(student) + subjectLine + rateLine + System.lineSeparator()
-                + "You now have " + count(data.getStudents().size(), "student") + ".";
+                + studentCountText();
+    }
+
+    /** Explains the difference between stored profiles and the default active-only list when needed. */
+    private String studentCountText() {
+        int total = data.getStudents().size();
+        long archived = data.getStudents().stream().filter(Student::isArchived).count();
+        String breakdown = archived == 0 ? "" : " in total (" + (total - archived)
+                + " active, " + archived + " archived)";
+        return "You now have " + count(total, "student") + breakdown + ".";
     }
 
     private String subject(String arguments) {
@@ -92,17 +107,51 @@ public class StudentCommands {
                 + ". Subjects: " + subjectText(updated);
     }
 
-    private String list(String query) {
-        List<Student> matches = data.findStudents(query);
-        String heading = query.isEmpty() ? count(matches.size(), "student") + ":"
-                : count(matches.size(), "student") + " match \"" + query + "\":";
+    /** Lists active profiles by default without changing shared lookups used by payments and storage. */
+    private String list(String arguments) {
+        String query = arguments;
+        String status = "active";
+        Matcher prefix = LIST_PREFIX.matcher(arguments);
+        if (prefix.find()) {
+            query = arguments.substring(0, prefix.start()).trim();
+            ArgumentParser.Fields fields = ArgumentParser.parseFields(arguments.substring(prefix.start()),
+                    List.of("status"));
+            status = fields.single("status", true).toLowerCase(Locale.ROOT);
+        }
+        if (!List.of("active", "archived", "all").contains(status)) {
+            throw new IllegalArgumentException("Use status/active, status/archived or status/all.");
+        }
+        String selectedStatus = status;
+        List<Student> matches = data.findStudents(query).stream()
+                .filter(student -> selectedStatus.equals("all")
+                        || student.isArchived() == selectedStatus.equals("archived"))
+                .toList();
+        String scope = status.equals("active") ? "" : " (" + status + ")";
+        String heading = count(matches.size(), "student") + scope
+                + (query.isEmpty() ? ":" : " match \"" + query + "\":");
         StringBuilder result = new StringBuilder(heading);
         for (Student student : matches) {
             result.append(System.lineSeparator()).append("  ").append(student.getStudentId()).append("  ")
                     .append(student.getName()).append(" (").append(student.getLevel()).append(")  ")
-                    .append(subjectText(student));
+                    .append(subjectText(student)).append(student.isArchived() ? "  [archived]" : "");
         }
         return result.toString();
+    }
+
+    /** Archives or restores a profile without changing its linked records or permanent ID. */
+    private String setArchived(String arguments, boolean archived) {
+        Student student = data.getStudent(singleId(arguments));
+        if (student.isArchived() == archived) {
+            return student.getStudentId() + " " + student.getName() + " is already "
+                    + (archived ? "archived." : "active.");
+        }
+        data.replaceStudent(student.withArchived(archived));
+        LOGGER.log(Level.FINE, "Student {0} archive state changed to {1}",
+                new Object[]{student.getStudentId(), archived});
+        return (archived ? "Archived " : "Restored ") + student.getStudentId() + ": " + student.getName()
+                + " (" + student.getLevel() + ")." + System.lineSeparator()
+                + (archived ? "History is kept. Existing lessons are unchanged; restore before scheduling new ones."
+                        : "The student is active again. History and existing lessons are unchanged.");
     }
 
     private String edit(String arguments) {
@@ -189,6 +238,9 @@ public class StudentCommands {
         String id = student.getStudentId();
         StringBuilder output = new StringBuilder(id + "  " + student.getName() + "  (" + student.getLevel()
                 + ")  " + student.getPhoneNumber());
+        if (student.isArchived()) {
+            output.append(System.lineSeparator()).append("Status: archived");
+        }
         output.append(System.lineSeparator()).append("Subjects: ").append(subjectText(student));
         output.append(System.lineSeparator()).append(rateText(student));
         output.append(System.lineSeparator()).append("Lessons");

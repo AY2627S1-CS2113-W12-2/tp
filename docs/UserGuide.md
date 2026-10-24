@@ -15,7 +15,7 @@ your own tutoring work.
 * [Quick start](#quick-start)
 * [Notes about the command format](#notes-about-the-command-format)
 * [Features](#features)
-  * [Student book](#student-book): `add`, `subject`, `view`, `list`, `edit`, `delete`
+  * [Student book](#student-book): `add`, `subject`, `view`, `list`, `edit`, `archive`, `restore`, `delete`
   * [Lessons](#lessons): `schedule`, `log`, `lessons`, `filter`, `next`, `record`, `reschedule`,
     `cancel`, `edit`, `delete`
   * [Homework](#homework): `assign`, `submit`, `homework`
@@ -87,13 +87,14 @@ An ID is never reused, even after its item is deleted.
 | `WEEKS`          | `w/`    | A whole number of weeks from 2 to 52.                                           | `w/10`               |
 | `REASON`         | `r/`    | Any text saying why a lesson was called off. Same limits as `NOTES`.            | `r/Student sick`     |
 | `STATUS`         | (none)  | `paid` or `unpaid`.                                                             | `paid`               |
+| `STATUS` (student list) | `status/` | `active`, `archived` or `all`, ignoring case. | `status/archived` |
 | `DESCRIPTION`    | (none)  | Any text, written straight after the student ID.                                | `Worksheet 3B`       |
 | `TEST_NAME`      | (none)  | Any text, written straight after the student ID.                                | `Mid-year exam`      |
 | `MARKS/TOTAL`    | `m/`    | Marks scored, `/`, then the maximum marks. Up to 2 decimal places each.         | `m/28/40`            |
 | `FILE_PATH`      | (none)  | A file path relative to the folder you run TutorLedger from.                    | `backups/term1.txt`  |
 
-The example outputs in this guide were all taken from one session on Wed 14-10-2026, so they share the same
-students, lessons and homework.
+Example outputs use the students and lesson dates shown in their sections. Some examples assume a
+particular current date so that past and upcoming lessons are easy to distinguish.
 
 ## Features
 
@@ -175,6 +176,7 @@ lesson.
 Format: `view STUDENT_ID`
 
 * Lessons are shown newest first, so the last lesson's notes are near the top.
+* Archived profiles remain accessible by ID and show `Status: archived`.
 * The amount owed counts unpaid lessons dated today or earlier. Lessons still to come are not counted.
 
 Example: `view S1`
@@ -201,13 +203,15 @@ Amount owed: $120.00 (2 lessons)
 
 #### Listing and finding students: `list`
 
-Feature F1.4 · Story US36
+Feature F1.4 · Stories US36, US45
 
-Lists all your students, or only the students whose name contains what you type.
+Lists active students, or only the active students whose name contains what you type.
 
-Format: `list [NAME]`
+Format: `list [NAME] [status/STATUS]`
 
-* With no `NAME`, every student is listed in ID order.
+* With no `NAME`, students in the selected status are listed in ID order.
+* `STATUS` is `active` (the default), `archived` or `all`, ignoring case. Place the optional status
+  after the name query: `list tan status/archived`. Archived rows show `[archived]`.
 * With a `NAME`, a student is listed if that text appears anywhere in their name. Case is ignored, so `list wei`
   finds both Tan Wei Ming and Tan Wei Ling.
 * The text may contain spaces. `list tan wei` matches names that contain "tan wei".
@@ -287,6 +291,40 @@ If no rate is set and `f/` is omitted, scheduling asks you to set a rate or give
 including when older lessons are still in the future. Editing a lesson's duration also keeps its fee.
 Use `edit L1 f/AMOUNT` to deliberately change an existing charge.
 
+#### Archiving and restoring a student: `archive`, `restore`
+
+Story US45 · [Issue #51](https://github.com/AY2627S1-CS2113-W12-2/tp/issues/51)
+
+Archive students who have stopped lessons so the active list stays uncluttered while their history is kept.
+
+Formats: `archive STUDENT_ID` and `restore STUDENT_ID`
+
+* `archive S1` hides S1 from `list` and name searches. Use `list status/archived` or `list status/all`
+  to find the profile again; `view S1` still shows its details and history.
+* Lessons, homework, scores, subjects, default rates, balances and permanent IDs are preserved.
+  Archiving does not cancel future lessons or hide them from lesson lists or `next`.
+* New single or recurring scheduling requires restoration first. Existing lessons can still be corrected,
+  rescheduled or cancelled. You can log past lessons, record attendance, edit the profile and settle payments.
+* `restore S1` makes the same profile active again. Repeating either action is harmless.
+* Add/save/load totals count all stored students, including archived profiles; the default list counts active ones.
+  When archived profiles exist, `add` explains the breakdown, for example:
+  `You now have 2 students in total (1 active, 1 archived).`
+
+```
+> archive S1
+Archived S1: Amirah Binte Rahman (Sec 3).
+History is kept. Existing lessons are unchanged; restore before scheduling new ones.
+> list status/archived
+1 student (archived):
+  S1  Amirah Binte Rahman (Sec 3)  E Math, A Math  [archived]
+> restore S1
+Restored S1: Amirah Binte Rahman (Sec 3).
+The student is active again. History and existing lessons are unchanged.
+```
+
+Archiving and restoration are saved automatically. A completed deletion still removes the profile and
+its linked records permanently; archive when you want to keep them.
+
 #### Deleting a student: `delete`
 
 Feature F1.6 · Stories US31, US34
@@ -332,6 +370,9 @@ Schedules a lesson for a student and gives it a lesson ID. With `w/`, schedules 
 several weeks at once.
 
 Format: `schedule STUDENT_ID d/DATE t/TIME s/SUBJECT [dur/MINUTES] [f/FEE] [w/WEEKS]`
+
+Archived students must be restored with `restore STUDENT_ID` before new lessons can be scheduled.
+A rejected schedule creates no lessons and consumes no IDs.
 
 * `SUBJECT` must be one of the student's subjects. Case is ignored, and the lesson uses the spelling on the
   student's record.
@@ -1036,6 +1077,7 @@ A | A1 | S1 | 07-09-2026 | 28 | 40 | WA1
 |--------|-----------------------------------------------------------------------------------------------------|
 | `NEXT` | the IDs the next new student, lesson, homework item and score will get                              |
 | `R`    | student ID, default hourly rate; omit the record when no rate is set |
+| `ARCHIVED` | student ID; omit the record for an active student |
 | `S`    | student ID, name, level, phone number, then any number of subjects                                  |
 | `L`    | lesson ID, student ID, date, time, subject, fee, attendance (`not recorded`, `present`, `absent` or `late`), `paid` or `unpaid`, notes, cancellation reason (empty if active), duration in minutes |
 | `H`    | homework ID, student ID, due date, `outstanding` or `submitted`, description                        |
@@ -1050,6 +1092,11 @@ A | A1 | S1 | 07-09-2026 | 28 | 40 | WA1
   interpreted as an old cancellation record. A new save uses the combined twelve-field layout.
 * Example rate record: `R | S1 | 60`. Clearing a rate removes its record. Loading never recalculates saved fees.
   If a rate record is invalid, the student and their lessons still load; the invalid rate is reported by line number.
+* Example archive record: `ARCHIVED | S1`. Without this line the student is active. Restoring removes it.
+  Archive markers and rates may appear before or after the student line. Invalid or duplicate markers
+  are reported by line number while other records still load.
+* Keep a backup before returning to an older build: builds without archiving report archive markers as
+  unknown records and load those students as active. Saving with an older build loses archive status.
 * Values follow the same rules as when you type them in a command, for example dates as `DD-MM-YYYY`.
 * To put a `|` inside a value, write `\|`. To put a `\` there, write `\\`.
 * Lines may be in any order, and spaces around `|` do not matter.
@@ -1085,8 +1132,12 @@ STUDENTS
       subject S1 s/E Math s/A Math
   view STUDENT_ID
       view S1
-  list [NAME]
+  list [NAME] [status/STATUS]
       list wei
+  archive STUDENT_ID
+      archive S5
+  restore STUDENT_ID
+      restore S5
   edit STUDENT_ID [n/NAME] [l/LEVEL] [p/PHONE_NUMBER] [s/SUBJECT]... [r/RATE]
       edit S1 l/Sec 4
   delete STUDENT_ID [confirm]
@@ -1131,6 +1182,8 @@ PAYMENTS
       owed
   fee_statement STUDENT_ID
       fee_statement S1
+  income MM-YYYY or income YYYY
+      income 09-2026
 
 SCORES AND PROGRESS
   score STUDENT_ID TEST_NAME m/MARKS/TOTAL [d/DATE]
@@ -1160,6 +1213,10 @@ STUDENT DELETION
   With lesson records: confirm is required. Without lessons: deletion is immediate.
   Run delete S5 to review the warning, then delete S5 confirm to delete.
   To keep the records, continue with another command.
+
+STUDENT STATUS
+  list shows active students. Use status/active, status/archived or status/all.
+  Archiving keeps history and existing lessons. Restore before scheduling new lessons.
 
 SHORTCUTS (type the short form instead of the command word)
   v    view
@@ -1249,6 +1306,8 @@ as absent; if you also do not want to charge for it, delete the lesson with `del
 | **Add subjects**        | `subject STUDENT_ID s/SUBJECT [s/SUBJECT]…`<br>e.g. `subject S1 s/E Math s/A Math`                                      |
 | **View student**        | `view STUDENT_ID`<br>e.g. `view S1`                                                                                      |
 | **List / find students**| `list [NAME]`<br>e.g. `list wei`                                                                                         |
+| **List archived / all** | `list [NAME] status/archived` or `list [NAME] status/all` |
+| **Archive / restore** | `archive STUDENT_ID` / `restore STUDENT_ID`<br>e.g. `archive S1`, then `restore S1` |
 | **Edit student**        | `edit STUDENT_ID [n/NAME] [l/LEVEL] [p/PHONE_NUMBER] [s/SUBJECT]… [r/RATE]`<br>e.g. `edit S1 l/Sec 4`                            |
 | **Set / clear hourly rate** | `edit STUDENT_ID r/RATE` or `edit STUDENT_ID r/`<br>e.g. `edit S1 r/60` |
 | **Delete student**      | `delete STUDENT_ID [confirm]`<br>e.g. `delete S5`, then `delete S5 confirm` for a student with lessons |

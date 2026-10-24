@@ -21,6 +21,8 @@ public class Student {
     private final List<String> subjects;
     /** Null means no default is set; zero is a valid rate for free lessons. */
     private final BigDecimal defaultHourlyRate;
+    /** Archived profiles stay available by ID but are hidden from the default student list. */
+    private final boolean archived;
 
     /**
      * Creates a student profile after validating the supplied values.
@@ -42,6 +44,12 @@ public class Student {
     /** Creates a complete profile; a null rate means that no default has been set. */
     public Student(String studentId, String name, String level, String phoneNumber, List<String> subjects,
             String hourlyRate) {
+        this(studentId, name, level, phoneNumber, subjects, hourlyRate, false);
+    }
+
+    /** Creates a validated immutable copy, retaining archive state alongside profile details. */
+    private Student(String studentId, String name, String level, String phoneNumber, List<String> subjects,
+            String hourlyRate, boolean archived) {
         LOGGER.log(Level.INFO, "Constructing student with ID={0}, name={1}, subjects={2}",
                 new Object[]{studentId, name, subjects});
         this.studentId = validateId(studentId);
@@ -50,6 +58,7 @@ public class Student {
         this.phoneNumber = validatePhoneNumber(phoneNumber);
         this.subjects = validateSubjects(subjects);
         this.defaultHourlyRate = hourlyRate == null ? null : parseHourlyRate(hourlyRate);
+        this.archived = archived;
         LOGGER.log(Level.INFO, "Student constructed: {0}", this.studentId);
     }
 
@@ -83,9 +92,24 @@ public class Student {
         return Optional.ofNullable(defaultHourlyRate);
     }
 
+    /** Returns whether this profile is hidden from the active student list. */
+    public boolean isArchived() {
+        return archived;
+    }
+
+    /** Returns a profile with the requested archive state while keeping all other details. */
+    public Student withArchived(boolean archived) {
+        Student updated = new Student(studentId, name, level, phoneNumber, subjects,
+                defaultHourlyRate == null ? null : defaultHourlyRate.toPlainString(), archived);
+        assert updated.studentId.equals(studentId) : "Archiving must preserve the student ID";
+        assert updated.archived == archived : "Archive state was not copied";
+        LOGGER.log(Level.FINE, "Student {0} archive state set to {1}", new Object[]{studentId, archived});
+        return updated;
+    }
+
     /** Returns a replacement profile with a validated rate, or clears it when rate is null. */
     public Student withDefaultHourlyRate(String rate) {
-        Student updated = new Student(studentId, name, level, phoneNumber, subjects, rate);
+        Student updated = new Student(studentId, name, level, phoneNumber, subjects, rate, archived);
         assert updated.studentId.equals(studentId) : "Changing a rate must preserve the student ID";
         LOGGER.log(Level.FINE, "Default hourly rate updated for {0}", studentId);
         return updated;
@@ -96,7 +120,7 @@ public class Student {
         LOGGER.log(Level.INFO, "Updating student {0} details: name={1}, level={2}, phone={3}, subjects={4}",
                 new Object[]{studentId, newName, newLevel, newPhoneNumber, newSubjects});
         Student updated = new Student(studentId, newName, newLevel, newPhoneNumber, newSubjects,
-                defaultHourlyRate == null ? null : defaultHourlyRate.toPlainString());
+                defaultHourlyRate == null ? null : defaultHourlyRate.toPlainString(), archived);
         LOGGER.log(Level.INFO, "Updated student record: {0}", updated.studentId);
         return updated;
     }

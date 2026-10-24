@@ -462,6 +462,39 @@ IDEA run configurations enable assertions. No public model API or storage-format
 inputs, intervening commands, fresh data after reload, saved-file preservation and restart persistence.
 The manual scenario below checks the packaged command routing and visible confirmation flow.
 
+### Archiving students — Yan Hern
+
+[Issue #51](https://github.com/AY2627S1-CS2113-W12-2/tp/issues/51), story US45, introduces an immutable
+`Student.archived` flag, exposed through `isArchived()` and `withArchived(boolean)`. Existing constructors
+default to active. Rate and profile copy methods carry the flag forward, so changing subjects, school
+level or fees cannot accidentally restore a profile. `archive` and `restore` validate one student ID,
+replace only that profile and return a no-op message when the requested state already holds.
+
+`StudentCommands.list` combines the existing free-text name query with an optional trailing
+`status/active`, `status/archived` or `status/all` filter. Filtering happens at this command boundary:
+`TutorLedgerData.getStudent`, `getStudents` and `findStudents` still include archived students. This is
+necessary because payment totals, storage and historical views also use those methods. Hiding archived
+profiles in the shared collections would incorrectly lose unpaid balances or saved history.
+
+New single and recurring scheduling calls check the student's status in the data layer before choosing
+fees, storing lessons or consuming IDs. Historical logging takes a separate attended-lesson path and
+remains available. Importing and editing old records also remain available. Archiving never cancels
+existing lessons, including future ones; explicit cancellation and rescheduling retain their meanings.
+
+Storage writes an optional `ARCHIVED | S1` marker rather than extending the `S` row, whose trailing
+fields already represent an arbitrary number of subjects. Students load first; the metadata pass applies
+archive markers and rates in either order. Copy methods preserve both values. Missing markers mean
+active, and malformed, orphan or duplicate markers receive line-numbered warnings without discarding
+valid profiles. Restore removes the marker on the next save. Older builds report it as unknown and
+cannot preserve archive state, so the User Guide advises keeping a backup before downgrading.
+
+The alternative was moving archived students into another collection. A flag avoids duplicate identity
+rules, separate ID allocation and changes to every historical lookup. Assertions check internal copy
+invariants; exceptions reject input independently of assertions; `FINE` logging records status changes
+and rejected scheduling. `ArchiveStudentTest` covers the lifecycle, profile copies, filters, scheduling
+atomicity, payments and income, metadata errors, save/reload/restart behaviour and deletion confirmation
+for archived profiles with lesson history.
+
 ### Fee statements - Izaaz
 
 `fee_statement STUDENT_ID` is handled by `PaymentCommands`. It resolves the student, reads the shared
@@ -624,6 +657,7 @@ date and cancellation filters used by `unpaid` and `owed`.
 |v2.0 (US5)|independent tutor|set a default hourly rate for each student|avoid re-entering the fee for every lesson|
 |v2.0 (#82)|independent tutor|add and edit primary-school, secondary-school and junior-college students|keep all my students in one place|
 |v2.0 (US34, #40)|careless tutor|be warned before deleting a student who has lesson history|avoid losing months of records by accident|
+|v2.0b (US45, #51)|independent tutor|archive a student who has stopped lessons|keep my active list uncluttered while preserving history|
 
 ## Non-Functional Requirements
 
@@ -659,6 +693,26 @@ Use an empty working directory and run the packaged application with Java 25 and
    students with only homework or scores. A single `delete LESSON_ID` remains immediate.
 7. Repeat the warning and malformed-confirmation checks with Java's `-da` option. Expected: the same
    protection and error messages; input validation does not depend on assertions.
+
+### Archiving students (US45, #51)
+
+Use an empty working directory and Java 25 with `-ea`.
+
+1. Add `add n/Alice Tan l/Pri5 p/91234567 s/Math r/60` and
+   `add n/Bob Tan l/JC2 p/81234567 s/Math r/70`.
+2. Run `log S1 d/15-09-2026 t/1600 s/Math f/60 a/present note/Vectors`,
+   `schedule S1 d/01-12-2026 t/1600 s/Math`, `assign S1 Worksheet d/02-12-2026` and
+   `score S1 WA1 m/8/10 d/15-09-2026`.
+3. Run `archive S1`, then `list`. Expected: only Bob is listed. `list status/archived` finds Alice;
+   `list tan status/all` finds both in ID order, with Alice marked `[archived]`.
+4. Run `view S1`, `scores S1`, `owed` and `next S1`. Expected: Alice's original details, historical
+   records, unpaid balance and future lesson remain available. Archiving has not cancelled L2.
+5. Try `schedule S1 d/02-12-2026 t/1600 s/Math w/2`. Expected: a restore instruction and no new lessons.
+   Repeating `archive S1` reports that the student is already archived.
+6. Restart and run `list status/archived` and `view S1`. Expected: archive status, rate and history persist.
+   Run `restore S1`, then repeat the rejected schedule. Expected: L3 and L4 are created, with no skipped IDs.
+7. Try `list status/other`, `archive S99` and `restore S1 extra`. Expected: errors without data changes.
+   Repeat the scheduling guard with `-da`; protection must remain enabled without assertions.
 
 ### School levels (#82)
 
