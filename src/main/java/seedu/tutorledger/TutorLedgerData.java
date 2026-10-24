@@ -165,6 +165,7 @@ public class TutorLedgerData {
     /** Schedules an unrecorded lesson with an explicit duration and optional fee override. */
     public Lesson addLesson(String studentId, String subject, String date, String time, String fee,
             int durationMinutes) {
+        requireActiveStudent(studentId);
         return addLesson(studentId, subject, date, time, fee, Lesson.Attendance.NOT_RECORDED.name(), "",
                 durationMinutes);
     }
@@ -214,7 +215,7 @@ public class TutorLedgerData {
         assert weekCount >= 1 : "A weekly slot needs at least one lesson";
         LOGGER.log(Level.INFO, "Scheduling {0} weekly lessons for student {1} from {2}",
                 new Object[]{weekCount, studentId, firstDate});
-        Student student = getStudent(studentId);
+        Student student = requireActiveStudent(studentId);
         fee = resolveLessonFee(student, fee, durationMinutes);
         LocalDate start = Lesson.parseDate(firstDate);
         int firstNumber = nextLessonNumber;
@@ -232,6 +233,18 @@ public class TutorLedgerData {
         LOGGER.log(Level.INFO, "Weekly lessons scheduled: L{0} to L{1}",
                 new Object[]{firstNumber, firstNumber + weekCount - 1});
         return planned;
+    }
+
+    /** Rejects new scheduling for archived students; imports, corrections and historical logging stay available. */
+    private Student requireActiveStudent(String id) {
+        Student student = getStudent(id);
+        if (student.isArchived()) {
+            LOGGER.log(Level.FINE, "Scheduling rejected for archived student {0}", student.getStudentId());
+            throw new IllegalArgumentException(student.getStudentId()
+                    + " is archived. Restore with restore " + student.getStudentId() + " before scheduling lessons.");
+        }
+        assert !student.isArchived() : "A schedulable student must be active";
+        return student;
     }
 
     /** Resolves a fixed total once; explicit fees and prior lessons are never repriced. */
