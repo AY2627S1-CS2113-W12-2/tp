@@ -278,7 +278,7 @@ class DefaultHourlyRateTest {
         Storage storage = new Storage(file.toString());
         storage.save(data);
         String changed = Files.readString(file).replace("R | S1 | 60", "R | S1 | 100")
-                .replace(" | 90" + System.lineSeparator(), " | 30" + System.lineSeparator());
+                .replace(" | 90 | 0" + System.lineSeparator(), " | 30 | 0" + System.lineSeparator());
         Files.writeString(file, changed);
         StorageCommands saving = new StorageCommands(data, storage);
         assertTrue(saving.execute("reload").startsWith("Reloaded"));

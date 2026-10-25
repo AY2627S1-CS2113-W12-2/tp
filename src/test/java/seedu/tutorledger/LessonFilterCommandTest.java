@@ -81,7 +81,7 @@ class LessonFilterCommandTest {
     @Test
     void execute_invalidValues_reportErrors() {
         assertEquals("Error: No student found with ID S9.", command.execute("filter S9"));
-        assertEquals("Error: pay/ must be paid or unpaid.", command.execute("filter pay/owing"));
+        assertEquals("Error: pay/ must be paid, partial or unpaid.", command.execute("filter pay/owing"));
         assertEquals("Error: Date must be a real date in DD-MM-YYYY format.",
                 command.execute("filter from/31-02-2026"));
         assertEquals("Error: from/ date must not be after to/ date.",
@@ -96,5 +96,14 @@ class LessonFilterCommandTest {
         List<Lesson> before = List.copyOf(data.getLessons());
         command.execute("filter S1 pay/unpaid");
         assertEquals(before, List.copyOf(data.getLessons()));
+    }
+
+    @Test
+    void execute_unpaidFilterIncludesPartialBalances() {
+        data.replaceLesson(data.getLesson("L1").withAmountPaid(new java.math.BigDecimal("20")));
+
+        assertTrue(command.execute("filter S1 pay/unpaid").contains("L1"));
+        assertTrue(command.execute("filter S1 pay/partial").contains("L1"));
+        assertFalse(command.execute("filter S1 pay/paid").contains("L1"));
     }
 }

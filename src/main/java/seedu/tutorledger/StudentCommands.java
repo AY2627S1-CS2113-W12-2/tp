@@ -261,6 +261,10 @@ public class StudentCommands {
                     .append("  ").append(lesson.isCancelled() ? "cancelled"
                             : lesson.getAttendance().name().toLowerCase(Locale.ROOT).replace('_', ' '))
                     .append("  ").append(lesson.getPaymentStatus());
+            if (lesson.getAmountPaid().signum() > 0 && !lesson.getPaymentStatus().equals(Lesson.PAYMENT_PAID)) {
+                output.append("  ").append(money(lesson.getAmountPaid())).append(" paid, ")
+                        .append(money(lesson.getAmountOwed())).append(" remaining");
+            }
             if (lesson.getDurationMinutes() != Lesson.DEFAULT_DURATION_MINUTES) {
                 output.append("  ").append(lesson.getDurationMinutes()).append(" min");
             }
@@ -272,9 +276,9 @@ public class StudentCommands {
             }
             // A cancelled lesson did not take place, so it is not owed.
             boolean isOwed = !lesson.isCancelled() && !lesson.getDate().isAfter(today)
-                    && lesson.getPaymentStatus().equalsIgnoreCase("unpaid");
+                    && !lesson.getPaymentStatus().equalsIgnoreCase(Lesson.PAYMENT_PAID);
             if (isOwed) {
-                owed = owed.add(lesson.getFee());
+                owed = owed.add(lesson.getAmountOwed());
                 unpaidCount++;
             }
         }

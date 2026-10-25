@@ -796,6 +796,7 @@ Format: `mark LESSON_ID STATUS`
 * `STATUS` is `paid` or `unpaid`.
 * Every new lesson starts unpaid.
 * A lesson can be marked paid before it takes place, for example when a family pays in advance.
+* `mark` sets the whole lesson fee to paid or resets it to unpaid. Use `pay` to record an amount that may be partial.
 
 Examples:
 
@@ -809,6 +810,25 @@ Example output:
 Marked L1 as paid.
 ```
 
+#### Recording a payment across lessons: `pay`
+
+Records one payment for a student and allocates it to the listed lessons in the order given. Each lesson is
+covered up to its remaining balance; any leftover amount continues to the next lesson. A final lesson may be
+partially paid. The amount cannot exceed the combined outstanding balances of the listed lessons.
+
+Format: `pay STUDENT_ID AMOUNT LESSON_ID [LESSON_ID...]`
+
+Example: if L37 costs $62.50 and L38 costs $55.00, this records $62.50 against L37 and the remaining $17.50
+against L38:
+
+```
+> pay S1 80 L37 L38
+Recorded payment of $80.00 for 2 lessons: L37, L38.
+```
+
+The remaining $37.50 on L38 stays outstanding and is included in `unpaid` and `owed`. Partial allocations
+are saved and included in income totals.
+
 #### Listing unpaid lessons: `unpaid`
 
 Feature F4.2 · Story US24
@@ -817,7 +837,7 @@ Lists lessons that have taken place but have not been paid for, for all students
 
 Format: `unpaid [STUDENT_ID]`
 
-* Only lessons dated today or earlier are listed.
+* Only lessons dated today or earlier are listed. A partially paid lesson remains on this list with its remaining balance.
 * Lessons are listed oldest first, so the longest-outstanding are at the top.
 
 Examples:
@@ -867,7 +887,8 @@ S5 Ryan Koh  $45.00  (1 lesson)
 #### Viewing a student's fee statement: `fee_statement`
 
 Lists every lesson fee for one student, including lessons paid in advance, in date and time order. Each entry
-shows the lesson ID, date, subject, fee, and current payment status.
+shows the lesson ID, date, subject, fee, and current payment status. A partially paid lesson also shows its
+amount paid so far.
 
 Format: `fee_statement STUDENT_ID`
 
@@ -886,8 +907,9 @@ L3  Tue 13-10-2026  A Math                $60.00  unpaid
 
 #### Viewing income by month or year: `income`
 
-Shows income from paid, non-cancelled lessons, grouped by lesson date. Each listed payment includes its
-lesson ID, date, student, subject and fee. Payments marked unpaid are not included.
+Shows amounts received for non-cancelled lessons, grouped by lesson date. Each listed payment includes its
+lesson ID, date, student, subject and amount paid; partial payments are included. Lessons with no payment
+are not included.
 
 Format: `income MM-YYYY` or `income YYYY`
 
@@ -1361,6 +1383,7 @@ as absent; if you also do not want to charge for it, delete the lesson with `del
 | **Submit homework**     | `submit HOMEWORK_ID`<br>e.g. `submit H1`                                                                                 |
 | **List homework**       | `homework [STUDENT_ID]`<br>e.g. `homework S1`                                                                            |
 | **Mark paid / unpaid**  | `mark LESSON_ID STATUS`<br>e.g. `mark L1 paid`                                                                           |
+| **Record a payment**    | `pay STUDENT_ID AMOUNT LESSON_ID [LESSON_ID...]`<br>e.g. `pay S1 80 L37 L38`                                             |
 | **List unpaid lessons** | `unpaid [STUDENT_ID]`<br>e.g. `unpaid S1`                                                                                |
 | **Show amount owed**    | `owed`                                                                                                                   |
 | **Fee statement**       | `fee_statement STUDENT_ID`<br>e.g. `fee_statement S1`                                                                    |

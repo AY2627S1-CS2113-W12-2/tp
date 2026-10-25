@@ -21,6 +21,7 @@ import java.util.logging.Logger;
 public class Lesson {
     public static final String PAYMENT_PAID = "paid";
     public static final String PAYMENT_UNPAID = "unpaid";
+    public static final String PAYMENT_PARTIAL = "partial";
     /** Legacy lessons and commands without dur/ represent one hour. */
     public static final int DEFAULT_DURATION_MINUTES = 60;
 
@@ -38,6 +39,7 @@ public class Lesson {
     private final LocalTime time;
     private final Attendance attendance;
     private final BigDecimal fee;
+    private final BigDecimal amountPaid;
     private final String notes;
     private final String paymentStatus;
     /** Billing duration; changing it does not implicitly recalculate the saved fee. */
@@ -66,6 +68,7 @@ public class Lesson {
         this.time = parseTime(time);
         this.attendance = Attendance.parse(attendance);
         this.fee = parseFee(fee);
+        this.amountPaid = BigDecimal.ZERO;
         this.notes = requireNonNull(notes, "Notes");
         this.paymentStatus = validatePaymentStatus(PAYMENT_UNPAID);
         this.durationMinutes = DEFAULT_DURATION_MINUTES;
@@ -90,6 +93,7 @@ public class Lesson {
         this.time = parseTime(time);
         this.attendance = Attendance.parse(attendance);
         this.fee = parseFee(fee);
+        this.amountPaid = BigDecimal.ZERO;
         this.notes = requireNonNull(notes, "Notes");
         this.paymentStatus = validatePaymentStatus(PAYMENT_UNPAID);
         this.durationMinutes = validateDuration(durationMinutes);
@@ -97,27 +101,10 @@ public class Lesson {
         LOGGER.log(Level.INFO, "Lesson created: {0}", this.lessonId);
     }
 
-    private Lesson(String lessonId, String studentId, String subject, String date, String time, String attendance,
-            String fee, String notes, String paymentStatus) {
-        LOGGER.log(Level.INFO, "Creating lesson {0} with payment status {1}", new Object[]{lessonId, paymentStatus});
-        this.lessonId = requireText(lessonId, "Lesson ID");
-        this.studentId = studentId;
-        this.subject = requireText(subject, "Subject");
-        this.date = parseDate(date);
-        this.time = parseTime(time);
-        this.attendance = Attendance.parse(attendance);
-        this.fee = parseFee(fee);
-        this.notes = requireNonNull(notes, "Notes");
-        this.paymentStatus = validatePaymentStatus(paymentStatus);
-        this.durationMinutes = DEFAULT_DURATION_MINUTES;
-        this.cancellationReason = "";
-        LOGGER.log(Level.INFO, "Lesson creation complete: {0}", this.lessonId);
-    }
-
     /** Creates a lesson from values that have already been validated and converted. */
     private Lesson(String lessonId, String studentId, String subject, LocalDate date, LocalTime time,
             Attendance attendance, BigDecimal fee, String notes, String paymentStatus,
-            String cancellationReason, int durationMinutes) {
+            String cancellationReason, int durationMinutes, BigDecimal amountPaid) {
         LOGGER.log(Level.INFO, "Creating validated lesson {0}", lessonId);
         // This constructor skips validation, so check that its caller really did validate everything.
         assert lessonId != null && !lessonId.isBlank() : "Lesson ID should already be validated";
@@ -128,6 +115,7 @@ public class Lesson {
         assert notes != null : "Notes should be empty rather than null";
         assert durationMinutes >= 1 && durationMinutes <= 1440 : "Duration should already be validated";
         assert PAYMENT_PAID.equals(paymentStatus) || PAYMENT_UNPAID.equals(paymentStatus)
+                || PAYMENT_PARTIAL.equals(paymentStatus)
                 : "Payment status should already be validated";
         assert cancellationReason != null : "A lesson that is not cancelled has an empty reason, not null";
         this.lessonId = lessonId;
@@ -138,27 +126,11 @@ public class Lesson {
         this.attendance = attendance;
         this.fee = fee;
         this.notes = notes;
-        this.paymentStatus = paymentStatus;
+        this.amountPaid = validateAmountPaid(amountPaid, fee);
+        this.paymentStatus = paymentStatusFor(this.amountPaid, fee);
         this.durationMinutes = durationMinutes;
         this.cancellationReason = cancellationReason;
         LOGGER.log(Level.INFO, "Validated lesson created: {0}", lessonId);
-    }
-
-    private Lesson(Lesson lesson, String paymentStatus) {
-        LOGGER.log(Level.INFO, "Updating payment status for lesson {0} to {1}",
-                new Object[]{lesson.lessonId, paymentStatus});
-        this.lessonId = lesson.lessonId;
-        this.studentId = lesson.studentId;
-        this.subject = lesson.subject;
-        this.date = lesson.date;
-        this.time = lesson.time;
-        this.attendance = lesson.attendance;
-        this.fee = lesson.fee;
-        this.notes = lesson.notes;
-        this.paymentStatus = validatePaymentStatus(paymentStatus);
-        this.durationMinutes = lesson.durationMinutes;
-        this.cancellationReason = lesson.cancellationReason;
-        LOGGER.log(Level.INFO, "Lesson payment status updated: {0}", this.lessonId);
     }
 
     public String getLessonId() {
@@ -196,6 +168,16 @@ public class Lesson {
         return fee;
     }
 
+    /** Returns the amount already allocated to this lesson. */
+    public BigDecimal getAmountPaid() {
+        return amountPaid;
+    }
+
+    /** Returns the remaining balance for this lesson. */
+    public BigDecimal getAmountOwed() {
+        return fee.subtract(amountPaid);
+    }
+
     public int getDurationMinutes() {
         return durationMinutes;
     }
@@ -219,7 +201,7 @@ public class Lesson {
     /** Returns a copy with a new duration, retaining its saved fee and all historical details. */
     public Lesson withDurationMinutes(int minutes) {
         return new Lesson(lessonId, studentId, subject, date, time, attendance, fee, notes, paymentStatus,
-                cancellationReason, validateDuration(minutes));
+                cancellationReason, validateDuration(minutes), amountPaid);
     }
 
     public String getNotes() {
@@ -251,9 +233,8 @@ public class Lesson {
     /**
      * Returns a copy of this lesson with some details changed, leaving this lesson untouched.
      *
-     * <p>Pass {@code null} for any detail that should stay as it is. The lesson ID, student,
-     * payment status and cancellation are always kept, because recording or editing a lesson never
-     * changes them.
+     * <p>Pass {@code null} for any detail that should stay as it is. Editing the fee preserves a
+     * paid lesson as paid; a partial allocation is retained up to the updated fee.
      *
      * @param newSubject The new subject, or null to keep the current one.
      * @param newDate The new date in DD-MM-YYYY format, or null to keep the current one.
@@ -268,14 +249,16 @@ public class Lesson {
             String newFee, String newNotes) {
         LOGGER.log(Level.INFO, "Updating lesson {0} details: subject={1}, date={2}, time={3}",
                 new Object[]{lessonId, newSubject, newDate, newTime});
+        BigDecimal updatedFee = newFee == null ? fee : parseFee(newFee);
+        BigDecimal updatedAmountPaid = PAYMENT_PAID.equals(paymentStatus) ? updatedFee : amountPaid.min(updatedFee);
         Lesson updated = new Lesson(lessonId, studentId,
                 newSubject == null ? subject : requireText(newSubject, "Subject"),
                 newDate == null ? date : parseDate(newDate),
                 newTime == null ? time : parseTime(newTime),
                 newAttendance == null ? attendance : Attendance.parse(newAttendance),
-                newFee == null ? fee : parseFee(newFee),
+                updatedFee,
                 newNotes == null ? notes : newNotes,
-                paymentStatus, cancellationReason, durationMinutes);
+                paymentStatus, cancellationReason, durationMinutes, updatedAmountPaid);
         // As documented above, recording or editing must never change who or what the lesson is.
         assert updated.lessonId.equals(lessonId) : "withDetails changed the lesson ID";
         assert Objects.equals(updated.studentId, studentId) : "withDetails changed the student";
@@ -288,10 +271,19 @@ public class Lesson {
     /** Returns a copy with the supplied paid/unpaid status. */
     public Lesson withPaymentStatus(String status) {
         LOGGER.log(Level.INFO, "Changing payment status for lesson {0} to {1}", new Object[]{lessonId, status});
-        Lesson updated = new Lesson(this, status);
+        String validatedStatus = validatePaymentStatus(status);
+        BigDecimal updatedAmount = PAYMENT_PAID.equals(validatedStatus) ? fee : BigDecimal.ZERO;
+        Lesson updated = withAmountPaid(updatedAmount);
         LOGGER.log(Level.INFO, "Lesson {0} payment status changed to {1}",
                 new Object[]{lessonId, updated.paymentStatus});
         return updated;
+    }
+
+    /** Returns a copy with an absolute amount paid, deriving its payment status from the balance. */
+    public Lesson withAmountPaid(BigDecimal amount) {
+        BigDecimal validatedAmount = validateAmountPaid(amount, fee);
+        return new Lesson(lessonId, studentId, subject, date, time, attendance, fee, notes,
+                paymentStatusFor(validatedAmount, fee), cancellationReason, durationMinutes, validatedAmount);
     }
 
     /**
@@ -304,7 +296,7 @@ public class Lesson {
     public Lesson withCancellation(String reason) {
         LOGGER.log(Level.INFO, "Cancelling lesson {0}: {1}", new Object[]{lessonId, reason});
         Lesson cancelled = new Lesson(lessonId, studentId, subject, date, time, attendance, fee, notes,
-                paymentStatus, requireText(reason, "Reason").strip(), durationMinutes);
+                paymentStatus, requireText(reason, "Reason").strip(), durationMinutes, amountPaid);
         assert cancelled.isCancelled() : "A lesson given a non-blank reason should count as cancelled";
         return cancelled;
     }
@@ -322,10 +314,25 @@ public class Lesson {
     private static String validatePaymentStatus(String value) {
         LOGGER.log(Level.FINE, "Validating payment status: {0}", value);
         requireNonNull(value, "Payment status");
-        if (!value.equalsIgnoreCase(PAYMENT_PAID) && !value.equalsIgnoreCase(PAYMENT_UNPAID)) {
-            throw new IllegalArgumentException("Payment status must be paid or unpaid.");
+        if (!value.equalsIgnoreCase(PAYMENT_PAID) && !value.equalsIgnoreCase(PAYMENT_UNPAID)
+                && !value.equalsIgnoreCase(PAYMENT_PARTIAL)) {
+            throw new IllegalArgumentException("Payment status must be paid, partial or unpaid.");
         }
         return value.toLowerCase(Locale.ROOT);
+    }
+
+    private static BigDecimal validateAmountPaid(BigDecimal amount, BigDecimal fee) {
+        if (amount == null || amount.signum() < 0 || amount.compareTo(fee) > 0 || amount.scale() > 2) {
+            throw new IllegalArgumentException("Amount paid must be between $0.00 and the lesson fee.");
+        }
+        return amount;
+    }
+
+    private static String paymentStatusFor(BigDecimal amountPaid, BigDecimal fee) {
+        if (amountPaid.compareTo(fee) == 0) {
+            return PAYMENT_PAID;
+        }
+        return amountPaid.signum() > 0 ? PAYMENT_PARTIAL : PAYMENT_UNPAID;
     }
 
     private static String requireText(String value, String fieldName) {
