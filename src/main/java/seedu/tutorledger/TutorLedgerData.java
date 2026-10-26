@@ -129,7 +129,8 @@ public class TutorLedgerData {
 
     /**
      * Schedules a lesson for an existing student and assigns it the next lesson ID.
-     * A new lesson starts as not recorded and unpaid, with no notes.
+     * A new lesson starts as not recorded, with no notes. Zero-fee lessons are already paid;
+     * lessons with a positive fee start unpaid.
      *
      * @param studentId The ID of the student taking the lesson, in either case.
      * @param subject The subject being taught.

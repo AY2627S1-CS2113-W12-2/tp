@@ -383,7 +383,7 @@ A rejected schedule creates no lessons and consumes no IDs.
   Durations other than 60 minutes are shown in scheduling confirmations, lesson lists and student views.
 * Duration is used for billing; TutorLedger still checks conflicts by identical start time, not overlap.
 * Two lessons cannot start at the same date and time, even for different students.
-* A new lesson starts as not recorded and unpaid.
+* A new lesson starts as not recorded. Lessons with a positive fee start unpaid; $0 lessons are already paid.
 * `w/WEEKS` adds one lesson a week, on the same day and at the same time, starting on `DATE`. Each lesson gets
   its own ID, so you can record, reschedule or cancel one week without affecting the others.
 * If any week's slot is already taken, no lessons are added, and the error names the lesson in the way.
@@ -418,7 +418,7 @@ Format: `log STUDENT_ID d/DATE t/TIME s/SUBJECT f/FEE a/ATTENDANCE [note/NOTES]`
 
 * Only a lesson dated today or earlier can be logged. Use `schedule` for a lesson that has not happened yet.
 * The same rules as `schedule` and `record` apply. For example, the slot must be free.
-* A logged lesson starts unpaid.
+* A logged lesson starts unpaid unless its fee is $0, in which case it is already paid.
 
 Examples:
 
@@ -640,7 +640,9 @@ Format: `cancel LESSON_ID r/REASON`
 * A cancelled lesson is not charged: it is left out of `unpaid`, `owed` and the amount owed in `view`. It is
   also left out of the attendance figures in `progress`.
 * A lesson that already has attendance took place, so it cannot be cancelled.
-* If the lesson was already marked paid, TutorLedger reminds you to refund or carry over the fee.
+* If any payment was received, including a partial payment, TutorLedger reminds you to refund or carry over
+  the amount received. The saved payment is retained; cancellation does not record a refund automatically.
+  Unpaid and $0 lessons do not need a refund reminder.
 * A cancellation cannot be undone from inside TutorLedger. If you cancelled the wrong lesson, schedule it
   again, or see [Known issues](#known-issues).
 
@@ -670,6 +672,9 @@ Format: `edit LESSON_ID [d/DATE] [t/TIME] [s/SUBJECT] [f/FEE] [dur/MINUTES] [a/A
   slot another lesson already has, and a lesson dated after today cannot have attendance or notes.
 * Type `note/` with nothing after it to clear the lesson's notes.
 * `dur/MINUTES` changes duration but keeps the saved fee. Give `f/FEE` explicitly to change the charge.
+* Changing the fee keeps the amount already paid and does not change income. Raising a paid lesson's fee
+  creates an outstanding balance; reducing it to the amount already paid settles it. A fee below the amount
+  already paid is rejected, and none of the other edits in that command are applied.
 * A cancelled lesson stays cancelled when edited, and cannot be given attendance.
 * This is the same `edit` command used for students. The ID tells TutorLedger which kind of item to change.
 * To change whether a lesson is paid, use [`mark`](#marking-a-lesson-paid-or-unpaid-mark).
@@ -794,7 +799,8 @@ Records that a lesson has been paid for. Marking it unpaid undoes a mistake.
 Format: `mark LESSON_ID STATUS`
 
 * `STATUS` is `paid` or `unpaid`.
-* Every new lesson starts unpaid.
+* New lessons with a positive fee start unpaid. A $0 lesson is always paid, contributes no income and
+  stays paid even if you use `mark LESSON_ID unpaid`.
 * A lesson can be marked paid before it takes place, for example when a family pays in advance.
 * `mark` sets the whole lesson fee to paid or resets it to unpaid. Use `pay` to record an amount that may be partial.
 
@@ -1134,17 +1140,20 @@ A | A1 | S1 | 07-09-2026 | 28 | 40 | WA1
 | `R`    | student ID, default hourly rate; omit the record when no rate is set |
 | `ARCHIVED` | student ID; omit the record for an active student |
 | `S`    | student ID, name, level, phone number, then any number of subjects                                  |
-| `L`    | lesson ID, student ID, date, time, subject, fee, attendance (`not recorded`, `present`, `absent` or `late`), `paid` or `unpaid`, notes, cancellation reason (empty if active), duration in minutes |
+| `L`    | lesson ID, student ID, date, time, subject, fee, attendance (`not recorded`, `present`, `absent` or `late`), `paid`, `partial` or `unpaid`, notes, cancellation reason (empty if active), duration in minutes, amount paid |
 | `H`    | homework ID, student ID, due date, `outstanding` or `submitted`, description                        |
 | `A`    | score ID, student ID, test date, marks, total marks, test name                                      |
 
 * Older lesson lines without duration load as 60 minutes. Existing student lines without `R` records
-  load with no default rate. New saves include duration; keep a backup if you may return to an older version.
-* New lesson lines have twelve fields: the cancellation reason comes before duration. For an active
-  90-minute lesson, end the line with `NOTES |  | 90`. Old eleven-field cancellation lines remain accepted.
+  load with no default rate. New saves include duration and amount paid; keep a backup if you may return
+  to an older version.
+* New lesson lines have thirteen fields: the cancellation reason comes before duration and amount paid.
+  For an active 90-minute lesson with $20 received, end the line with `NOTES |  | 90 | 20`.
+  Old eleven-field cancellation and twelve-field duration lines remain accepted. Free lessons from older
+  files are loaded as paid without adding income.
 * If you saved data with the earlier hourly-rate branch, keep its generated `NOTES | MINUTES` header
   when loading it. That identifies its old duration field; without the header, an eleven-field row is
-  interpreted as an old cancellation record. A new save uses the combined twelve-field layout.
+  interpreted as an old cancellation record. A new save uses the thirteen-field layout above.
 * Example rate record: `R | S1 | 60`. Clearing a rate removes its record. Loading never recalculates saved fees.
   If a rate record is invalid, the student and their lessons still load; the invalid rate is reported by line number.
 * Example archive record: `ARCHIVED | S1`. Without this line the student is active. Restoring removes it.

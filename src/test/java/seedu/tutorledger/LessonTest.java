@@ -138,7 +138,7 @@ class LessonTest {
         assertEquals(LocalDate.of(2026, 9, 22), cancelled.getDate());
         assertEquals(Lesson.PAYMENT_PAID, cancelled.getPaymentStatus());
         // Later copies keep the cancellation.
-        assertTrue(cancelled.withDetails(null, null, null, null, "55", null).isCancelled());
+        assertTrue(cancelled.withDetails(null, null, null, null, "65", null).isCancelled());
         assertTrue(cancelled.withPaymentStatus(Lesson.PAYMENT_UNPAID).isCancelled());
     }
 
