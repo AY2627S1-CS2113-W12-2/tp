@@ -20,6 +20,14 @@ From the repository root, with the downloaded JAR in `/tmp`:
 java -Djava.awt.headless=true -jar /tmp/plantuml-1.2026.9.jar -tsvg docs/diagrams/hourly-rate-*.puml
 ```
 
+The lesson diagrams (`lesson-*.puml`, Reynard's section of the Developer Guide) are rendered the same way:
+
+```sh
+java -Djava.awt.headless=true -jar /tmp/plantuml-1.2026.9.jar -tsvg docs/diagrams/lesson-*.puml
+```
+
+`lesson-parse-sd.puml` is the `sd` frame that the two lesson sequence diagrams refer to with `ref`.
+
 The class diagram uses PlantUML's [Smetana layout](https://plantuml.com/smetana02), which is included
 in the JAR. The other diagrams use built-in renderers. No Graphviz installation or UML MCP is needed.
 Keep the SVG and source changes in the same commit and check the diagrams at normal document width.

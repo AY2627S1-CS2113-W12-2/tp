@@ -1,0 +1,19 @@
+@startuml
+skinparam backgroundColor white
+skinparam defaultFontSize 14
+skinparam shadowing false
+hide footbox
+mainframe **sd** parse ID and fields
+
+participant ":LessonCommands" as Commands
+participant "ArgumentParser" as Parser <<class>>
+
+Commands -> Commands : splitIdAndFields(arguments, allowed)
+activate Commands
+Commands -> Parser : parseFields(remainder, allowed)
+activate Parser
+Parser --> Commands : fields
+deactivate Parser
+Commands --> Commands : ID and fields
+deactivate Commands
+@enduml

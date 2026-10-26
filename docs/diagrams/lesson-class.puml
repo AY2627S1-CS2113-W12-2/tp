@@ -1,0 +1,69 @@
+@startuml
+!pragma layout smetana
+skinparam backgroundColor white
+skinparam defaultFontSize 14
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+hide circle
+hide empty members
+
+class TutorLedger
+
+class LessonCommands {
+  -clock: Clock
+  {static} +handles(input: String): boolean
+  +execute(input: String): String
+}
+
+class ArgumentParser {
+  {static} ~parseFields(text: String, allowed: List<String>): Fields
+}
+
+class TutorLedgerData {
+  -nextLessonNumber: int
+  +addLesson(...): Lesson
+  +addWeeklyLessons(...): List<Lesson>
+  +getLesson(id: String): Lesson
+  +replaceLesson(lesson: Lesson)
+  +deleteLesson(id: String): Lesson
+  -ensureSlotFree(candidate: Lesson)
+}
+
+class Student {
+  -studentId: String
+  -name: String
+}
+
+class Lesson {
+  -lessonId: String
+  -studentId: String
+  -date: LocalDate
+  -time: LocalTime
+  -notes: String
+  -cancellationReason: String
+  +withDetails(...): Lesson
+  +withCancellation(reason: String): Lesson
+  +isRecorded(): boolean
+  +isCancelled(): boolean
+}
+
+enum Attendance <<enumeration>> {
+  NOT_RECORDED
+  PRESENT
+  ABSENT
+  LATE
+}
+
+TutorLedger ..> LessonCommands
+LessonCommands --> "1" TutorLedgerData : data
+LessonCommands ..> ArgumentParser
+TutorLedgerData "1" *--> "*" Student
+TutorLedgerData "1" *--> "*" Lesson
+Lesson --> "1" Attendance : attendance
+
+note bottom of Lesson
+  studentId names the student; it is not an
+  object reference. Commands look the student
+  up with TutorLedgerData.getStudent(...).
+end note
+@enduml

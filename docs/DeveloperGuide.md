@@ -6,6 +6,8 @@
 
 * The default hourly rate UML figures are rendered with [PlantUML](https://plantuml.com/),
   using the [SE-EDU PlantUML guide](https://se-education.org/guides/tutorials/plantUml.html) for tooling guidance.
+* The lesson UML figures follow the notation of the [SE-EDU textbook](https://se-education.org/se-book/)
+  and are rendered with [PlantUML](https://plantuml.com/).
 
 ## Design & implementation
 
@@ -275,6 +277,168 @@ setup.
 *Possible improvements:* let `edit` and `delete` accept a `SCORE_ID`, so a mistyped score can be fixed
 without editing the data file. Also show the average score by subject, once scores record a subject.
 
+
+### Lesson scheduling and records — Reynard
+
+**v1.0 F2.1–F2.5 and v2.0 enhancements · [Issue #12](https://github.com/AY2627S1-CS2113-W12-2/tp/issues/12),
+[#19](https://github.com/AY2627S1-CS2113-W12-2/tp/issues/19),
+[#27](https://github.com/AY2627S1-CS2113-W12-2/tp/issues/27),
+[#38](https://github.com/AY2627S1-CS2113-W12-2/tp/issues/38),
+[#39](https://github.com/AY2627S1-CS2113-W12-2/tp/issues/39)**
+
+A tutor's week revolves around lessons, so these commands let them plan lessons, record what happened, and
+change plans when real life gets in the way:
+
+| Command | Purpose |
+|---|---|
+| `schedule STUDENT_ID d/DATE t/TIME s/SUBJECT [f/FEE] [dur/MINUTES] [w/WEEKS]` | Plan one lesson, or the same slot for 2–52 weeks |
+| `log STUDENT_ID d/DATE t/TIME s/SUBJECT f/FEE a/ATTENDANCE [note/NOTES]` | Add a lesson that already took place, with its outcome |
+| `lessons [week]` | List today's or this week's lessons, earliest first |
+| `next [STUDENT_ID]` | Summarise the next lesson and what to prepare for it |
+| `record LESSON_ID a/ATTENDANCE [note/NOTES]` | Record attendance and notes for a lesson that has taken place |
+| `edit LESSON_ID ...` / `delete LESSON_ID` | Correct any detail of a lesson, or remove one entered by mistake |
+| `reschedule LESSON_ID [d/DATE] [t/TIME]` | Move a lesson that has not taken place yet |
+| `cancel LESSON_ID r/REASON` | Call off a lesson but keep it, with the reason, in the history |
+
+#### Responsibilities and object relationships
+
+`LessonCommands` parses and runs every lesson command. Like the other command classes, it follows the
+`handles`/`execute` pattern: the main loop asks `LessonCommands.handles(line)` whether the line is a lesson
+command, then passes the line to `execute`, which returns the text to display. `edit` and `delete` are also
+student commands, so `handles` claims them only when the ID after the command word starts with `L`. For
+example, `edit L3 t/1700` is routed here, while `edit S1 p/91234567` is left for `StudentCommands`.
+
+![Class diagram of the lesson commands, the shared data store, Lesson and Attendance](diagrams/lesson-class.svg)
+
+*Figure 1. `LessonCommands` changes lessons only through `TutorLedgerData`, which owns every `Lesson`.*
+
+* **`TutorLedgerData`** is the only class that stores lessons. It gives each new lesson the next ID (`L1`,
+  `L2`, ...) and checks that no two lessons start at the same date and time (`ensureSlotFree`). It never
+  reuses an ID, even after a lesson is deleted, so an ID in an old note or message never points at a
+  different lesson.
+* **`Lesson`** is immutable: a change produces a new copy through `withDetails` or `withCancellation`, and
+  `TutorLedgerData.replaceLesson` swaps the copy in. Attendance is a separate enumeration, so a cancelled
+  lesson (`cancellationReason` is set) is never confused with one the student missed (`ABSENT`).
+* **`ArgumentParser`** splits prefixed values such as `d/01-12-2026 s/A Math`. It was extracted from
+  `StudentCommands` so that every command reads a prefix the same way. The values may be in any order,
+  values may contain spaces, and a repeated or unknown prefix is rejected.
+
+Fees and durations are omitted from Figure 1; see [Default hourly rates](#default-hourly-rates--yan-hern)
+for how a lesson's fee is chosen.
+
+#### Scheduling a weekly slot
+
+Most students have one regular weekly slot, so `schedule ... w/WEEKS` adds that many lessons in one
+command. Figure 2 shows `schedule S1 d/01-12-2026 t/1600 s/A Math f/60 w/3`. Every lesson command begins by
+splitting its arguments in the same way, so that step is drawn once, in Figure 3, and referred to with a
+`ref` frame.
+
+![Sequence diagram of scheduling three weekly lessons](diagrams/lesson-weekly-sequence.svg)
+
+*Figure 2. Every week is checked before any lesson is stored.*
+
+![Sequence diagram fragment for parsing the ID and prefixed fields](diagrams/lesson-parse-sd.svg)
+
+*Figure 3. The `parse ID and fields` fragment used by Figures 2 and 5.*
+
+1. `LessonCommands` looks up the student and checks that they take the subject. It uses the student's own
+   spelling of the subject, so `a math` and `A Math` are not stored as two subjects.
+2. `TutorLedgerData.addWeeklyLessons` builds one `Lesson` per week, numbering them from the next lesson ID,
+   and checks each slot as it goes.
+3. Only after every slot passes does it store the lessons. If week 3 clashes with an existing lesson, the
+   tutor sees `Error: <ID> already starts at that date and time.` and no lesson is added. The counter only
+   moves when lessons are stored, so a rejected command never skips an ID.
+
+Figure 4 shows the objects after this command and a later `cancel L2 r/Student sick`. Each week is an
+ordinary, separate lesson, so `L2` could be cancelled without affecting `L1` or `L3`.
+
+![Object diagram of the data store holding three weekly lessons, one cancelled](diagrams/lesson-weekly-object.svg)
+
+*Figure 4. After `schedule ... w/3` and `cancel L2 r/Student sick`. The counter has moved past `L3`.*
+
+#### Changing a lesson: record, edit, reschedule and cancel
+
+These four commands share one pattern: get the lesson, make a changed copy, check it, then call
+`replaceLesson`. Figure 5 shows `reschedule L3 d/16-12-2026`.
+
+![Sequence diagram of rescheduling a lesson by replacing it with a changed copy](diagrams/lesson-reschedule-sequence.svg)
+
+*Figure 5. The original lesson stays in the store until its validated replacement is stored.*
+
+* `replaceLesson` checks the slot only when the date or time has changed, so recording attendance on a busy
+  day is never blocked by a clash check.
+* If any check fails, nothing has been replaced, so a rejected command never leaves a half-changed lesson.
+  After a successful replacement nothing refers to the original object any more, which the `X` in Figure 5
+  marks.
+* `edit` and `reschedule` both change the slot, but they serve different purposes. `edit` corrects a
+  record, so it can change any lesson, including a past one. `reschedule` describes a real-life change of
+  plan, so it rejects a lesson that has already taken place (it has attendance or notes), a cancelled lesson,
+  an unchanged slot, and a time that has already passed.
+* `record` and `log` only accept lessons dated today or earlier, because a lesson that has not happened has
+  no attendance yet. `edit` enforces the same rule when it sets attendance or notes.
+* `cancel` keeps the lesson with its reason. A cancelled lesson frees its slot, is left out of `owed` and
+  `unpaid`, and still appears in `lessons` marked `(cancelled: REASON)`. If it was already paid, the tutor
+  is reminded to refund or carry over the fee.
+
+#### Preparing for the next lesson
+
+`next [STUDENT_ID]` gathers everything a tutor checks just before a lesson. Figure 6 shows how the lesson is
+chosen and summarised.
+
+![Activity diagram of choosing and summarising the next lesson](diagrams/lesson-next-activity.svg)
+
+*Figure 6. Only lessons that can still take place are considered.*
+
+The summary is built from existing records each time; nothing extra is stored. "Unpaid" counts unpaid,
+non-cancelled lessons up to today, the same way as `owed`, so the two commands always agree.
+
+#### Design considerations
+
+**Aspect: How a lesson is changed**
+
+* **Alternative 1 (current choice):** `Lesson` is immutable; each change creates a copy that
+  `TutorLedgerData.replaceLesson` swaps in.
+  * Pros: a failed check leaves the stored lesson untouched. Every change goes through one method, so the
+    slot check cannot be skipped by accident.
+  * Cons: each change creates a new object, and copy methods must carry over every field (assertions in
+    `withDetails` check this).
+* **Alternative 2:** give `Lesson` setters and change it in place.
+  * Pros: simpler to write, and no copying.
+  * Cons: a command that fails half-way leaves a half-changed lesson. Any code holding the lesson could
+    move it into an occupied slot without the store noticing.
+
+**Aspect: How a weekly slot is stored**
+
+* **Alternative 1 (current choice):** expand `w/WEEKS` into separate lessons when scheduling.
+  * Pros: each week can be recorded, rescheduled, cancelled or paid for on its own. The storage format and
+    every other command work unchanged.
+  * Cons: a slot is limited to 52 weeks, and changing the time of the whole slot means changing each lesson.
+* **Alternative 2:** store a recurring rule and generate lessons when they are needed.
+  * Pros: no end date, and one change moves every future week.
+  * Cons: every exception (one week moved or cancelled) must be stored against the rule. Every command
+    that reads lessons, including payments and storage, would need to understand rules.
+
+**Aspect: How a called-off lesson is handled**
+
+* **Alternative 1 (current choice):** `cancel` keeps the lesson with a reason.
+  * Pros: the history shows why a lesson did not happen, which matters when a parent asks about a payment.
+  * Cons: commands that list, count or charge lessons must remember to skip cancelled ones.
+* **Alternative 2:** delete the lesson.
+  * Pros: no special cases elsewhere.
+  * Cons: the record of a lesson that was planned (and perhaps paid for) disappears. `delete` remains
+    available for lessons entered by mistake.
+
+#### Defensive checks and testing
+
+User mistakes, such as a bad date or a clashing slot, throw `IllegalArgumentException`. `execute` turns
+this into an `Error: ...` message, so the program never crashes on bad input and the checks work whether or
+not assertions are enabled. Assertions check things only a bug could break, for example that a recorded
+copy really has attendance and that the lesson counter advanced after storing. Each command logs what it did
+at `FINE` level, so the trace is available for debugging without appearing on the tutor's screen.
+
+`LessonCommandsTest` covers each command's normal use and its rejections, and uses a fixed `Clock` so tests
+about "today" and "the past" do not depend on the real date. `TutorLedgerDataTest` covers ID allocation,
+slot conflicts and the all-or-nothing weekly scheduling.
 
 ### Default hourly rates — Yan Hern
 
@@ -682,6 +846,15 @@ date and cancellation filters used by `unpaid` and `owed`.
 |--------|----------|---------------|------------------|
 |v1.0|new user|see usage instructions|refer to them when I forget how to use the application|
 |v2.0|user|find a to-do item by name|locate a to-do without having to go through the entire list|
+|v1.0 (F2.1, #10)|independent tutor|schedule a lesson for a student on a given date and time|have one place that holds my whole teaching schedule|
+|v1.0 (F2.2, #14)|independent tutor|list today's and this week's lessons in chronological order|know who I am teaching next and when|
+|v1.0 (F2.3, #21, #22)|independent tutor|record attendance and notes for a lesson|track who has been coming and what we covered|
+|v1.0 (F2.4, F2.5, #36, #37)|independent tutor|edit or delete a lesson|correct mistakes without re-entering the record|
+|v2.0 (#12)|independent tutor|add a recurring weekly slot for a student|avoid entering the same lesson week after week|
+|v2.0 (#19)|busy tutor|see one summary of my next lesson|prepare in a single glance between lessons|
+|v2.0 (#27)|forgetful tutor|add a lesson record for a past date after the fact|keep my records accurate even when I forget on the day|
+|v2.0 (#38)|independent tutor|reschedule a lesson to a new date and time|keep my schedule matching what is actually happening|
+|v2.0 (#39)|independent tutor|cancel a lesson and give a reason|tell cancellations apart from student absences|
 |v2.0 (US5)|independent tutor|set a default hourly rate for each student|avoid re-entering the fee for every lesson|
 |v2.0 (#82)|independent tutor|add and edit primary-school, secondary-school and junior-college students|keep all my students in one place|
 |v2.0 (US34, #40)|careless tutor|be warned before deleting a student who has lesson history|avoid losing months of records by accident|
@@ -699,6 +872,28 @@ date and cancellation filters used by `unpaid` and `owed`.
 ## Instructions for manual testing
 
 {Give instructions on how to do a manual product testing e.g., how to load sample data to be used for testing}
+
+### Lessons (F2, #12, #19, #27, #38, #39)
+
+Use an empty working directory and Java 25 with `-ea`. The steps assume today is before 01-12-2026.
+
+1. Run `add n/Amirah Tan l/Sec 3 p/91234567 s/A Math`, then
+   `schedule S1 d/01-12-2026 t/1600 s/A Math f/60 w/3`.
+   Expected: L1 to L3, every Tuesday at 1600 from 01-12-2026 to 15-12-2026.
+2. Run `schedule S1 d/15-12-2026 t/1600 s/A Math f/60`. Expected: `Error: L3 already starts at that date
+   and time.` Run `schedule S1 d/22-12-2026 t/1600 s/A Math f/60 w/2`. Expected: L4 and L5, with no ID
+   skipped by the rejected command.
+3. Run `reschedule L3 d/16-12-2026`, then `cancel L2 r/Student sick`. Expected: L3 moves to Wednesday, and
+   L2 is cancelled with its reason. `schedule S1 d/08-12-2026 t/1600 s/A Math f/60` now succeeds, because a
+   cancelled lesson frees its slot.
+4. Try `reschedule L2 t/1700`, `record L1 a/present` and `cancel L1 r/`. Expected: each is rejected with
+   an error, because L2 is cancelled, L1 has not happened yet and the reason is blank.
+5. Run `log S1 d/20-10-2026 t/1600 s/A Math f/60 a/present note/Quadratic inequalities`, then `next S1`.
+   Expected: the next lesson is L1, its last topic is `Quadratic inequalities`, and one $60.00 lesson is
+   unpaid.
+6. Run `edit L1 t/1530`, `delete L5` and `lessons week`. Expected: L1 now starts at 1530 and L5 is gone.
+   `lessons` lists only lessons in the current week, so it may show none.
+7. Exit, restart and run `next S1`. Expected: the same summary as in step 5, showing L1 at 1530.
 
 ### Student deletion warnings (US34, #40)
 
