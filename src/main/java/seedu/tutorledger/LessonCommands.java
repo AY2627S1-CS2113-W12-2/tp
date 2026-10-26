@@ -441,8 +441,9 @@ public class LessonCommands {
         data.replaceLesson(cancelled);
         LOGGER.log(Level.FINE, "Cancelled {0}: {1}", new Object[]{cancelled.getLessonId(), reason});
         Student student = data.getStudent(cancelled.getStudentId());
-        String paidReminder = Lesson.PAYMENT_PAID.equals(cancelled.getPaymentStatus())
-                ? System.lineSeparator() + "  This lesson was already paid for, so refund or carry over the fee."
+        String paidReminder = cancelled.getAmountPaid().signum() > 0
+                ? System.lineSeparator() + "  This lesson has " + formatMoney(cancelled.getAmountPaid())
+                        + " paid, so refund or carry over that amount."
                 : "";
         return "Cancelled " + cancelled.getLessonId() + " for " + formatStudent(student)
                 + " (" + formatSlot(cancelled) + ")" + System.lineSeparator()

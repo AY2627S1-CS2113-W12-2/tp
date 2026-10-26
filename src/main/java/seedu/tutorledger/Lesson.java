@@ -70,7 +70,7 @@ public class Lesson {
         this.fee = parseFee(fee);
         this.amountPaid = BigDecimal.ZERO;
         this.notes = requireNonNull(notes, "Notes");
-        this.paymentStatus = validatePaymentStatus(PAYMENT_UNPAID);
+        this.paymentStatus = paymentStatusFor(amountPaid, this.fee);
         this.durationMinutes = DEFAULT_DURATION_MINUTES;
         this.cancellationReason = "";
         LOGGER.log(Level.INFO, "Lesson created: {0}", this.lessonId);
@@ -95,7 +95,7 @@ public class Lesson {
         this.fee = parseFee(fee);
         this.amountPaid = BigDecimal.ZERO;
         this.notes = requireNonNull(notes, "Notes");
-        this.paymentStatus = validatePaymentStatus(PAYMENT_UNPAID);
+        this.paymentStatus = paymentStatusFor(amountPaid, this.fee);
         this.durationMinutes = validateDuration(durationMinutes);
         this.cancellationReason = "";
         LOGGER.log(Level.INFO, "Lesson created: {0}", this.lessonId);
@@ -233,8 +233,9 @@ public class Lesson {
     /**
      * Returns a copy of this lesson with some details changed, leaving this lesson untouched.
      *
-     * <p>Pass {@code null} for any detail that should stay as it is. Editing the fee preserves a
-     * paid lesson as paid; a partial allocation is retained up to the updated fee.
+     * <p>Pass {@code null} for any detail that should stay as it is. Editing the fee preserves the
+     * amount received and derives the payment status from the new balance. A fee below the amount
+     * already paid is rejected rather than silently discarding a payment.
      *
      * @param newSubject The new subject, or null to keep the current one.
      * @param newDate The new date in DD-MM-YYYY format, or null to keep the current one.
@@ -250,7 +251,10 @@ public class Lesson {
         LOGGER.log(Level.INFO, "Updating lesson {0} details: subject={1}, date={2}, time={3}",
                 new Object[]{lessonId, newSubject, newDate, newTime});
         BigDecimal updatedFee = newFee == null ? fee : parseFee(newFee);
-        BigDecimal updatedAmountPaid = PAYMENT_PAID.equals(paymentStatus) ? updatedFee : amountPaid.min(updatedFee);
+        if (updatedFee.compareTo(amountPaid) < 0) {
+            throw new IllegalArgumentException("Fee cannot be less than the amount already paid ($"
+                    + amountPaid.setScale(2).toPlainString() + ").");
+        }
         Lesson updated = new Lesson(lessonId, studentId,
                 newSubject == null ? subject : requireText(newSubject, "Subject"),
                 newDate == null ? date : parseDate(newDate),
@@ -258,10 +262,11 @@ public class Lesson {
                 newAttendance == null ? attendance : Attendance.parse(newAttendance),
                 updatedFee,
                 newNotes == null ? notes : newNotes,
-                paymentStatus, cancellationReason, durationMinutes, updatedAmountPaid);
+                paymentStatus, cancellationReason, durationMinutes, amountPaid);
         // As documented above, recording or editing must never change who or what the lesson is.
         assert updated.lessonId.equals(lessonId) : "withDetails changed the lesson ID";
         assert Objects.equals(updated.studentId, studentId) : "withDetails changed the student";
+        assert updated.amountPaid.compareTo(amountPaid) == 0 : "withDetails changed the amount received";
         assert updatedFee.compareTo(fee) != 0 || updated.paymentStatus.equals(paymentStatus)
                 : "withDetails changed the payment status without changing the fee";
         assert updated.cancellationReason.equals(cancellationReason) : "withDetails changed the cancellation";
@@ -269,7 +274,7 @@ public class Lesson {
         return updated;
     }
 
-    /** Returns a copy with the supplied paid/unpaid status. */
+    /** Returns a copy with the supplied paid/unpaid status; a zero-fee lesson always remains paid. */
     public Lesson withPaymentStatus(String status) {
         LOGGER.log(Level.INFO, "Changing payment status for lesson {0} to {1}", new Object[]{lessonId, status});
         String validatedStatus = validatePaymentStatus(status);
@@ -329,6 +334,7 @@ public class Lesson {
         return amount;
     }
 
+    /** Derives settlement from the balance, including free lessons with nothing left to pay. */
     private static String paymentStatusFor(BigDecimal amountPaid, BigDecimal fee) {
         if (amountPaid.compareTo(fee) == 0) {
             return PAYMENT_PAID;

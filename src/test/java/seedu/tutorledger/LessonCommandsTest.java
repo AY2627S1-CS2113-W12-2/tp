@@ -311,15 +311,17 @@ class LessonCommandsTest {
     }
 
     @Test
-    void edit_subjectAndFee_usesTheStudentsSpellingAndKeepsThePaymentStatus() {
+    void edit_subjectAndFee_usesTheStudentsSpellingAndKeepsTheAmountPaid() {
         commands.execute("schedule S1 d/24-09-2026 t/1900 s/E Math f/55");
         data.updateLessonPaymentStatus("L1", Lesson.PAYMENT_PAID);
 
         assertEquals("Edited L1 for S1 Amirah Binte Rahman" + NEW_LINE
-                + "  Thu 24-09-2026 1900, A Math, $62.50, not recorded, paid",
+                + "  Thu 24-09-2026 1900, A Math, $62.50, not recorded, partial",
                 commands.execute("EDIT l1 S/a math F/62.50"));
         assertEquals("A Math", data.getLesson("L1").getSubject());
-        assertEquals(Lesson.PAYMENT_PAID, data.getLesson("L1").getPaymentStatus());
+        assertEquals(new BigDecimal("55"), data.getLesson("L1").getAmountPaid());
+        assertEquals(new BigDecimal("7.50"), data.getLesson("L1").getAmountOwed());
+        assertEquals(Lesson.PAYMENT_PARTIAL, data.getLesson("L1").getPaymentStatus());
     }
 
     @Test
@@ -639,7 +641,7 @@ class LessonCommandsTest {
 
         assertEquals("Cancelled L1 for S1 Amirah Binte Rahman (Tue 22-09-2026 1600)" + NEW_LINE
                 + "  Reason: Tutor unwell" + NEW_LINE
-                + "  This lesson was already paid for, so refund or carry over the fee.",
+                + "  This lesson has $60.00 paid, so refund or carry over that amount.",
                 commands.execute("cancel L1 r/Tutor unwell"));
     }
 
