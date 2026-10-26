@@ -1,0 +1,58 @@
+@startuml
+skinparam backgroundColor white
+skinparam defaultFontSize 14
+skinparam shadowing false
+skinparam sequenceReferenceBackgroundColor #F5F5F5
+hide footbox
+
+participant ":LessonCommands" as Commands
+participant "ArgumentParser" as Parser <<class>>
+participant ":TutorLedgerData" as Data
+
+[-> Commands : execute("schedule S1 d/01-12-2026\nt/1600 s/A Math f/60 w/3")
+activate Commands
+
+ref over Commands, Parser : parse ID and fields
+
+Commands -> Data : getStudent("S1")
+activate Data
+Data --> Commands : student
+deactivate Data
+
+Commands -> Commands : parseWeekCount("3")
+activate Commands
+Commands --> Commands : 3
+deactivate Commands
+
+Commands -> Data : addWeeklyLessons("S1", "A Math",\n"01-12-2026", "1600", "60", 3, 60)
+activate Data
+
+loop for each of the 3 weeks
+  create ":Lesson" as Lesson
+  Data -> Lesson : Lesson("L" + number, ...)
+  activate Lesson
+  Lesson --> Data
+  deactivate Lesson
+  Data -> Data : ensureSlotFree(lesson)
+  activate Data
+  deactivate Data
+end
+
+note right of Data
+  If any week's slot is already taken,
+  ensureSlotFree throws here, before
+  anything is stored or an ID is used.
+end note
+
+loop for each planned lesson
+  Data -> Data : putLesson(lesson)
+  activate Data
+  deactivate Data
+end
+
+Data --> Commands : [L1, L2, L3]
+deactivate Data
+
+[<-- Commands : "Scheduled 3 weekly lessons ..."
+deactivate Commands
+@enduml

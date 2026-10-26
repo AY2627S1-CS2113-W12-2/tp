@@ -50,6 +50,9 @@ public class LessonCommands {
     /** Day-of-week format shown for a weekly slot, e.g. Tue. */
     private static final DateTimeFormatter DISPLAY_WEEKDAY = DateTimeFormatter.ofPattern("EEE", Locale.ENGLISH);
 
+    /** Fewest weekly lessons {@code w/} accepts; a single lesson needs no {@code w/} at all. */
+    private static final int MIN_WEEKS = 2;
+
     /** Most weekly lessons one {@code schedule} can add: a year, which is longer than any school term. */
     private static final int MAX_WEEKS = 52;
 
@@ -114,11 +117,9 @@ public class LessonCommands {
             case "reschedule" -> reschedule(arguments);
             case "cancel" -> cancel(arguments);
             case "edit" -> edit(arguments);
-            default -> {
-                // handles() let only lesson command words through, so delete is the only one left.
-                assert command.equals("delete") : "Unexpected lesson command: " + command;
-                yield delete(arguments);
-            }
+            case "delete" -> delete(arguments);
+            // handles() lets only lesson command words through, so reaching here means a word was missed above.
+            default -> throw new AssertionError("Unexpected lesson command: " + command);
             };
         } catch (IllegalArgumentException exception) {
             // A rejected command is the user's mistake, not a bug, so it is only traced for debugging.
@@ -136,8 +137,7 @@ public class LessonCommands {
         String time = input.fields().single("t", true);
         String subject = findSubjectTakenBy(student, input.fields().single("s", true));
         String fee = input.fields().singleOr("f", null);
-        int duration = input.fields().has("dur") ? Lesson.parseDuration(input.fields().single("dur", true))
-                : Lesson.DEFAULT_DURATION_MINUTES;
+        int duration = parseDurationOrDefault(input.fields());
         if (input.fields().has("w")) {
             int weekCount = parseWeekCount(input.fields().single("w", true));
             return scheduleWeekly(student, subject, date, time, fee, weekCount, duration);
@@ -185,7 +185,7 @@ public class LessonCommands {
         String attendance = parseAttendance(fields.single("a", true));
         String notes = parseNotes(fields);
         // The same rule as record: a lesson that has not happened yet has no outcome to log.
-        if (Lesson.parseDate(date).isAfter(LocalDate.now(clock))) {
+        if (isAfterToday(Lesson.parseDate(date))) {
             throw new IllegalArgumentException("Only a lesson dated today or earlier can be logged. "
                     + "Use schedule for a lesson that has not happened yet.");
         }
@@ -216,36 +216,43 @@ public class LessonCommands {
                 ? "This week, " + DISPLAY_DATE.format(firstDay) + " to " + DISPLAY_DATE.format(lastDay)
                 : "Today, " + DISPLAY_DATE.format(today);
 
-        List<Lesson> lessons = data.getLessons().stream()
+        List<Lesson> lessons = findLessonsBetween(firstDay, lastDay);
+        LOGGER.log(Level.FINE, "Listing {0} lessons from {1} to {2}",
+                new Object[]{lessons.size(), firstDay, lastDay});
+        return heading + ": " + formatCount(lessons.size(), "lesson") + formatLessonRows(lessons);
+    }
+
+    /** Returns the lessons dated from {@code firstDay} to {@code lastDay} inclusive, earliest first. */
+    private List<Lesson> findLessonsBetween(LocalDate firstDay, LocalDate lastDay) {
+        return data.getLessons().stream()
                 .filter(lesson -> !lesson.getDate().isBefore(firstDay) && !lesson.getDate().isAfter(lastDay))
                 .sorted(BY_START)
                 .toList();
-        LOGGER.log(Level.FINE, "Listing {0} lessons from {1} to {2}",
-                new Object[]{lessons.size(), firstDay, lastDay});
-        StringBuilder output = new StringBuilder(heading + ": " + formatCount(lessons.size(), "lesson"));
-        if (lessons.isEmpty()) {
-            return output.toString();
-        }
+    }
 
-        // Work out column widths so the ID and student columns line up.
-        int idWidth = 0;
-        int studentWidth = 0;
-        for (Lesson lesson : lessons) {
-            String studentLabel = formatStudent(data.getStudent(lesson.getStudentId()));
-            idWidth = Math.max(idWidth, lesson.getLessonId().length());
-            studentWidth = Math.max(studentWidth, studentLabel.length());
-        }
+    /**
+     * Formats each lesson as a row on its own line, padding the ID and student columns so they line up.
+     * Returns an empty string if there are no lessons.
+     */
+    private String formatLessonRows(List<Lesson> lessons) {
+        List<String> studentLabels = lessons.stream()
+                .map(lesson -> formatStudent(data.getStudent(lesson.getStudentId())))
+                .toList();
+        int idWidth = lessons.stream().mapToInt(lesson -> lesson.getLessonId().length()).max().orElse(0);
+        int studentWidth = studentLabels.stream().mapToInt(String::length).max().orElse(0);
         String rowFormat = "  %-" + idWidth + "s  %s  %-" + studentWidth + "s  %s";
-        for (Lesson lesson : lessons) {
-            String studentLabel = formatStudent(data.getStudent(lesson.getStudentId()));
-            output.append(System.lineSeparator())
-                    .append(String.format(rowFormat, lesson.getLessonId(), formatSlot(lesson), studentLabel,
+
+        StringBuilder rows = new StringBuilder();
+        for (int i = 0; i < lessons.size(); i++) {
+            Lesson lesson = lessons.get(i);
+            rows.append(System.lineSeparator())
+                    .append(String.format(rowFormat, lesson.getLessonId(), formatSlot(lesson), studentLabels.get(i),
                             lesson.getSubject()));
             if (lesson.isCancelled()) {
-                output.append("  (cancelled: ").append(lesson.getCancellationReason()).append(")");
+                rows.append("  (cancelled: ").append(lesson.getCancellationReason()).append(")");
             }
         }
-        return output.toString();
+        return rows.toString();
     }
 
     /**
@@ -333,17 +340,15 @@ public class LessonCommands {
         IdAndFields input = splitIdAndFields(arguments, List.of("a", "note"));
         Lesson lesson = data.getLesson(input.id());
         String attendance = parseAttendance(input.fields().single("a", true));
-        if (lesson.isCancelled()) {
-            throw new IllegalArgumentException(lesson.getLessonId() + " was cancelled, so it has no attendance.");
-        }
-        // A lesson that has not happened yet has no outcome to record.
-        if (lesson.getDate().isAfter(LocalDate.now(clock))) {
-            throw new IllegalArgumentException("Only a lesson dated today or earlier can be recorded.");
-        }
         // Recording again replaces the attendance, and the notes only if note/ was typed.
         Lesson recorded = lesson.withDetails(null, null, null, attendance, null, parseNotes(input.fields()));
         // parseAttendance only allows present, absent or late, so the copy must count as recorded.
         assert recorded.isRecorded() : "Recording a lesson should leave it with attendance";
+        ensureNoAttendanceIfCancelled(recorded);
+        // A lesson that has not happened yet has no outcome to record.
+        if (isAfterToday(recorded.getDate())) {
+            throw new IllegalArgumentException("Only a lesson dated today or earlier can be recorded.");
+        }
         data.replaceLesson(recorded);
         LOGGER.log(Level.FINE, "Recorded {0} as {1}", new Object[]{recorded.getLessonId(), attendance});
         Student student = data.getStudent(recorded.getStudentId());
@@ -369,11 +374,9 @@ public class LessonCommands {
         if (fields.has("dur")) {
             edited = edited.withDurationMinutes(Lesson.parseDuration(fields.single("dur", true)));
         }
-        if (edited.isCancelled() && edited.isRecorded()) {
-            throw new IllegalArgumentException(edited.getLessonId() + " was cancelled, so it has no attendance.");
-        }
+        ensureNoAttendanceIfCancelled(edited);
         // The same rule as record: attendance and notes describe a lesson that has already happened.
-        if (hasOutcome(edited) && edited.getDate().isAfter(LocalDate.now(clock))) {
+        if (hasOutcome(edited) && isAfterToday(edited.getDate())) {
             throw new IllegalArgumentException("A lesson dated after today cannot have attendance or notes.");
         }
         data.replaceLesson(edited);
@@ -406,15 +409,17 @@ public class LessonCommands {
         }
         Lesson moved = lesson.withDetails(null, fields.singleOr("d", null), fields.singleOr("t", null),
                 null, null, null);
-        if (startOf(moved).equals(startOf(lesson))) {
+        LocalDateTime oldStart = startOf(lesson);
+        LocalDateTime newStart = startOf(moved);
+        if (newStart.equals(oldStart)) {
             throw new IllegalArgumentException(lesson.getLessonId() + " is already at " + formatSlot(lesson) + ".");
         }
-        if (startOf(moved).isBefore(LocalDateTime.now(clock))) {
+        if (newStart.isBefore(LocalDateTime.now(clock))) {
             throw new IllegalArgumentException("A lesson can only be rescheduled to a time that has not passed.");
         }
         data.replaceLesson(moved);
         LOGGER.log(Level.FINE, "Rescheduled {0} from {1} to {2}",
-                new Object[]{lesson.getLessonId(), startOf(lesson), startOf(moved)});
+                new Object[]{lesson.getLessonId(), oldStart, newStart});
         Student student = data.getStudent(moved.getStudentId());
         return "Rescheduled " + moved.getLessonId() + " for " + formatStudent(student) + System.lineSeparator()
                 + "  From: " + formatSlot(lesson) + System.lineSeparator()
@@ -465,16 +470,44 @@ public class LessonCommands {
     /**
      * Returns the number of weeks typed for {@code w/}.
      *
-     * @throws IllegalArgumentException If it is not a whole number from 2 to {@value #MAX_WEEKS}.
+     * @throws IllegalArgumentException If it is not a whole number from {@value #MIN_WEEKS} to
+     *         {@value #MAX_WEEKS}.
      */
     private static int parseWeekCount(String value) {
+        String rangeMessage = "Weeks must be a whole number from " + MIN_WEEKS + " to " + MAX_WEEKS + ".";
         // At most two digits, so parseInt below can never overflow.
-        boolean isInRange = value.matches("\\d{1,2}")
-                && Integer.parseInt(value) >= 2 && Integer.parseInt(value) <= MAX_WEEKS;
-        if (!isInRange) {
-            throw new IllegalArgumentException("Weeks must be a whole number from 2 to " + MAX_WEEKS + ".");
+        if (!value.matches("\\d{1,2}")) {
+            throw new IllegalArgumentException(rangeMessage);
         }
-        return Integer.parseInt(value);
+        int weekCount = Integer.parseInt(value);
+        if (weekCount < MIN_WEEKS || weekCount > MAX_WEEKS) {
+            throw new IllegalArgumentException(rangeMessage);
+        }
+        return weekCount;
+    }
+
+    /** Returns the minutes typed for {@code dur/}, or the default one-hour duration if it was left out. */
+    private static int parseDurationOrDefault(ArgumentParser.Fields fields) {
+        if (!fields.has("dur")) {
+            return Lesson.DEFAULT_DURATION_MINUTES;
+        }
+        return Lesson.parseDuration(fields.single("dur", true));
+    }
+
+    /** Returns true if the date is after today, so a lesson on it cannot have taken place yet. */
+    private boolean isAfterToday(LocalDate date) {
+        return date.isAfter(LocalDate.now(clock));
+    }
+
+    /**
+     * Rejects a lesson that is both cancelled and given attendance, since a cancelled lesson never took place.
+     *
+     * @throws IllegalArgumentException If the lesson is cancelled and has attendance.
+     */
+    private static void ensureNoAttendanceIfCancelled(Lesson lesson) {
+        if (lesson.isCancelled() && lesson.isRecorded()) {
+            throw new IllegalArgumentException(lesson.getLessonId() + " was cancelled, so it has no attendance.");
+        }
     }
 
     /** Returns true if the lesson has attendance or notes, which only a lesson that took place can have. */

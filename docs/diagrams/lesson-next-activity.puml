@@ -1,0 +1,27 @@
+@startuml
+skinparam backgroundColor white
+skinparam defaultFontSize 14
+skinparam shadowing false
+
+start
+if () then ([STUDENT_ID given])
+  :Look up the student;
+else ([no STUDENT_ID])
+endif
+:Keep lessons that are not cancelled, not recorded,
+not yet started, and of that student if one was given;
+:Pick the earliest remaining lesson;
+if () then ([no lesson left])
+  :Show "No upcoming lessons";
+  stop
+else ([lesson found])
+  :Find the notes of the student's
+  latest earlier lesson;
+  :List the student's outstanding homework,
+  flagging overdue items;
+  :Total the student's unpaid lessons
+  up to today;
+  :Show the summary;
+  stop
+endif
+@enduml

@@ -1,0 +1,40 @@
+@startuml
+!pragma layout smetana
+skinparam backgroundColor white
+skinparam defaultFontSize 14
+skinparam shadowing false
+
+object "<u>:TutorLedgerData</u>" as Data {
+  nextLessonNumber = 4
+}
+
+object "<u>S1:Student</u>" as Student {
+  name = "Amirah Tan"
+}
+
+object "<u>L1:Lesson</u>" as L1 {
+  studentId = "S1"
+  date = 01-12-2026
+  time = 16:00
+  cancellationReason = ""
+}
+
+object "<u>L2:Lesson</u>" as L2 {
+  studentId = "S1"
+  date = 08-12-2026
+  time = 16:00
+  cancellationReason = "Student sick"
+}
+
+object "<u>L3:Lesson</u>" as L3 {
+  studentId = "S1"
+  date = 15-12-2026
+  time = 16:00
+  cancellationReason = ""
+}
+
+Data -- Student
+Data -- L1
+Data -- L2
+Data -- L3
+@enduml

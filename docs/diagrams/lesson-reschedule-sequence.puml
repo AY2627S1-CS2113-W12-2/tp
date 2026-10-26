@@ -1,0 +1,55 @@
+@startuml
+skinparam backgroundColor white
+skinparam defaultFontSize 14
+skinparam shadowing false
+skinparam sequenceReferenceBackgroundColor #F5F5F5
+hide footbox
+
+participant ":LessonCommands" as Commands
+participant "ArgumentParser" as Parser <<class>>
+participant ":TutorLedgerData" as Data
+participant "lesson:Lesson" as Lesson
+
+[-> Commands : execute("reschedule L3 d/16-12-2026")
+activate Commands
+
+ref over Commands, Parser : parse ID and fields
+
+Commands -> Data : getLesson("L3")
+activate Data
+Data --> Commands : lesson
+deactivate Data
+
+alt lesson is cancelled, or has attendance or notes
+  [<-- Commands : "Error: ..."
+else lesson has not taken place
+  Commands -> Lesson : withDetails(null, "16-12-2026", null, ...)
+  activate Lesson
+  create "moved:Lesson" as Moved
+  Lesson -> Moved : Lesson(...)
+  activate Moved
+  Moved --> Lesson
+  deactivate Moved
+  Lesson --> Commands : moved
+  deactivate Lesson
+
+  Commands -> Commands : check the new start is different\nand has not passed
+  activate Commands
+  deactivate Commands
+
+  Commands -> Data : replaceLesson(moved)
+  activate Data
+  Data -> Data : ensureSlotFree(moved)
+  activate Data
+  deactivate Data
+  Data -> Data : store moved under "L3"
+  activate Data
+  deactivate Data
+  Data --> Commands
+  deactivate Data
+
+  [<-- Commands : "Rescheduled L3 ..."
+  destroy Lesson
+end
+deactivate Commands
+@enduml
