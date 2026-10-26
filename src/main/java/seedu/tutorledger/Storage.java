@@ -53,8 +53,9 @@ public class Storage {
             "#   R | STUDENT_ID | DEFAULT_HOURLY_RATE (omit the line if no rate is set)",
             "#   ARCHIVED | STUDENT_ID (omit the line for active students)",
             "#   L | LESSON_ID | STUDENT_ID | DATE | TIME | SUBJECT | FEE | ATTENDANCE | PAYMENT | NOTES"
-                    + " | CANCELLATION_REASON | MINUTES",
-            "#   Leave CANCELLATION_REASON empty for active lessons. Saved fees are never recalculated on load.",
+                    + " | CANCELLATION_REASON | MINUTES | AMOUNT_PAID",
+            "#   PAYMENT is unpaid, partial or paid; AMOUNT_PAID records the amount allocated. "
+                    + "Saved fees are never recalculated on load.",
             "#   H | HOMEWORK_ID | STUDENT_ID | DUE_DATE | STATUS | DESCRIPTION",
             "#   A | SCORE_ID | STUDENT_ID | DATE | MARKS | TOTAL_MARKS | TEST_NAME");
 
@@ -146,7 +147,7 @@ public class Storage {
                     lesson.getFee().toPlainString(),
                     lesson.getAttendance().name().toLowerCase(Locale.ROOT).replace('_', ' '),
                     lesson.getPaymentStatus(), lesson.getNotes(), lesson.getCancellationReason(),
-                    Integer.toString(lesson.getDurationMinutes())));
+                    Integer.toString(lesson.getDurationMinutes()), lesson.getAmountPaid().toPlainString()));
             lines.add(join(fields.toArray(String[]::new)));
         }
         for (Homework item : data.getHomework()) {
@@ -280,10 +281,10 @@ public class Storage {
         return new Student(fields.get(1), fields.get(2), fields.get(3), fields.get(4), subjects);
     }
 
-    /** Reads legacy upstream rows, earlier rate-branch rows, and the combined twelve-field format. */
+    /** Reads legacy rows with or without duration and partial-payment fields. */
     private static Lesson parseLesson(List<String> fields, TutorLedgerData data, boolean legacyDurationFormat) {
-        if (fields.size() < LESSON_FIELD_COUNT || fields.size() > LESSON_FIELD_COUNT + 2) {
-            throw new IllegalArgumentException("A lesson line needs 10 to 12 fields but has " + fields.size() + ".");
+        if (fields.size() < LESSON_FIELD_COUNT || fields.size() > LESSON_FIELD_COUNT + 3) {
+            throw new IllegalArgumentException("A lesson line needs 10 to 13 fields but has " + fields.size() + ".");
         }
         String studentId = data.getStudent(fields.get(2)).getStudentId();
         Lesson lesson = new Lesson(fields.get(1).toUpperCase(Locale.ROOT), studentId, fields.get(5),
@@ -293,6 +294,14 @@ public class Storage {
         if (fields.size() == LESSON_FIELD_COUNT + 2) {
             reason = fields.get(10);
             lesson = lesson.withDurationMinutes(Lesson.parseDuration(fields.get(11)));
+        } else if (fields.size() == LESSON_FIELD_COUNT + 3) {
+            reason = fields.get(10);
+            lesson = lesson.withDurationMinutes(Lesson.parseDuration(fields.get(11)));
+            if (!fields.get(12).matches("\\d+(?:\\.\\d{1,2})?")) {
+                throw new IllegalArgumentException("Amount paid must be a non-negative dollar amount "
+                        + "with at most 2 decimals.");
+            }
+            lesson = lesson.withAmountPaid(new java.math.BigDecimal(fields.get(12)));
         } else if (fields.size() == LESSON_FIELD_COUNT + 1) {
             if (legacyDurationFormat) {
                 lesson = lesson.withDurationMinutes(Lesson.parseDuration(fields.get(10)));

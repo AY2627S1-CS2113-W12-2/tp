@@ -42,6 +42,72 @@ class PaymentCommandsTest {
     }
 
     @Test
+    void payRecordsOneFullPaymentForSeveralLessons() {
+        data.putLesson(new Lesson("L38", "S1", "E Math", "15-09-2026", "1800",
+                "present", "55", ""));
+
+        assertEquals("Recorded payment of $117.50 for 2 lessons: L37, L38.",
+                commands.execute("pay s1 117.50 l37 L38"));
+        assertEquals("paid", data.getLesson("L37").getPaymentStatus());
+        assertEquals("paid", data.getLesson("L38").getPaymentStatus());
+    }
+
+    @Test
+    void payAllocatesAcrossLessonsInCommandOrderAndKeepsTheRemainingBalance() {
+        data.putLesson(new Lesson("L38", "S1", "E Math", "15-09-2026", "1800",
+                "present", "55", ""));
+        data.putLesson(new Lesson("L39", "S1", "Physics", "24-09-2026", "1800",
+                "present", "40", ""));
+
+        String response = commands.execute("pay S1 80 L37 L38 L39");
+
+        assertEquals("Recorded payment of $80.00 for 2 lessons: L37, L38.", response);
+        assertEquals("paid", data.getLesson("L37").getPaymentStatus());
+        assertEquals("partial", data.getLesson("L38").getPaymentStatus());
+        assertEquals("17.50", data.getLesson("L38").getAmountPaid().toPlainString());
+        assertEquals("37.50", data.getLesson("L38").getAmountOwed().toPlainString());
+        assertEquals("unpaid", data.getLesson("L39").getPaymentStatus());
+        assertTrue(commands.execute("unpaid S1").contains("L38  Tue 15-09-2026  S1 Tan Wei Ming  E Math  $37.50"));
+        assertTrue(commands.execute("owed").contains("S1 Tan Wei Ming  $37.50  (1 lesson)"));
+        assertTrue(commands.execute("fee_statement S1").contains("partial ($17.50 paid)"));
+        assertTrue(commands.execute("income 09-2026").contains("Income for September 2026: $80.00"));
+
+        assertEquals("Recorded payment of $37.50 for 1 lesson: L38.",
+                commands.execute("pay S1 37.50 L38"));
+        assertEquals("paid", data.getLesson("L38").getPaymentStatus());
+    }
+
+    @Test
+    void payRejectsOverpaymentWithoutUpdatingAnyLesson() {
+        data.putLesson(new Lesson("L38", "S1", "E Math", "15-09-2026", "1800",
+                "present", "55", ""));
+
+        String response = commands.execute("pay S1 118 L37 L38");
+
+        assertTrue(response.contains("exceeds the selected lessons' outstanding balance"));
+        assertEquals("unpaid", data.getLesson("L37").getPaymentStatus());
+        assertEquals("unpaid", data.getLesson("L38").getPaymentStatus());
+    }
+
+    @Test
+    void payRejectsDuplicatePaidCancelledAndOtherStudentsLessons() {
+        data.addStudent("Amirah Binte Rahman", "Sec 3", "81234567");
+        data.putLesson(new Lesson("L38", "S1", "E Math", "15-09-2026", "1800",
+                "present", "55", ""));
+        data.putLesson(new Lesson("L39", "S2", "Physics", "15-09-2026", "1800",
+                "present", "55", ""));
+        data.putLesson(new Lesson("L40", "S1", "Biology", "15-09-2026", "1800",
+                "present", "55", "").withCancellation("Student sick"));
+
+        assertTrue(commands.execute("pay S1 125 L37 L37").contains("listed more than once"));
+        assertTrue(commands.execute("pay S1 62.50 L37 L39").contains("does not belong"));
+        assertTrue(commands.execute("pay S1 62.50 L40").contains("cannot be paid"));
+        assertEquals("Marked L37 as paid.", commands.execute("mark L37 paid"));
+        assertTrue(commands.execute("pay S1 62.50 L37").contains("already paid"));
+        assertEquals("unpaid", data.getLesson("L39").getPaymentStatus());
+    }
+
+    @Test
     void rejectsInvalidStatusAndMalformedArgumentsWithoutChangingLesson() {
         assertTrue(commands.execute("mark L37 pending").startsWith("Error:"));
         assertTrue(commands.execute("mark L37").startsWith("Error:"));

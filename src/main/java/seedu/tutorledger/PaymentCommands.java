@@ -8,8 +8,10 @@ import java.time.Month;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.time.format.TextStyle;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -21,7 +23,8 @@ import java.util.regex.Pattern;
  * Parses and runs commands that update lesson payment status.
  */
 public class PaymentCommands {
-    private static final Set<String> COMMAND_WORDS = Set.of("mark", "unpaid", "owed", "fee_statement", "income");
+    private static final Set<String> COMMAND_WORDS = Set.of("mark", "pay", "unpaid", "owed", "fee_statement",
+            "income");
     private static final Pattern MARK_FORMAT = Pattern.compile("(?i)(\\S+)\\s+(\\S+)");
     private static final Pattern INCOME_FORMAT = Pattern.compile("(?:([0-9]{2})-([0-9]{4})|([0-9]{4}))");
     private static final DateTimeFormatter DISPLAY_DATE =
@@ -71,7 +74,81 @@ public class PaymentCommands {
         if (command.equals("income")) {
             return income(arguments);
         }
+        if (command.equals("pay")) {
+            return pay(arguments);
+        }
         return mark(arguments);
+    }
+
+    /** Allocates a payment across the listed lessons in order, allowing the final lesson to be partial. */
+    private String pay(String arguments) {
+        String[] words = arguments.split("\\s+");
+        if (arguments.isBlank() || words.length < 3) {
+            return "Error: Use: pay STUDENT_ID AMOUNT LESSON_ID [LESSON_ID...].";
+        }
+
+        try {
+            Student student = data.getStudent(words[0]);
+            if (!words[1].matches("\\d+(?:\\.\\d{1,2})?")) {
+                return "Error: AMOUNT must be a non-negative dollar amount with at most 2 decimals.";
+            }
+            BigDecimal amount = new BigDecimal(words[1]);
+            if (amount.signum() <= 0) {
+                return "Error: AMOUNT must be greater than $0.00.";
+            }
+
+            Set<String> lessonIds = new HashSet<>();
+            List<Lesson> lessons = new ArrayList<>();
+            BigDecimal totalOwed = BigDecimal.ZERO;
+            for (int index = 2; index < words.length; index++) {
+                Lesson lesson = data.getLesson(words[index]);
+                String lessonId = lesson.getLessonId().toUpperCase(Locale.ROOT);
+                if (!lessonIds.add(lessonId)) {
+                    return "Error: Lesson " + lesson.getLessonId() + " was listed more than once.";
+                }
+                if (!student.getStudentId().equalsIgnoreCase(lesson.getStudentId())) {
+                    return "Error: Lesson " + lesson.getLessonId() + " does not belong to "
+                            + student.getStudentId() + ".";
+                }
+                if (lesson.isCancelled()) {
+                    return "Error: Cancelled lesson " + lesson.getLessonId() + " cannot be paid.";
+                }
+                if (Lesson.PAYMENT_PAID.equalsIgnoreCase(lesson.getPaymentStatus())) {
+                    return "Error: Lesson " + lesson.getLessonId() + " is already paid.";
+                }
+                lessons.add(lesson);
+                totalOwed = totalOwed.add(lesson.getAmountOwed());
+            }
+
+            if (amount.compareTo(totalOwed) > 0) {
+                return "Error: Payment exceeds the selected lessons' outstanding balance ($"
+                        + formatMoney(totalOwed) + ").";
+            }
+
+            // Validation is complete before updates begin; the amount is then consumed in command order.
+            BigDecimal remaining = amount;
+            List<String> paidLessonIds = new ArrayList<>();
+            for (Lesson lesson : lessons) {
+                BigDecimal allocation = remaining.min(lesson.getAmountOwed());
+                if (allocation.signum() > 0) {
+                    data.updateLessonAmountPaid(lesson.getLessonId(), lesson.getAmountPaid().add(allocation));
+                    paidLessonIds.add(lesson.getLessonId());
+                    remaining = remaining.subtract(allocation);
+                }
+                if (remaining.signum() == 0) {
+                    break;
+                }
+            }
+            return "Recorded payment of $" + formatMoney(amount) + " for "
+                    + paidLessonIds.size() + (paidLessonIds.size() == 1 ? " lesson: " : " lessons: ")
+                    + String.join(", ", paidLessonIds) + ".";
+        } catch (IllegalArgumentException exception) {
+            return "Error: " + exception.getMessage();
+        }
+    }
+
+    private static String formatMoney(BigDecimal amount) {
+        return amount.setScale(2, RoundingMode.UNNECESSARY).toPlainString();
     }
 
     private String mark(String arguments) {
@@ -126,7 +203,7 @@ public class PaymentCommands {
                                     + subjectWidth + "s  $%s",
                             lesson.getLessonId(), DISPLAY_DATE.format(lesson.getDate()),
                             studentLabel(student), lesson.getSubject(),
-                            lesson.getFee().setScale(2, RoundingMode.UNNECESSARY).toPlainString()));
+                            lesson.getAmountOwed().setScale(2, RoundingMode.UNNECESSARY).toPlainString()));
         }
         output.append(System.lineSeparator()).append("       ").append(SEPARATOR);
         return output.toString();
@@ -141,7 +218,7 @@ public class PaymentCommands {
         Map<String, OwedTotal> totals = new HashMap<>();
         for (Lesson lesson : unpaidLessons(LocalDate.now(clock), null)) {
             totals.merge(lesson.getStudentId().toUpperCase(Locale.ROOT),
-                    new OwedTotal(lesson.getFee(), 1), OwedTotal::plus);
+                    new OwedTotal(lesson.getAmountOwed(), 1), OwedTotal::plus);
         }
 
         List<Student> owingStudents = data.findStudents("").stream()
@@ -199,7 +276,9 @@ public class PaymentCommands {
                     .append(String.format(Locale.ROOT, "%s  %s  %-20s  $%s  %s",
                             lesson.getLessonId(), DISPLAY_DATE.format(lesson.getDate()), lesson.getSubject(),
                             lesson.getFee().setScale(2, RoundingMode.UNNECESSARY).toPlainString(),
-                            lesson.getPaymentStatus()));
+                            lesson.getPaymentStatus() + (lesson.getAmountPaid().signum() > 0
+                                    && !Lesson.PAYMENT_PAID.equals(lesson.getPaymentStatus())
+                                    ? " ($" + formatMoney(lesson.getAmountPaid()) + " paid)" : "")));
         }
         output.append(System.lineSeparator()).append("       ").append(SEPARATOR);
         return output.toString();
@@ -230,7 +309,7 @@ public class PaymentCommands {
 
     private String monthlyIncome(YearMonth month) {
         List<Lesson> payments = paidLessons(month);
-        BigDecimal total = payments.stream().map(Lesson::getFee).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal total = payments.stream().map(Lesson::getAmountPaid).reduce(BigDecimal.ZERO, BigDecimal::add);
         StringBuilder output = new StringBuilder("        ").append(SEPARATOR)
                 .append(System.lineSeparator())
                 .append("Income for ").append(DISPLAY_MONTH.format(month)).append(": $")
@@ -242,7 +321,7 @@ public class PaymentCommands {
 
     private String yearlyIncome(int year) {
         List<Lesson> allPayments = data.getLessons().stream()
-                .filter(lesson -> Lesson.PAYMENT_PAID.equalsIgnoreCase(lesson.getPaymentStatus()))
+                .filter(lesson -> lesson.getAmountPaid().signum() > 0)
                 .filter(lesson -> !lesson.isCancelled())
                 .filter(lesson -> lesson.getDate().getYear() == year)
                 .sorted(Comparator.comparing(Lesson::getDate)
@@ -258,7 +337,7 @@ public class PaymentCommands {
             List<Lesson> payments = allPayments.stream()
                     .filter(lesson -> YearMonth.from(lesson.getDate()).equals(yearMonth))
                     .toList();
-            BigDecimal total = payments.stream().map(Lesson::getFee).reduce(BigDecimal.ZERO, BigDecimal::add);
+            BigDecimal total = payments.stream().map(Lesson::getAmountPaid).reduce(BigDecimal.ZERO, BigDecimal::add);
             output.append(System.lineSeparator())
                     .append(month.getDisplayName(TextStyle.FULL, Locale.ENGLISH))
                     .append(": $").append(total.setScale(2, RoundingMode.UNNECESSARY).toPlainString());
@@ -270,7 +349,7 @@ public class PaymentCommands {
 
     private List<Lesson> paidLessons(YearMonth month) {
         return data.getLessons().stream()
-                .filter(lesson -> Lesson.PAYMENT_PAID.equalsIgnoreCase(lesson.getPaymentStatus()))
+                .filter(lesson -> lesson.getAmountPaid().signum() > 0)
                 .filter(lesson -> !lesson.isCancelled())
                 .filter(lesson -> YearMonth.from(lesson.getDate()).equals(month))
                 .sorted(Comparator.comparing(Lesson::getDate)
@@ -286,13 +365,13 @@ public class PaymentCommands {
                     .append(String.format(Locale.ROOT, "  %s  %s  %s  %s  $%s",
                             lesson.getLessonId(), DISPLAY_DATE.format(lesson.getDate()),
                             studentLabel(student), lesson.getSubject(),
-                            lesson.getFee().setScale(2, RoundingMode.UNNECESSARY).toPlainString()));
+                            lesson.getAmountPaid().setScale(2, RoundingMode.UNNECESSARY).toPlainString()));
         }
     }
 
     private List<Lesson> unpaidLessons(LocalDate today, String studentId) {
         return data.getLessons().stream()
-                .filter(lesson -> Lesson.PAYMENT_UNPAID.equalsIgnoreCase(lesson.getPaymentStatus()))
+                .filter(lesson -> !Lesson.PAYMENT_PAID.equalsIgnoreCase(lesson.getPaymentStatus()))
                 // A cancelled lesson did not take place, so there is nothing to charge for it.
                 .filter(lesson -> !lesson.isCancelled())
                 .filter(lesson -> !lesson.getDate().isAfter(today))

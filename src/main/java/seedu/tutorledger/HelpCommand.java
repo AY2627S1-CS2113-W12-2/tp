@@ -52,6 +52,8 @@ public final class HelpCommand {
                     new Entry("homework [STUDENT_ID]", "homework S1"))),
             new Section("PAYMENTS", List.of(
                     new Entry("mark LESSON_ID STATUS", "mark L37 paid"),
+                    new Entry("pay STUDENT_ID AMOUNT LESSON_ID [LESSON_ID...]",
+                            "pay S1 117.50 L37 L38"),
                     new Entry("unpaid [STUDENT_ID]", "unpaid S1"),
                     new Entry("owed", "owed"),
                     new Entry("fee_statement STUDENT_ID", "fee_statement S1"),

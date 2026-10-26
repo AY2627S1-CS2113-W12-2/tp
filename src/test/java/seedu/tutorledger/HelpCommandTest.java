@@ -40,7 +40,8 @@ class HelpCommandTest {
         for (String format : new String[] {"add n/NAME l/LEVEL p/PHONE_NUMBER", "view STUDENT_ID",
             "schedule STUDENT_ID d/DATE t/TIME s/SUBJECT [dur/MINUTES] [f/FEE]",
             "assign STUDENT_ID DESCRIPTION d/DUE_DATE",
-            "mark LESSON_ID STATUS", "owed", "save [FILE_PATH]", "reload"}) {
+            "mark LESSON_ID STATUS", "pay STUDENT_ID AMOUNT LESSON_ID [LESSON_ID...]",
+            "owed", "save [FILE_PATH]", "reload"}) {
             assertTrue(help.contains(format), "missing format " + format);
         }
     }
@@ -81,6 +82,7 @@ class HelpCommandTest {
         String help = HelpCommand.getHelpText();
         assertTrue(help.contains("add n/Amirah Binte Rahman l/Sec 3 p/91234567"));
         assertTrue(help.contains("schedule S1 d/22-09-2026 t/1600 s/A Math f/60"));
+        assertTrue(help.contains("pay S1 117.50 L37 L38"));
         assertTrue(help.contains("save backups/term1.txt"));
     }
 }

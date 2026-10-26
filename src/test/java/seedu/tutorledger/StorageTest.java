@@ -80,6 +80,7 @@ class StorageTest {
     @Test
     void encodeThenDecode_allRecords_givesBackTheSameRecords() {
         TutorLedgerData original = sampleData();
+        original.updateLessonAmountPaid("L2", new java.math.BigDecimal("12.50"));
 
         Storage.LoadResult result = Storage.decode(Storage.encode(original).lines().toList());
 
@@ -91,6 +92,8 @@ class StorageTest {
         assertEquals(Lesson.Attendance.PRESENT, loaded.getLesson("L1").getAttendance());
         assertEquals(Lesson.PAYMENT_PAID, loaded.getLesson("L1").getPaymentStatus());
         assertEquals("62.50", loaded.getLesson("L2").getFee().toPlainString());
+        assertEquals("12.50", loaded.getLesson("L2").getAmountPaid().toPlainString());
+        assertEquals("partial", loaded.getLesson("L2").getPaymentStatus());
         assertTrue(loaded.getHomeworkById("H1").isSubmitted());
         // S3 and L3 were deleted, so their IDs must still not be handed out again.
         assertEquals(4, loaded.getNextStudentNumber());
@@ -120,7 +123,7 @@ class StorageTest {
                 "Line 5: Level must be Pri 1 to Pri 6, Sec 1 to Sec 5, or JC 1 to JC 2.",
                 "Line 6: Unknown record type \"X\". A line must start with S, R, ARCHIVED, L, H, A or NEXT.",
                 "Line 7: Homework status must be outstanding or submitted.",
-                "Line 8: A lesson line needs 10 to 12 fields but has 6."), result.problems());
+                "Line 8: A lesson line needs 10 to 13 fields but has 6."), result.problems());
         assertEquals(1, result.data().getStudents().size());
         assertEquals(List.of("L4"), result.data().getLessons().stream().map(Lesson::getLessonId).toList());
         assertTrue(result.data().getHomework().isEmpty());

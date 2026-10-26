@@ -350,6 +350,14 @@ public class TutorLedgerData {
         return updated;
     }
 
+    /** Replaces a lesson's allocated payment amount without changing its other details. */
+    public Lesson updateLessonAmountPaid(String id, BigDecimal amountPaid) {
+        LOGGER.log(Level.INFO, "Updating amount paid for lesson {0} to {1}", new Object[]{id, amountPaid});
+        Lesson updated = getLesson(id).withAmountPaid(amountPaid);
+        lessons.put(updated.getLessonId().toUpperCase(Locale.ROOT), updated);
+        return updated;
+    }
+
     /** Registers homework after checking its student link. */
     public void putHomework(Homework item) {
         LOGGER.log(Level.INFO, "Putting homework {0} into store", item.getHomeworkId());

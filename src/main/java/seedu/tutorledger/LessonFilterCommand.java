@@ -125,8 +125,9 @@ public class LessonFilterCommand {
 
     private static String parsePayment(String value) {
         String status = value.toLowerCase(Locale.ROOT);
-        if (!status.equals(Lesson.PAYMENT_PAID) && !status.equals(Lesson.PAYMENT_UNPAID)) {
-            throw new IllegalArgumentException("pay/ must be paid or unpaid.");
+        if (!status.equals(Lesson.PAYMENT_PAID) && !status.equals(Lesson.PAYMENT_UNPAID)
+                && !status.equals(Lesson.PAYMENT_PARTIAL)) {
+            throw new IllegalArgumentException("pay/ must be paid, partial or unpaid.");
         }
         return status;
     }
@@ -181,14 +182,16 @@ public class LessonFilterCommand {
      * @param student Only lessons of this student.
      * @param from Only lessons on or after this date.
      * @param to Only lessons on or before this date.
-     * @param payment Only lessons with this payment status, {@code paid} or {@code unpaid}.
+     * @param payment Only lessons with this payment status; {@code unpaid} also includes partial.
      */
     private record Criteria(Student student, LocalDate from, LocalDate to, String payment) {
         boolean matches(Lesson lesson) {
             return (student == null || student.getStudentId().equalsIgnoreCase(lesson.getStudentId()))
                     && (from == null || !lesson.getDate().isBefore(from))
                     && (to == null || !lesson.getDate().isAfter(to))
-                    && (payment == null || payment.equalsIgnoreCase(lesson.getPaymentStatus()));
+                    && (payment == null || payment.equalsIgnoreCase(lesson.getPaymentStatus())
+                            || (payment.equals(Lesson.PAYMENT_UNPAID)
+                                    && lesson.getPaymentStatus().equals(Lesson.PAYMENT_PARTIAL)));
         }
 
         /** Describes the filters in words, e.g. "S1 Amirah Binte Rahman, from Tue 01-09-2026, unpaid". */
