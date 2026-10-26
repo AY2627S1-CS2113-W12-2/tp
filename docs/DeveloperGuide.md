@@ -369,7 +369,8 @@ These four commands share one pattern: get the lesson, make a changed copy, chec
   day is never blocked by a clash check.
 * If any check fails, nothing has been replaced, so a rejected command never leaves a half-changed lesson.
   After a successful replacement nothing refers to the original object any more, which the `X` in Figure 5
-  marks.
+  marks. (The `lesson:Lesson` lifeline should end at the `X`, but a PlantUML limitation draws it slightly
+  further.)
 * `edit` and `reschedule` both change the slot, but they serve different purposes. `edit` corrects a
   record, so it can change any lesson, including a past one. `reschedule` describes a real-life change of
   plan, so it rejects a lesson that has already taken place (it has attendance or notes), a cancelled lesson,

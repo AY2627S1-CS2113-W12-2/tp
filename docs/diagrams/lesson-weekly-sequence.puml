@@ -27,7 +27,7 @@ deactivate Commands
 Commands -> Data : addWeeklyLessons("S1", "A Math",\n"01-12-2026", "1600", "60", 3, 60)
 activate Data
 
-loop [for each of the 3 weeks]
+loop for each of the 3 weeks
   create ":Lesson" as Lesson
   Data -> Lesson : Lesson("L" + number, ...)
   activate Lesson
@@ -44,7 +44,7 @@ note right of Data
   anything is stored or an ID is used.
 end note
 
-loop [for each planned lesson]
+loop for each planned lesson
   Data -> Data : putLesson(lesson)
   activate Data
   deactivate Data

@@ -20,9 +20,9 @@ activate Data
 Data --> Commands : lesson
 deactivate Data
 
-alt [lesson is cancelled, or has attendance or notes]
+alt lesson is cancelled, or has attendance or notes
   [<-- Commands : "Error: ..."
-else [lesson has not taken place]
+else lesson has not taken place
   Commands -> Lesson : withDetails(null, "16-12-2026", null, ...)
   activate Lesson
   create "moved:Lesson" as Moved
