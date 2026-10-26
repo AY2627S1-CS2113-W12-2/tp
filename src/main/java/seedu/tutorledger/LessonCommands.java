@@ -318,13 +318,13 @@ public class LessonCommands {
         LocalDate today = LocalDate.now(clock);
         List<Lesson> unpaid = data.getLessons().stream()
                 .filter(lesson -> lesson.getStudentId().equals(student.getStudentId()))
-                .filter(lesson -> Lesson.PAYMENT_UNPAID.equals(lesson.getPaymentStatus()))
+                .filter(lesson -> lesson.getAmountOwed().signum() > 0)
                 .filter(lesson -> !lesson.isCancelled() && !lesson.getDate().isAfter(today))
                 .toList();
         if (unpaid.isEmpty()) {
             return "none";
         }
-        BigDecimal total = unpaid.stream().map(Lesson::getFee).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal total = unpaid.stream().map(Lesson::getAmountOwed).reduce(BigDecimal.ZERO, BigDecimal::add);
         return formatCount(unpaid.size(), "lesson") + ", " + formatMoney(total);
     }
 

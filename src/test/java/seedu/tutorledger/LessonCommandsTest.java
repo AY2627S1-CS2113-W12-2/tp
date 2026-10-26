@@ -323,6 +323,23 @@ class LessonCommandsTest {
     }
 
     @Test
+    void edit_feeReducedToPartialAmountPaid_marksTheLessonPaid() {
+        commands.execute("schedule S1 d/24-09-2026 t/1900 s/E Math f/60");
+        PaymentCommands paymentCommands = new PaymentCommands(data,
+                Clock.fixed(Instant.parse("2026-09-21T10:00:00Z"), ZoneOffset.UTC));
+        assertEquals("Recorded payment of $40.00 for 1 lesson: L1.",
+                paymentCommands.execute("pay S1 40 L1"));
+        assertEquals(Lesson.PAYMENT_PARTIAL, data.getLesson("L1").getPaymentStatus());
+
+        assertEquals("Edited L1 for S1 Amirah Binte Rahman" + NEW_LINE
+                + "  Thu 24-09-2026 1900, E Math, $40.00, not recorded, paid",
+                commands.execute("edit L1 f/40"));
+        assertEquals(new BigDecimal("40"), data.getLesson("L1").getAmountPaid());
+        assertEquals(BigDecimal.ZERO, data.getLesson("L1").getAmountOwed());
+        assertEquals(Lesson.PAYMENT_PAID, data.getLesson("L1").getPaymentStatus());
+    }
+
+    @Test
     void edit_attendanceAndNotes_changesARecordedLesson() {
         commands.execute("schedule S1 d/21-09-2026 t/1600 s/A Math f/60");
         commands.execute("record L1 a/present note/Started vectors");
@@ -693,6 +710,18 @@ class LessonCommandsTest {
                 + "    H2  Past paper Q3, due Fri 18-09-2026 (overdue)" + NEW_LINE
                 + "    H1  Worksheet 4A, due Fri 25-09-2026" + NEW_LINE
                 + "  Unpaid: 2 lessons, $120.00", commands.execute("next"));
+    }
+
+    @Test
+    void next_summaryIncludesPartialPaymentsOutstandingBalance() {
+        commands.execute("log S1 d/15-09-2026 t/1600 s/A Math f/60 a/present");
+        PaymentCommands paymentCommands = new PaymentCommands(data,
+                Clock.fixed(Instant.parse("2026-09-21T10:00:00Z"), ZoneOffset.UTC));
+        assertEquals("Recorded payment of $40.00 for 1 lesson: L1.",
+                paymentCommands.execute("pay S1 40 L1"));
+        commands.execute("schedule S1 d/22-09-2026 t/1600 s/A Math f/60");
+
+        assertTrue(commands.execute("next S1").endsWith("  Unpaid: 1 lesson, $20.00"));
     }
 
     @Test

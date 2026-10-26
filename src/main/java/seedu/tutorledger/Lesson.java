@@ -262,7 +262,8 @@ public class Lesson {
         // As documented above, recording or editing must never change who or what the lesson is.
         assert updated.lessonId.equals(lessonId) : "withDetails changed the lesson ID";
         assert Objects.equals(updated.studentId, studentId) : "withDetails changed the student";
-        assert updated.paymentStatus.equals(paymentStatus) : "withDetails changed the payment status";
+        assert updatedFee.compareTo(fee) != 0 || updated.paymentStatus.equals(paymentStatus)
+                : "withDetails changed the payment status without changing the fee";
         assert updated.cancellationReason.equals(cancellationReason) : "withDetails changed the cancellation";
         LOGGER.log(Level.INFO, "Lesson {0} details updated", lessonId);
         return updated;
