@@ -16,7 +16,7 @@ homework, test scores, end-of-term progress summaries and follow-up reminders.
 
 ### Enhancements implemented
 
-* **Homework** ([commit](https://github.com/AY2627S1-CS2113-W12-2/tp/commit/fddd348e219997b8b2a57d0fc0efd6249724db03),
+* **Homework** ([PR #61](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/61),
   [PR #76](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/76)):
   added `assign`, `submit` and `homework`. Homework is given a permanent ID, and the outstanding list is
   sorted by due date with overdue items flagged. The description may contain spaces, commas and `d/`, because
@@ -29,18 +29,19 @@ homework, test scores, end-of-term progress summaries and follow-up reminders.
   attendance and scores over any period for an end-of-term review. Marks use `BigDecimal`, so half marks are
   stored exactly. Scores are saved with a backward-compatible change to the data file format, and are removed
   when their student is deleted.
-* **Follow-up tasks** ([issue #26](https://github.com/AY2627S1-CS2113-W12-2/tp/issues/26)):
+* **Follow-up tasks** ([PR #96](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/96),
+  [issue #26](https://github.com/AY2627S1-CS2113-W12-2/tp/issues/26)):
   added `task`, `tasks` and `done` for reminders such as "Bring Worksheet 4B". A task may be linked to a
   student and may have a due date, and both are optional. A student's pending tasks also appear in `next`, so
-  they are seen when the tutor prepares for the lesson. <!-- TODO: add the PR link once it is opened -->
+  they are seen when the tutor prepares for the lesson.
 
 ### Testing and documentation
 
 * Wrote `HomeworkCommandsTest`, `ScoreCommandsTest` and `TaskCommandsTest`, and extended `StorageTest` to
   check that scores and tasks are saved and loaded, including data files from older versions.
-* Wrote the [User Guide](../UserGuide.md) sections for homework, scores and progress, and follow-up tasks,
-  with example output taken from the running app, and kept `help`, the command summary and the data file
-  format description in sync.
+* Wrote the [User Guide](../UserGuide.md) sections *Scores and progress* and *Follow-up tasks*, with example
+  output taken from the running app, and kept `help`, the command summary and the data file format
+  description in sync.
 * Wrote the [Developer Guide](../DeveloperGuide.md) sections *Scores and progress* and *Follow-up tasks*,
   including a [class diagram](../diagrams/followup-class.svg) and a
   [sequence diagram](../diagrams/followup-add-sequence.svg) with PlantUML sources, design alternatives and
@@ -48,11 +49,12 @@ homework, test scores, end-of-term progress summaries and follow-up reminders.
 
 ### Team contributions
 
-* Reviewed teammates' pull requests, including
+* Reviewed and approved teammates' pull requests after building and testing them locally:
   [PR #79](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/79) (lesson cancellation), where I reproduced
   and reported a bug where `fee_statement` still listed a cancelled lesson as unpaid, and
   [PR #80](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/80) (lesson filter and aliases), where I flagged
-  how it would interact with cancelled lessons. <!-- TODO: replace with links to your actual review comments -->
+  how it would interact with cancelled lessons and how to resolve the conflicts between the two PRs.
+  I then merged PR #80.
 
-<!-- Draft notes: add the follow-up tasks PR link after it is opened, and any issues you created.
+<!-- Draft notes: the Follow-up tasks DG section and diagram links work once PR #96 is merged.
 Before final submission, export this page to PDF and check the two-page limit for overview and summary. -->
