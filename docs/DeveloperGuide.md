@@ -64,11 +64,12 @@ classDiagram
 Each record is one line of fields separated by ` | `:
 
 ```
-NEXT | S3 | L2 | H2 | A2
+NEXT | S3 | L2 | H2 | A2 | T2
 S | S1 | Amirah Binte Rahman | Sec 3 | 91234567 | E Math | A Math
 L | L1 | S1 | 15-09-2026 | 1600 | A Math | 60 | present | paid | Quadratics \| discriminant
 H | H1 | S1 | 29-09-2026 | outstanding | Worksheet 4A
 A | A1 | S1 | 07-09-2026 | 28 | 40 | WA1
+T | T1 | pending | 16-10-2026 | S1 | Bring Worksheet 4B
 ```
 
 * The `NEXT` line saves the ID counters. Without it, deleting the newest student and restarting would
@@ -277,6 +278,84 @@ setup.
 *Possible improvements:* let `edit` and `delete` accept a `SCORE_ID`, so a mistyped score can be fixed
 without editing the data file. Also show the average score by subject, once scores record a subject.
 
+
+### Follow-up tasks — Isaac
+
+**v2.0 F8.1–F8.3 · [Issue #26](https://github.com/AY2627S1-CS2113-W12-2/tp/issues/26) (story US20)**
+
+Between lessons, a tutor collects small jobs: bring a worksheet, return a marked script, print a calendar.
+Follow-up tasks keep these reminders in TutorLedger, next to the lessons they belong to:
+
+| Command | Purpose |
+|---|---|
+| `task [STUDENT_ID] DESCRIPTION [d/DUE_DATE]` | Log a reminder, optionally for one student and by a date |
+| `tasks [STUDENT_ID]` | List pending reminders, soonest due first, with overdue ones marked |
+| `done TASK_ID` | Tick a reminder off |
+
+`next` also lists the student's pending reminders, so they are seen at the moment the tutor prepares for
+the lesson.
+
+#### Responsibilities and object relationships
+
+![Class diagram of TaskCommands, TutorLedgerData, FollowUpTask and their links](diagrams/followup-class.svg)
+
+* **`FollowUpTask`** is an immutable record, like `Homework`. Its student and due date are optional, because
+  some reminders (such as "Print term calendar") are not about one student or day. The getters return
+  `Optional`, so callers cannot forget to handle a task that has neither.
+* **`TaskCommands`** follows the same `handles`/`execute` pattern as the other command classes. The main loop
+  routes `task`, `tasks` and `done` to it.
+* **`TutorLedgerData`** stores tasks in a map keyed by ID, with a counter that never decreases, as for every
+  other record. A task links to a student by ID rather than holding the `Student` object. Student profiles
+  are replaced whenever they are edited, so a stored object would go stale, but an ID always stays valid.
+* **`LessonCommands.describeFollowUps`** adds a `Follow-ups:` line to `next`. It reuses
+  `TaskCommands.DISPLAY_ORDER`, so reminders are sorted the same way in both commands.
+
+#### Logging a task
+
+The sequence diagram below shows `task S1 Bring Worksheet 4B d/16-10-2026`.
+
+![Sequence diagram of logging a follow-up task for a student](diagrams/followup-add-sequence.svg)
+
+1. A regular expression splits off a final `d/DUE_DATE`. As with `assign`, the date must come last, so the
+   description may contain spaces and commas.
+2. If the first remaining word looks like a student ID (`S1`), the task is linked to that student and the
+   rest is the description. Otherwise the whole text is the description.
+3. `TutorLedgerData.addTask` looks the student up first. A task can therefore never point to a missing
+   student. It then creates the task with the next `T` ID.
+
+`done TASK_ID` works the same way as `submit` for homework. `FollowUpTask.asDone()` returns a copy with the
+new status, and `replaceTask` stores it under the same ID.
+
+#### Design considerations
+
+* *Student ID as an optional first word, rather than a prefix such as `for/S1`.* Most other commands put
+  the student ID first (`assign S1 ...`, `score S1 ...`), so the tutor does not need to learn another
+  prefix. A description that happens to start with a word like `S1` would be read as a student ID. This
+  is unlikely, and the confirmation line (`for S1 ...`) makes it obvious.
+* *Mark done, rather than delete.* A done task stays in the data file, so the tutor can still see in the file
+  what was done. `tasks` and `next` simply leave done tasks out. *Alternative considered:* deleting the
+  task on `done` keeps the file smaller, but loses the record.
+* *Show reminders in `next`.* The story's goal is to avoid forgetting things "between lessons". A separate
+  list is easy to forget to check, but `next` is already what the tutor runs before a lesson. The line only
+  appears when there are pending reminders, so the usual `next` output is unchanged.
+* *Deleting a student deletes their tasks.* A reminder about a student who is no longer taught is not
+  useful. Tasks not linked to anyone are kept.
+
+#### Defensive checks and persistence
+
+* Invalid input (an unknown student, an impossible date, a blank description, a repeated `done`) throws
+  `IllegalArgumentException` before anything is stored. `execute` turns it into an `Error: ...` message
+  and logs it at `WARNING` level.
+* Assertions check things that only a coding mistake could break: a new task is pending, the counter
+  advanced, `done` really stored a done copy, and `tasks` lists no done tasks.
+* `Storage` saves each task as a `T` line with six fields. A missing due date or student is an empty field.
+  The task counter is an optional sixth field on the `NEXT` line, so data files saved before this
+  feature still load.
+* `TaskCommandsTest` and `StorageTest` cover each command, the `next` integration, cascade deletion, and
+  loading old and hand-edited files.
+
+*Possible improvements:* let `edit` change a task's description or date, and accept a time
+(e.g. `d/16-10-2026 t/1500`) for reminders that must be done before a particular lesson.
 
 ### Lesson scheduling and records — Reynard
 
@@ -873,6 +952,24 @@ date and cancellation filters used by `unpaid` and `owed`.
 ## Instructions for manual testing
 
 {Give instructions on how to do a manual product testing e.g., how to load sample data to be used for testing}
+
+### Follow-up tasks (US20, #26)
+
+1. Logging tasks
+   1. Add a student (S1). Run `task S1 Bring Worksheet 4B d/16-10-2026`.
+      Expected: `Added T1: Bring Worksheet 4B` and `for S1 ..., by Fri 16-10-2026`.
+   1. Run `task Print term calendar`. Expected: `Added T2: Print term calendar` with no second line.
+   1. Run `task S1 Bring notes d/31-02-2026`. Expected: an error, and `tasks` still lists 2 tasks.
+1. Listing and finishing tasks
+   1. Run `task S1 Return script d/01-01-2020`, then `tasks`. Expected: T3 is first and marked `OVERDUE`; T2
+      (no date) is last.
+   1. Run `done T3`, then `done T3` again. Expected: the second gives `Error: T3 is already done.`
+1. Reminders in `next`
+   1. Schedule a future lesson for S1, then run `next`. Expected: a final line `Follow-ups: T1 Bring Worksheet 4B
+      (by ...)`.
+1. Saving and deleting
+   1. Restart TutorLedger. Expected: `tasks` shows the same tasks.
+   1. Run `delete S1 confirm`. Expected: `Also deleted 2 follow-up tasks.` (T1 and T3); T2 (not linked) is kept.
 
 ### Lessons (F2, #12, #19, #27, #38, #39)
 

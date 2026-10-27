@@ -64,6 +64,11 @@ public final class HelpCommand {
                     new Entry("scores STUDENT_ID", "scores S1"),
                     new Entry("progress STUDENT_ID [from/DATE] [to/DATE]",
                             "progress S1 from/01-07-2026 to/14-10-2026"))),
+            new Section("FOLLOW-UP TASKS", List.of(
+                    new Entry("task [STUDENT_ID] DESCRIPTION [d/DUE_DATE]",
+                            "task S1 Bring Worksheet 4B d/20-10-2026"),
+                    new Entry("tasks [STUDENT_ID]", "tasks"),
+                    new Entry("done TASK_ID", "done T1"))),
             new Section("STORAGE", List.of(
                     new Entry("save [FILE_PATH]", "save backups/term1.txt"),
                     new Entry("reload", "reload"))),
