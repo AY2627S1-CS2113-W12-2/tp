@@ -1,0 +1,26 @@
+<!--
+  Draws the ```mermaid diagrams on GitHub Pages. GitHub's file viewer draws them itself, but the Jekyll
+  build behind Pages leaves them as plain code. The theme adds this file to the <head> of every page.
+-->
+<style>
+  .mermaid {
+    margin-bottom: 16px;
+    overflow-x: auto;
+    text-align: center;
+  }
+</style>
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs";
+
+  // Swaps each mermaid code block for a container holding the same source, which Mermaid then draws.
+  document.querySelectorAll("pre > code.language-mermaid").forEach((code) => {
+    const diagram = document.createElement("div");
+    diagram.className = "mermaid";
+    diagram.textContent = code.textContent;
+    code.parentElement.replaceWith(diagram);
+  });
+
+  // Numbered IDs, because the default timestamp IDs clash when two diagrams are drawn in the same millisecond.
+  mermaid.initialize({ startOnLoad: false, deterministicIds: true });
+  await mermaid.run({ querySelector: ".mermaid" });
+</script>
