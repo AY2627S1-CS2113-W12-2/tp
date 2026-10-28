@@ -282,7 +282,24 @@ public class LessonCommands {
                 + "  Subject: " + lesson.getSubject() + System.lineSeparator()
                 + "  Last topic: " + describeLastTopic(lesson) + System.lineSeparator()
                 + describeOutstandingHomework(student) + System.lineSeparator()
-                + "  Unpaid: " + describeUnpaid(student);
+                + "  Unpaid: " + describeUnpaid(student)
+                + describeFollowUps(student);
+    }
+
+    /**
+     * Lists the tutor's pending follow-up tasks for the student, so nothing is forgotten before the lesson.
+     * Returns an empty string when there are none, so the usual output is unchanged.
+     */
+    private String describeFollowUps(Student student) {
+        List<String> pending = data.getTasks().stream()
+                .filter(task -> !task.isDone())
+                .filter(task -> task.getStudentId().filter(student.getStudentId()::equals).isPresent())
+                .sorted(TaskCommands.DISPLAY_ORDER)
+                .map(task -> task.getTaskId() + " " + task.getDescription()
+                        + task.getDueDate().map(date -> " (by " + TaskCommands.DISPLAY_DATE.format(date) + ")")
+                                .orElse(""))
+                .toList();
+        return pending.isEmpty() ? "" : System.lineSeparator() + "  Follow-ups: " + String.join("; ", pending);
     }
 
     /** Describes the notes of the student's latest lesson before {@code upcoming}, where they left off. */

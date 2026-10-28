@@ -21,6 +21,7 @@ your own tutoring work.
   * [Homework](#homework): `assign`, `submit`, `homework`
   * [Payments](#payments): `mark`, `unpaid`, `owed`
   * [Scores and progress](#scores-and-progress): `score`, `scores`, `progress`
+  * [Follow-up tasks](#follow-up-tasks): `task`, `tasks`, `done`
   * [Storage](#storage): `save`, `reload`
   * [Help and exiting](#help-and-exiting): `help`, `exit`, [shortcuts](#shortcuts-for-common-commands)
 * [FAQ](#faq)
@@ -65,6 +66,7 @@ wherever the item is listed. Commands use the ID to say which item you mean.
 | `LESSON_ID`   | A lesson. Starts with `L`.          | `L3`    |
 | `HOMEWORK_ID` | A homework item. Starts with `H`.   | `H4`    |
 | `SCORE_ID`    | A test score. Starts with `A`.      | `A2`    |
+| `TASK_ID`     | A follow-up task. Starts with `T`.  | `T3`    |
 
 An ID is never reused, even after its item is deleted.
 
@@ -329,8 +331,9 @@ its linked records permanently; archive when you want to keep them.
 
 Feature F1.6 · Stories US31, US34
 
-Deletes a student, together with all of their lessons, homework and scores. Scores are only mentioned in the
-output if the student had any.
+Deletes a student, together with all of their lessons, homework, scores and follow-up tasks. Scores and
+follow-up tasks are only mentioned in the output if the student had any. Follow-up tasks that are not linked
+to a student are kept.
 
 Format: `delete STUDENT_ID [confirm]`
 
@@ -549,6 +552,8 @@ Format: `next [STUDENT_ID]`
 * **Outstanding homework** lists homework that has not been submitted, soonest due first. Homework past its due
   date is marked `(overdue)`.
 * **Unpaid** counts the student's unpaid lessons up to today, the same way as [`owed`](#showing-what-each-student-owes-owed).
+* **Follow-ups** lists your pending [follow-up tasks](#follow-up-tasks) for the student, soonest due first.
+  This line only appears when there are some.
 
 Examples:
 
@@ -1029,6 +1034,88 @@ Scores: 2 tests, average 68.8%
 Trend: improving, up 27.5 points from the first test to the latest
 ```
 
+### Follow-up tasks
+
+Follow-up tasks are reminders for yourself, such as bringing a worksheet or returning a marked script, so you
+do not forget them between lessons. A task can be linked to a student and can have a due date, but neither is
+required.
+
+#### Logging a follow-up task: `task`
+
+Feature F8.1 · Story US20
+
+Adds a reminder and gives it an ID.
+
+Format: `task [STUDENT_ID] DESCRIPTION [d/DUE_DATE]`
+
+* If the first word is a student ID, the task is linked to that student. Their pending tasks are then shown by
+  [`next`](#preparing-for-the-next-lesson-next) before their lesson.
+* `DESCRIPTION` is everything after the student ID (if any) and before the last `d/`, so it may contain spaces
+  and commas.
+* `d/DUE_DATE` is optional and must come last. It may be in the past.
+
+Examples:
+
+* `task S1 Bring Worksheet 4B d/16-10-2026`
+* `task Print term calendar`
+
+Example output:
+
+```
+> task S1 Bring Worksheet 4B d/16-10-2026
+Added T1: Bring Worksheet 4B
+  for S1 Amirah Binte Rahman, by Fri 16-10-2026
+
+> task Print term calendar
+Added T2: Print term calendar
+```
+
+#### Listing follow-up tasks: `tasks`
+
+Feature F8.2 · Story US20
+
+Lists the follow-up tasks you have not done yet, for everyone or for one student.
+
+Format: `tasks [STUDENT_ID]`
+
+* Tasks with a due date are listed first, soonest due first. Tasks without a due date come last.
+* A task past its due date is marked `OVERDUE`.
+* `tasks STUDENT_ID` lists only the tasks linked to that student.
+
+Examples:
+
+* `tasks`
+* `tasks S1`
+
+Example output (today is Wed 14-10-2026):
+
+```
+> tasks
+3 follow-up tasks pending
+  T3  Return graded test   S2 Tan Wei Ming         by Mon 12-10-2026  OVERDUE
+  T1  Bring Worksheet 4B   S1 Amirah Binte Rahman  by Fri 16-10-2026
+  T2  Print term calendar                          no date
+```
+
+#### Marking a follow-up task as done: `done`
+
+Feature F8.3 · Story US20
+
+Ticks off a follow-up task, so it no longer appears in `tasks` or `next`.
+
+Format: `done TASK_ID`
+
+* A task that is already done cannot be marked done again.
+
+Example: `done T3`
+
+Example output:
+
+```
+> done T3
+Marked T3 as done: Return graded test
+```
+
 ### Storage
 
 TutorLedger loads `data/tutorledger.txt` when it starts and tells you what it found:
@@ -1127,22 +1214,25 @@ Your current data has not been changed.
 `|`. Lines starting with `#` are ignored.
 
 ```
-NEXT | S3 | L2 | H2 | A2
+NEXT | S3 | L2 | H2 | A2 | T3
 S | S1 | Amirah Binte Rahman | Sec 3 | 91234567 | E Math | A Math
 L | L1 | S1 | 15-09-2026 | 1600 | A Math | 60 | present | paid | Quadratics \| discriminant
 H | H1 | S1 | 29-09-2026 | outstanding | Worksheet 4A
 A | A1 | S1 | 07-09-2026 | 28 | 40 | WA1
+T | T1 | pending | 16-10-2026 | S1 | Bring Worksheet 4B
+T | T2 | done |  |  | Print term calendar
 ```
 
 | Line   | Fields, in order                                                                                    |
 |--------|-----------------------------------------------------------------------------------------------------|
-| `NEXT` | the IDs the next new student, lesson, homework item and score will get                              |
+| `NEXT` | the IDs the next new student, lesson, homework item, score and follow-up task will get              |
 | `R`    | student ID, default hourly rate; omit the record when no rate is set |
 | `ARCHIVED` | student ID; omit the record for an active student |
 | `S`    | student ID, name, level, phone number, then any number of subjects                                  |
 | `L`    | lesson ID, student ID, date, time, subject, fee, attendance (`not recorded`, `present`, `absent` or `late`), `paid`, `partial` or `unpaid`, notes, cancellation reason (empty if active), duration in minutes, amount paid |
 | `H`    | homework ID, student ID, due date, `outstanding` or `submitted`, description                        |
 | `A`    | score ID, student ID, test date, marks, total marks, test name                                      |
+| `T`    | task ID, `pending` or `done`, due date (empty if none), student ID (empty if none), description     |
 
 * Older lesson lines without duration load as 60 minutes. Existing student lines without `R` records
   load with no default rate. New saves include duration and amount paid; keep a backup if you may return
@@ -1258,6 +1348,14 @@ SCORES AND PROGRESS
       scores S1
   progress STUDENT_ID [from/DATE] [to/DATE]
       progress S1 from/01-07-2026 to/14-10-2026
+
+FOLLOW-UP TASKS
+  task [STUDENT_ID] DESCRIPTION [d/DUE_DATE]
+      task S1 Bring Worksheet 4B d/20-10-2026
+  tasks [STUDENT_ID]
+      tasks
+  done TASK_ID
+      done T1
 
 STORAGE
   save [FILE_PATH]
@@ -1400,6 +1498,9 @@ as absent; if you also do not want to charge for it, delete the lesson with `del
 | **Record score**        | `score STUDENT_ID TEST_NAME m/MARKS/TOTAL [d/DATE]`<br>e.g. `score S1 WA1 m/28/40 d/07-09-2026`                         |
 | **List scores**         | `scores STUDENT_ID`<br>e.g. `scores S1`                                                                                  |
 | **Progress summary**    | `progress STUDENT_ID [from/DATE] [to/DATE]`<br>e.g. `progress S1 from/01-07-2026`                                       |
+| **Log follow-up task**  | `task [STUDENT_ID] DESCRIPTION [d/DUE_DATE]`<br>e.g. `task S1 Bring Worksheet 4B d/16-10-2026`                    |
+| **List follow-up tasks**| `tasks [STUDENT_ID]`<br>e.g. `tasks S1`                                                                                  |
+| **Finish follow-up task**| `done TASK_ID`<br>e.g. `done T1`                                                                                        |
 | **Save**                | `save [FILE_PATH]`<br>e.g. `save backups/term1.txt`                                                                      |
 | **Reload data file**    | `reload`                                                                                                                 |
 | **Help**                | `help`                                                                                                                   |

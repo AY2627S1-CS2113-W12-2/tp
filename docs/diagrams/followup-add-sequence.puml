@@ -1,0 +1,43 @@
+@startuml
+skinparam backgroundColor white
+skinparam defaultFontSize 14
+skinparam shadowing false
+hide footbox
+
+participant ":TaskCommands" as Commands
+participant ":TutorLedgerData" as Data
+
+[-> Commands : execute("task S1 Bring Worksheet 4B d/16-10-2026")
+activate Commands
+
+Commands -> Commands : split off final d/ and parse\nthe due date
+activate Commands
+deactivate Commands
+
+Commands -> Commands : first word "S1" is a student ID,\nso the description is the rest
+activate Commands
+deactivate Commands
+
+alt description is blank or starts with d/
+  [<-- Commands : "Error: Use: task ..."
+else valid input
+  Commands -> Data : addTask("S1", "Bring Worksheet 4B", 16-10-2026)
+  activate Data
+  Data -> Data : getStudent("S1")
+  activate Data
+  deactivate Data
+  create "task:FollowUpTask" as Task
+  Data -> Task : FollowUpTask("T1", ..., "pending")
+  activate Task
+  Task --> Data
+  deactivate Task
+  Data -> Data : putTask(task)\nnextTaskNumber becomes 2
+  activate Data
+  deactivate Data
+  Data --> Commands : task
+  deactivate Data
+
+  [<-- Commands : "Added T1: Bring Worksheet 4B ..."
+end
+deactivate Commands
+@enduml

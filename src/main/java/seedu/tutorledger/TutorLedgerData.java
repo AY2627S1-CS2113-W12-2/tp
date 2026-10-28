@@ -21,6 +21,7 @@ public class TutorLedgerData {
     private final Map<String, Lesson> lessons = new LinkedHashMap<>();
     private final Map<String, Homework> homework = new LinkedHashMap<>();
     private final Map<String, Score> scores = new LinkedHashMap<>();
+    private final Map<String, FollowUpTask> tasks = new LinkedHashMap<>();
     private int nextStudentNumber = 1;
     /** Number used for the next lesson ID (L1, L2, ...); never decreases so IDs are not reused. */
     private int nextLessonNumber = 1;
@@ -28,6 +29,8 @@ public class TutorLedgerData {
     private int nextHomeworkNumber = 1;
     /** Number used for the next score ID (A1, A2, ...); never decreases so IDs are not reused. */
     private int nextScoreNumber = 1;
+    /** Number used for the next follow-up task ID (T1, T2, ...); never decreases so IDs are not reused. */
+    private int nextTaskNumber = 1;
 
     /** Adds a student and assigns the next permanent ID. */
     public Student addStudent(String name, String level, String phoneNumber) {
@@ -502,6 +505,90 @@ public class TutorLedgerData {
         nextScoreNumber = value;
     }
 
+    public Collection<FollowUpTask> getTasks() {
+        LOGGER.log(Level.FINE, "Retrieving all follow-up tasks ({0})", tasks.size());
+        return List.copyOf(tasks.values());
+    }
+
+    /**
+     * Logs a pending follow-up task and gives it the next task ID.
+     *
+     * @param studentId The student the task is for, in either case, or null if it is not about one student.
+     * @param description What needs to be done.
+     * @param dueDate When it should be done by, or null for no date.
+     * @return The stored task.
+     * @throws IllegalArgumentException If the student does not exist or the description is blank.
+     */
+    public FollowUpTask addTask(String studentId, String description, LocalDate dueDate) {
+        LOGGER.log(Level.INFO, "Adding follow-up task for student {0}: {1}", new Object[]{studentId, description});
+        // Looking the student up both checks they exist and gives their ID in its usual upper-case form.
+        String linkedId = studentId == null ? null : getStudent(studentId).getStudentId();
+        FollowUpTask task = new FollowUpTask("T" + nextTaskNumber, description, linkedId, dueDate,
+                FollowUpTask.STATUS_PENDING);
+        int numberBefore = nextTaskNumber;
+        putTask(task);
+        assert nextTaskNumber == numberBefore + 1 : "Task counter should advance so IDs are never reused";
+        return task;
+    }
+
+    /** Returns a follow-up task, accepting IDs in either case. */
+    public FollowUpTask getTask(String id) {
+        if (id == null || !id.matches("(?i)T[1-9]\\d*")) {
+            throw new IllegalArgumentException("Task ID must look like T1.");
+        }
+        String key = id.toUpperCase(Locale.ROOT);
+        FollowUpTask task = tasks.get(key);
+        if (task == null) {
+            throw new IllegalArgumentException("No follow-up task found with ID " + key + ".");
+        }
+        return task;
+    }
+
+    /** Replaces an existing task with a changed copy that has the same ID, such as one marked done. */
+    public void replaceTask(FollowUpTask task) {
+        getTask(task.getTaskId());
+        putTask(task);
+    }
+
+    /**
+     * Imports a saved task, keeping its ID, for storage loading.
+     *
+     * @throws IllegalArgumentException If the linked student is missing or the ID is invalid or already taken.
+     */
+    public void importTask(FollowUpTask task) {
+        LOGGER.log(Level.INFO, "Importing follow-up task {0}", task.getTaskId());
+        if (!task.getTaskId().matches("(?i)T[1-9]\\d*")) {
+            throw new IllegalArgumentException("Task ID must look like T1.");
+        }
+        if (tasks.containsKey(task.getTaskId().toUpperCase(Locale.ROOT))) {
+            throw new IllegalArgumentException("Duplicate task ID " + task.getTaskId() + ".");
+        }
+        putTask(task);
+    }
+
+    /** Stores a task after checking any linked student, keeping the ID counter ahead of its ID. */
+    private void putTask(FollowUpTask task) {
+        task.getStudentId().ifPresent(this::getStudent);
+        String key = task.getTaskId().toUpperCase(Locale.ROOT);
+        tasks.put(key, task);
+        if (key.matches("T[1-9]\\d*")) {
+            nextTaskNumber = Math.max(nextTaskNumber, Integer.parseInt(key.substring(1)) + 1);
+        }
+    }
+
+    public int getNextTaskNumber() {
+        return nextTaskNumber;
+    }
+
+    /** Restores the saved task counter, including IDs belonging to deleted tasks. */
+    public void setNextTaskNumber(int value) {
+        LOGGER.log(Level.INFO, "Setting next task number to {0}", value);
+        if (value < nextTaskNumber) {
+            throw new IllegalArgumentException("Next task number cannot reuse an ID.");
+        }
+        nextTaskNumber = value;
+    }
+
     /**
      * Replaces every record and ID counter with those of {@code source}.
      *
@@ -518,10 +605,13 @@ public class TutorLedgerData {
         homework.putAll(source.homework);
         scores.clear();
         scores.putAll(source.scores);
+        tasks.clear();
+        tasks.putAll(source.tasks);
         nextStudentNumber = source.nextStudentNumber;
         nextLessonNumber = source.nextLessonNumber;
         nextHomeworkNumber = source.nextHomeworkNumber;
         nextScoreNumber = source.nextScoreNumber;
+        nextTaskNumber = source.nextTaskNumber;
     }
 
     /** Removes a student and all linked records, returning their deletion counts. */
@@ -533,7 +623,9 @@ public class TutorLedgerData {
         int lessonCount = removeLinked(lessons, key);
         int homeworkCount = removeLinked(homework, key);
         int scoreCount = removeLinked(scores, key);
-        return new Deletion(student, lessonCount, homeworkCount, scoreCount);
+        // A reminder about a student who has been deleted is no longer useful, so it goes too.
+        int taskCount = removeLinked(tasks, key);
+        return new Deletion(student, lessonCount, homeworkCount, scoreCount, taskCount);
     }
 
     private static <T> int removeLinked(Map<String, T> records, String studentId) {
@@ -544,6 +636,7 @@ public class TutorLedgerData {
             case Lesson lesson -> lesson.getStudentId();
             case Homework item -> item.getStudentId();
             case Score score -> score.getStudentId();
+            case FollowUpTask task -> task.getStudentId().orElse(null);
             default -> throw new AssertionError("Unexpected linked record type: " + entry.getValue());
             };
             if (studentId.equalsIgnoreCase(owner)) {
@@ -596,6 +689,6 @@ public class TutorLedgerData {
     }
 
     /** Student deletion result for the user-facing command. */
-    public record Deletion(Student student, int lessonCount, int homeworkCount, int scoreCount) {
+    public record Deletion(Student student, int lessonCount, int homeworkCount, int scoreCount, int taskCount) {
     }
 }

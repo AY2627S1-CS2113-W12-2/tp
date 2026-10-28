@@ -210,6 +210,9 @@ public class StudentCommands {
         if (removed.scoreCount() > 0) {
             result += System.lineSeparator() + "Also deleted " + count(removed.scoreCount(), "score") + ".";
         }
+        if (removed.taskCount() > 0) {
+            result += System.lineSeparator() + "Also deleted " + count(removed.taskCount(), "follow-up task") + ".";
+        }
         return result;
     }
 
@@ -222,12 +225,18 @@ public class StudentCommands {
                 .filter(item -> id.equalsIgnoreCase(item.getStudentId())).count();
         long scoreCount = data.getScores().stream()
                 .filter(score -> id.equalsIgnoreCase(score.getStudentId())).count();
+        long taskCount = data.getTasks().stream()
+                .filter(task -> task.getStudentId().filter(id::equalsIgnoreCase).isPresent()).count();
         LOGGER.log(Level.FINE, "Deletion requires confirmation for {0}: {1} linked lessons",
                 new Object[]{id, lessonCount});
+        // Follow-up tasks are only mentioned when there are some, so the usual warning stays short.
+        String taskLine = taskCount == 0 ? ""
+                : "  " + count(taskCount, "follow-up task") + "." + System.lineSeparator();
         return "Warning: deleting " + id + ": " + student.getName() + " (" + student.getLevel()
                 + ") will permanently remove:" + System.lineSeparator()
                 + "  " + count(lessonCount, "lesson") + ", " + count(homeworkCount, "homework item")
                 + " and " + count(scoreCount, "score") + "." + System.lineSeparator()
+                + taskLine
                 + "This cannot be undone. No records have been deleted." + System.lineSeparator()
                 + "To confirm, type: delete " + id + " confirm" + System.lineSeparator()
                 + "Otherwise, continue with another command.";

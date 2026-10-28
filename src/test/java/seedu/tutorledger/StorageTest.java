@@ -40,6 +40,10 @@ class StorageTest {
         data.putHomework(data.getHomeworkById("H1").asSubmitted());
         data.addScore("S1", "WA1 | retest", "17.5", "20", "07-09-2026");
         data.addScore("S3", "Quiz", "5", "10", "10-09-2026");
+        data.addTask("S1", "Bring Worksheet 4B | answers", LocalDate.of(2026, 10, 20));
+        data.addTask(null, "Print term calendar", null);
+        data.replaceTask(data.getTask("T2").asDone());
+        data.addTask("S3", "Return Ryan's notes", null);
         // Deleting the newest records leaves gaps that the saved counters must remember.
         data.deleteStudent("S3");
         return data;
@@ -121,7 +125,7 @@ class StorageTest {
                 "Line 3: Date must be a real date in DD-MM-YYYY format.",
                 "Line 4: No student found with ID S9.",
                 "Line 5: Level must be Pri 1 to Pri 6, Sec 1 to Sec 5, or JC 1 to JC 2.",
-                "Line 6: Unknown record type \"X\". A line must start with S, R, ARCHIVED, L, H, A or NEXT.",
+                "Line 6: Unknown record type \"X\". A line must start with S, R, ARCHIVED, L, H, A, T or NEXT.",
                 "Line 7: Homework status must be outstanding or submitted.",
                 "Line 8: A lesson line needs 10 to 13 fields but has 6."), result.problems());
         assertEquals(1, result.data().getStudents().size());
@@ -182,7 +186,7 @@ class StorageTest {
         assertEquals(6, tooLow.data().getNextStudentNumber());
 
         Storage.LoadResult broken = Storage.decode(List.of("NEXT | 10 | L20", "NEXT | S1 | L1 | H1"));
-        assertEquals(List.of("Line 1: A NEXT line must look like: NEXT | S1 | L1 | H1 | A1"), broken.problems());
+        assertEquals(List.of("Line 1: A NEXT line must look like: NEXT | S1 | L1 | H1 | A1 | T1"), broken.problems());
     }
 
     @Test
@@ -203,6 +207,34 @@ class StorageTest {
                 "A | A5 | S1 | 07-09-2026 | 50 | 40 | WA2"));
         assertEquals(List.of("Line 4: Marks must be between 0 and the total marks."), old.problems());
         assertEquals(5, old.data().getNextScoreNumber());
+    }
+
+    @Test
+    void decode_tasks_roundTripWithOptionalFieldsAndOldFilesStillLoad() {
+        TutorLedgerData loaded = Storage.decode(Storage.encode(sampleData()).lines().toList()).data();
+        FollowUpTask linked = loaded.getTask("T1");
+        assertEquals("Bring Worksheet 4B | answers", linked.getDescription());
+        assertEquals("S1", linked.getStudentId().orElseThrow());
+        assertEquals(LocalDate.of(2026, 10, 20), linked.getDueDate().orElseThrow());
+        FollowUpTask unlinked = loaded.getTask("T2");
+        assertTrue(unlinked.isDone());
+        assertTrue(unlinked.getStudentId().isEmpty() && unlinked.getDueDate().isEmpty());
+        // T3 belonged to the deleted student S3, so its ID must not be handed out again.
+        assertEquals(2, loaded.getTasks().size());
+        assertEquals(4, loaded.getNextTaskNumber());
+
+        // Files saved before tasks existed have a NEXT line without a task counter.
+        Storage.LoadResult old = Storage.decode(List.of("NEXT | S2 | L1 | H1 | A1",
+                "S | S1 | Amirah Binte Rahman | Sec 3 | 91234567",
+                "T | T3 | pending |  | s1 | Bring Worksheet 4B",
+                "T | T4 | maybe |  |  | Print notes",
+                "T | T5 | pending | 31-02-2026 |  | Print notes",
+                "T | T6 | pending |  | S9 | Call parent"));
+        assertEquals(List.of("Line 4: Task status must be pending or done.",
+                "Line 5: Due date must be a real date in DD-MM-YYYY format.",
+                "Line 6: No student found with ID S9."), old.problems());
+        assertEquals("S1", old.data().getTask("T3").getStudentId().orElseThrow());
+        assertEquals(4, old.data().getNextTaskNumber());
     }
 
     @Test

@@ -5,7 +5,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.DateTimeException;
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.time.format.ResolverStyle;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -22,11 +24,12 @@ import java.util.logging.Logger;
  * <p>The file has one record per line, with fields separated by {@code |}, so a tutor can read and
  * edit it in any text editor. For example:
  * <pre>
- * NEXT | S3 | L2 | H2 | A2
+ * NEXT | S3 | L2 | H2 | A2 | T2
  * S | S1 | Amirah Binte Rahman | Sec 3 | 91234567 | E Math | A Math
  * L | L1 | S1 | 22-09-2026 | 1600 | A Math | 60 | present | unpaid | Quadratic equations
  * H | H1 | S1 | 29-09-2026 | outstanding | Worksheet 4A
  * A | A1 | S1 | 21-09-2026 | 28 | 40 | WA1
+ * T | T1 | pending | 20-10-2026 | S1 | Bring Worksheet 4B
  * </pre>
  * A {@code |} or {@code \} inside a value is written with a backslash in front ({@code \|} or
  * {@code \\}), so text such as notes can contain them without breaking the line into extra fields.
@@ -48,7 +51,7 @@ public class Storage {
     private static final List<String> HEADER = List.of(
             "# TutorLedger data file. You may edit it in a text editor; run \"reload\" in TutorLedger afterwards.",
             "# Lines starting with # are ignored. Fields are separated by |. Write \\| for a | inside a value.",
-            "#   NEXT | next student ID | next lesson ID | next homework ID | next score ID",
+            "#   NEXT | next student ID | next lesson ID | next homework ID | next score ID | next task ID",
             "#   S | STUDENT_ID | NAME | LEVEL | PHONE_NUMBER | SUBJECT | SUBJECT ...",
             "#   R | STUDENT_ID | DEFAULT_HOURLY_RATE (omit the line if no rate is set)",
             "#   ARCHIVED | STUDENT_ID (omit the line for active students)",
@@ -57,7 +60,8 @@ public class Storage {
             "#   PAYMENT is unpaid, partial or paid; AMOUNT_PAID records the amount allocated. "
                     + "Saved fees are never recalculated on load.",
             "#   H | HOMEWORK_ID | STUDENT_ID | DUE_DATE | STATUS | DESCRIPTION",
-            "#   A | SCORE_ID | STUDENT_ID | DATE | MARKS | TOTAL_MARKS | TEST_NAME");
+            "#   A | SCORE_ID | STUDENT_ID | DATE | MARKS | TOTAL_MARKS | TEST_NAME",
+            "#   T | TASK_ID | STATUS | DUE_DATE | STUDENT_ID | DESCRIPTION (DUE_DATE and STUDENT_ID may be blank)");
 
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd-MM-uuuu", Locale.ROOT);
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HHmm", Locale.ROOT);
@@ -65,6 +69,7 @@ public class Storage {
     private static final int LESSON_FIELD_COUNT = 10;
     private static final int HOMEWORK_FIELD_COUNT = 6;
     private static final int SCORE_FIELD_COUNT = 7;
+    private static final int TASK_FIELD_COUNT = 6;
     /** A student line has at least these fields; any further fields are subjects. */
     private static final int STUDENT_MIN_FIELD_COUNT = 5;
 
@@ -129,7 +134,7 @@ public class Storage {
     public static String encode(TutorLedgerData data) {
         List<String> lines = new ArrayList<>(HEADER);
         lines.add(join("NEXT", "S" + data.getNextStudentNumber(), "L" + data.getNextLessonNumber(),
-                "H" + data.getNextHomeworkNumber(), "A" + data.getNextScoreNumber()));
+                "H" + data.getNextHomeworkNumber(), "A" + data.getNextScoreNumber(), "T" + data.getNextTaskNumber()));
         for (Student student : data.getStudents()) {
             List<String> fields = new ArrayList<>(List.of("S", student.getStudentId(), student.getName(),
                     student.getLevel(), student.getPhoneNumber()));
@@ -158,12 +163,18 @@ public class Storage {
             lines.add(join("A", score.getScoreId(), score.getStudentId(), DATE.format(score.getDate()),
                     score.getMarks().toPlainString(), score.getTotalMarks().toPlainString(), score.getTestName()));
         }
+        for (FollowUpTask task : data.getTasks()) {
+            // A missing due date or student is written as an empty field, so every task line has 6 fields.
+            lines.add(join("T", task.getTaskId(), task.getStatus(), task.getDueDate().map(DATE::format).orElse(""),
+                    task.getStudentId().orElse(""), task.getDescription()));
+        }
         long rateCount = data.getStudents().stream()
                 .filter(student -> student.getDefaultHourlyRate().isPresent()).count();
         long archivedCount = data.getStudents().stream().filter(Student::isArchived).count();
         // Student rates have their own lines so legacy subjects remain unambiguous.
         assert lines.size() == HEADER.size() + 1 + data.getStudents().size() + data.getLessons().size()
-                + data.getHomework().size() + data.getScores().size() + rateCount + archivedCount
+                + data.getHomework().size() + data.getScores().size() + data.getTasks().size()
+                + rateCount + archivedCount
                 : "Some records were not encoded";
         return String.join(System.lineSeparator(), lines) + System.lineSeparator();
     }
@@ -171,8 +182,8 @@ public class Storage {
     /**
      * Rebuilds the records from the lines of a data file.
      *
-     * <p>Students are read first, then rates, archive markers, lessons, homework and scores, which must
-     * belong to a student that already exists. This means the lines may appear in any order in the file.
+     * <p>Students are read first, then rates, archive markers, lessons, homework, scores and tasks, which
+     * may belong to a student that must already exist. This means the lines may appear in any order in the file.
      */
     public static LoadResult decode(List<String> lines) {
         TutorLedgerData data = new TutorLedgerData();
@@ -189,7 +200,7 @@ public class Storage {
             String type = fields.getFirst().toUpperCase(Locale.ROOT);
             try {
                 switch (type) {
-                case "", "L", "H", "A", "R", "ARCHIVED" -> {
+                case "", "L", "H", "A", "T", "R", "ARCHIVED" -> {
                     // Linked records and rates wait for the second pass; blank and comment lines are ignored.
                 }
                 case "NEXT" -> {
@@ -200,7 +211,7 @@ public class Storage {
                 }
                 case "S" -> data.importStudent(parseStudent(fields));
                 default -> throw new IllegalArgumentException("Unknown record type \"" + fields.getFirst()
-                        + "\". A line must start with S, R, ARCHIVED, L, H, A or NEXT.");
+                        + "\". A line must start with S, R, ARCHIVED, L, H, A, T or NEXT.");
                 }
             } catch (IllegalArgumentException exception) {
                 problems.put(i + 1, exception.getMessage());
@@ -223,6 +234,8 @@ public class Storage {
                     data.importHomework(parseHomework(fields, data));
                 } else if (type.equals("A")) {
                     data.importScore(parseScore(fields, data));
+                } else if (type.equals("T")) {
+                    data.importTask(parseTask(fields, data));
                 }
             } catch (IllegalArgumentException exception) {
                 problems.put(i + 1, exception.getMessage());
@@ -237,6 +250,8 @@ public class Storage {
             data.setNextHomeworkNumber(Math.max(savedNextIds[2], data.getNextHomeworkNumber()));
             // Files saved before scores existed have no score counter; 0 leaves the counter as it is.
             data.setNextScoreNumber(Math.max(savedNextIds[3], data.getNextScoreNumber()));
+            // Likewise, files saved before follow-up tasks existed have no task counter.
+            data.setNextTaskNumber(Math.max(savedNextIds[4], data.getNextTaskNumber()));
         }
 
         List<String> problemLines = new ArrayList<>();
@@ -250,15 +265,16 @@ public class Storage {
     }
 
     /**
-     * Reads {@code NEXT | S6 | L45 | H9 | A3} into the numbers 6, 45, 9 and 3.
-     * The score ID is optional so that files saved before scores were added still load; it is then 0.
+     * Reads {@code NEXT | S6 | L45 | H9 | A3 | T2} into the numbers 6, 45, 9, 3 and 2.
+     * The score and task IDs are optional so that files saved before those records existed still load;
+     * a missing one is read as 0.
      */
     private static int[] parseNextIds(List<String> fields) {
-        String usage = "A NEXT line must look like: NEXT | S1 | L1 | H1 | A1";
-        if (fields.size() != 4 && fields.size() != 5) {
+        String usage = "A NEXT line must look like: NEXT | S1 | L1 | H1 | A1 | T1";
+        if (fields.size() < 4 || fields.size() > 6) {
             throw new IllegalArgumentException(usage);
         }
-        String[] prefixes = {"S", "L", "H", "A"};
+        String[] prefixes = {"S", "L", "H", "A", "T"};
         int[] numbers = new int[prefixes.length];
         for (int i = 0; i < fields.size() - 1; i++) {
             String id = fields.get(i + 1);
@@ -363,6 +379,25 @@ public class Storage {
             // Homework parses its own date and throws a date exception rather than IllegalArgumentException.
             throw new IllegalArgumentException("Due date must be a real date in DD-MM-YYYY format.", exception);
         }
+    }
+
+    /** Reads a task line; an empty due date or student field means the task has none. */
+    private static FollowUpTask parseTask(List<String> fields, TutorLedgerData data) {
+        if (fields.size() != TASK_FIELD_COUNT) {
+            throw new IllegalArgumentException(wrongFieldCount("A task", TASK_FIELD_COUNT, fields));
+        }
+        LocalDate dueDate = null;
+        if (!fields.get(3).isBlank()) {
+            try {
+                dueDate = LocalDate.parse(fields.get(3), DATE.withResolverStyle(ResolverStyle.STRICT));
+            } catch (DateTimeException exception) {
+                throw new IllegalArgumentException("Due date must be a real date in DD-MM-YYYY format.", exception);
+            }
+        }
+        // Looking the student up checks they exist and gives their ID in its usual upper-case form.
+        String studentId = fields.get(4).isBlank() ? null : data.getStudent(fields.get(4)).getStudentId();
+        return new FollowUpTask(fields.get(1).toUpperCase(Locale.ROOT), fields.get(5), studentId, dueDate,
+                fields.get(2));
     }
 
     private static Score parseScore(List<String> fields, TutorLedgerData data) {
