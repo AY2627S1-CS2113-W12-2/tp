@@ -1,0 +1,49 @@
+@startuml
+!pragma layout smetana
+skinparam backgroundColor white
+skinparam defaultFontSize 14
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+hide empty members
+title Fee statements: read-only access to saved lesson data
+
+class TutorLedger {
+  {static} +main(args)
+}
+class PaymentCommands {
+  -data : TutorLedgerData
+  {static} +handles(input) : boolean
+  +execute(input) : String
+  -feeStatement(studentId) : String
+}
+class TutorLedgerData {
+  +getStudent(id) : Student
+  +getLessons() : Collection<Lesson>
+}
+class Student {
+  +getStudentId() : String
+  +getName() : String
+}
+class Lesson {
+  +getLessonId() : String
+  +getStudentId() : String
+  +getDate() : LocalDate
+  +getTime() : LocalTime
+  +getSubject() : String
+  +getFee() : BigDecimal
+  +getAmountPaid() : BigDecimal
+  +getPaymentStatus() : String
+}
+
+TutorLedger ..> PaymentCommands : routes commands
+PaymentCommands --> TutorLedgerData : reads shared data
+TutorLedgerData "1" *--> "0..*" Student : stores
+TutorLedgerData "1" *--> "0..*" Lesson : stores
+PaymentCommands ..> Student : reads identity
+PaymentCommands ..> Lesson : reads saved charges and payments
+
+note bottom of PaymentCommands
+  Builds the statement when requested.
+  No separate statement record is stored.
+end note
+@enduml

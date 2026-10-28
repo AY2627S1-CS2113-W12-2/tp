@@ -1,0 +1,46 @@
+@startuml
+!pragma layout smetana
+skinparam backgroundColor white
+skinparam defaultFontSize 14
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+hide empty members
+title Scores and progress: responsibilities
+
+class TutorLedger {
+  {static} +main(args)
+}
+class ScoreCommands {
+  +execute(input) : String
+  -score(arguments) : String
+  -listScores(arguments) : String
+  -progress(arguments) : String
+}
+class TutorLedgerData {
+  +addScore(...) : Score
+  +getScores() : Collection<Score>
+  +getLessons() : Collection<Lesson>
+}
+class Score {
+  -studentId : String
+  -marks : BigDecimal
+  -totalMarks : BigDecimal
+  -date : LocalDate
+  +getPercentage() : BigDecimal
+  +getMarksText() : String
+}
+class Lesson
+class ArgumentParser {
+  {static} +parseFields(input, allowed) : Fields
+}
+
+TutorLedger ..> ScoreCommands : routes commands
+ScoreCommands --> TutorLedgerData : shared data
+ScoreCommands ..> ArgumentParser : parses fields
+TutorLedgerData "1" *--> "0..*" Score : stores
+TutorLedgerData "1" *--> "0..*" Lesson : stores
+note bottom of Score
+  A saved immutable test result.
+  Percentages make different test totals comparable.
+end note
+@enduml

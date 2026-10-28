@@ -1,0 +1,55 @@
+@startuml
+skinparam backgroundColor white
+skinparam defaultFontSize 14
+skinparam shadowing false
+hide footbox
+title Recording a test score
+
+participant ":ScoreCommands" as Commands
+participant "ArgumentParser" as Parser <<class>>
+participant ":TutorLedgerData" as Data
+participant "score:Score" as Score
+
+[-> Commands : execute("score S1 WA2 m/33/40")
+activate Commands
+note right of Commands
+  Separate student ID, test name and fields.
+  The date defaults to today when omitted.
+end note
+Commands -> Parser : parseFields("m/33/40", ...)
+activate Parser
+Parser --> Commands : fields
+deactivate Parser
+
+Commands -> Data : addScore("S1", "WA2", "33", "40", today)
+activate Data
+Data -> Data : getStudent("S1")
+activate Data
+Data --> Data : student
+deactivate Data
+create Score
+Data -> Score : new Score(next ID, ...)
+activate Score
+Score --> Data : score
+deactivate Score
+Data -> Data : putScore(score)
+activate Data
+deactivate Data
+Data --> Commands : score
+deactivate Data
+
+Commands -> Data : getScores()
+activate Data
+Data --> Commands : all scores
+deactivate Data
+note right of Commands
+  Select this student's history and sort by date.
+  Compare with the previous result, if any.
+end note
+Commands -->[ : confirmation and score change
+deactivate Commands
+note over Commands, Data
+  Successful command; invalid values are rejected before insertion.
+  The standard automatic-save flow runs after execute returns.
+end note
+@enduml

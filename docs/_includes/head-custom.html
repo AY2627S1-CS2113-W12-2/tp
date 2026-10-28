@@ -1,26 +1,89 @@
-<!--
-  Draws the ```mermaid diagrams on GitHub Pages. GitHub's file viewer draws them itself, but the Jekyll
-  build behind Pages leaves them as plain code. The theme adds this file to the <head> of every page.
--->
+<!-- Enable keyboard-accessible enlargement for the Developer Guide's SVG diagrams. -->
 <style>
-  .mermaid {
-    margin-bottom: 16px;
-    overflow-x: auto;
-    text-align: center;
+  .dg-table-scroll { max-width: 100%; overflow-x: auto; }
+  .dg-diagram-trigger {
+    display: block;
+    max-width: 100%;
+    margin: 1.5rem auto;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: zoom-in;
   }
+  .dg-diagram-trigger img { display: block; max-width: 100%; height: auto; }
+  .dg-diagram-trigger:focus-visible { outline: 3px solid #137451; outline-offset: 5px; }
+  .dg-diagram-dialog {
+    width: 96vw;
+    max-width: none;
+    max-height: 94vh;
+    padding: 1rem;
+    border: 1px solid #bdcbd1;
+    border-radius: 5px;
+    background: white;
+  }
+  .dg-diagram-dialog::backdrop { background: #142b38b8; }
+  .dg-diagram-toolbar { display: flex; justify-content: flex-end; margin-bottom: .75rem; }
+  .dg-diagram-toolbar button {
+    padding: .5rem 1rem;
+    border: 1px solid #9eacb4;
+    border-radius: 4px;
+    background: white;
+    color: #27333d;
+    cursor: pointer;
+  }
+  .dg-diagram-toolbar button:focus-visible { outline: 3px solid #137451; outline-offset: 3px; }
+  .dg-diagram-image { max-height: 78vh; overflow: auto; }
+  .dg-diagram-image img { display: block; max-width: none; margin: auto; }
+  @media print { .dg-diagram-dialog { display: none; } }
 </style>
-<script type="module">
-  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs";
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const diagrams = document.querySelectorAll('img[src*="diagrams/"][src$=".svg"]');
+    if (!diagrams.length) return;
 
-  // Swaps each mermaid code block for a container holding the same source, which Mermaid then draws.
-  document.querySelectorAll("pre > code.language-mermaid").forEach((code) => {
-    const diagram = document.createElement("div");
-    diagram.className = "mermaid";
-    diagram.textContent = code.textContent;
-    code.parentElement.replaceWith(diagram);
+    document.querySelectorAll('table').forEach(table => {
+      const viewport = document.createElement('div');
+      viewport.className = 'dg-table-scroll';
+      table.replaceWith(viewport);
+      viewport.append(table);
+    });
+
+    const dialog = document.createElement('dialog');
+    dialog.className = 'dg-diagram-dialog';
+    dialog.setAttribute('aria-label', 'Enlarged UML diagram');
+    const toolbar = document.createElement('div');
+    toolbar.className = 'dg-diagram-toolbar';
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.textContent = 'Close diagram';
+    close.autofocus = true;
+    toolbar.append(close);
+    const viewport = document.createElement('div');
+    viewport.className = 'dg-diagram-image';
+    const enlarged = document.createElement('img');
+    enlarged.alt = '';
+    viewport.append(enlarged);
+    dialog.append(toolbar, viewport);
+    document.body.append(dialog);
+
+    diagrams.forEach(image => {
+      let trigger = image.closest('a');
+      if (!trigger) {
+        trigger = document.createElement('button');
+        trigger.type = 'button';
+        image.replaceWith(trigger);
+        trigger.append(image);
+      }
+      trigger.classList.add('dg-diagram-trigger');
+      trigger.setAttribute('aria-label', 'Enlarge diagram: ' + image.alt);
+      trigger.addEventListener('click', event => {
+        event.preventDefault();
+        enlarged.src = image.currentSrc || image.src;
+        enlarged.alt = image.alt;
+        dialog.showModal();
+      });
+    });
+    close.addEventListener('click', () => dialog.close());
+    dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); });
   });
-
-  // Numbered IDs, because the default timestamp IDs clash when two diagrams are drawn in the same millisecond.
-  mermaid.initialize({ startOnLoad: false, deterministicIds: true });
-  await mermaid.run({ querySelector: ".mermaid" });
 </script>

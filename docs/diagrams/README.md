@@ -1,33 +1,29 @@
-# Default hourly rate UML diagrams
+# Developer Guide UML diagrams
 
-These diagrams document Yan Hern's v2.0 implementation of US5 / issue #11. The Developer Guide embeds
-the SVGs so GitHub Pages can display them without JavaScript or a PlantUML plugin.
+The [Developer Guide](../DeveloperGuide.md) embeds generated SVGs, with editable PlantUML sources
+alongside each image. Open the [standalone HTML guide](../preview/DeveloperGuide.html) locally to inspect
+the full document and enlarge any diagram.
 
-Open [the combined preview](index.html) in a browser to review all four diagrams before merging.
-
-| Diagram | Purpose |
+| Area | PlantUML sources |
 | --- | --- |
-| [Class diagram](hourly-rate-class.svg) | Responsibilities and relationships |
-| [Rate edit sequence](hourly-rate-edit-sequence.svg) | Validated replacement followed by automatic saving |
-| [Scheduling sequence](hourly-rate-schedule-sequence.svg) | Duration-based fee calculation and insertion |
-| [Fee selection activity](hourly-rate-fee-activity.svg) | Overrides, defaults and rejection paths |
+| Overall architecture | [Architecture](architecture.puml) |
+| Storage | [Class diagram](storage-class.puml), [automatic-save sequence](storage-autosave-sequence.puml) |
+| Scores and progress | [Class diagram](score-class.puml), [recording sequence](score-record-sequence.puml), [attendance activity](score-progress-activity.puml) |
+| Follow-up tasks | [Class diagram](followup-class.puml), [task creation sequence](followup-add-sequence.puml) |
+| Lesson scheduling and records | [Class diagram](lesson-class.puml), [weekly scheduling](lesson-weekly-sequence.puml), [parsing fragment](lesson-parse-sd.puml), [weekly lesson objects](lesson-weekly-object.puml), [rescheduling](lesson-reschedule-sequence.puml), [next-lesson activity](lesson-next-activity.puml) |
+| Default hourly rates | [Class diagram](hourly-rate-class.puml), [rate edit](hourly-rate-edit-sequence.puml), [scheduling](hourly-rate-schedule-sequence.puml), [fee selection](hourly-rate-fee-activity.puml) |
+| Fee statements | [Class diagram](fee-statement-class.puml), [routing and persistence](fee-statement-overview-sequence.puml), [request validation](fee-statement-request-sequence.puml), [row-building fragment](fee-statement-rows-sequence.puml) |
 
-Edit the corresponding `.puml` source before regenerating its image. Use Java 25 and
+Edit the `.puml` source before regenerating an image. Use Java 25 and
 [PlantUML 1.2026.9](https://github.com/plantuml/plantuml/releases/tag/v1.2026.9).
 From the repository root, with the downloaded JAR in `/tmp`:
 
 ```sh
-java -Djava.awt.headless=true -jar /tmp/plantuml-1.2026.9.jar -tsvg docs/diagrams/hourly-rate-*.puml
+java -Djava.awt.headless=true -jar /tmp/plantuml-1.2026.9.jar -tsvg -nometadata docs/diagrams/*.puml
 ```
 
-The lesson diagrams (`lesson-*.puml`, Reynard's section of the Developer Guide) are rendered the same way:
-
-```sh
-java -Djava.awt.headless=true -jar /tmp/plantuml-1.2026.9.jar -tsvg docs/diagrams/lesson-*.puml
-```
-
-`lesson-parse-sd.puml` is the `sd` frame that the two lesson sequence diagrams refer to with `ref`.
-
-The class diagram uses PlantUML's [Smetana layout](https://plantuml.com/smetana02), which is included
-in the JAR. The other diagrams use built-in renderers. No Graphviz installation or UML MCP is needed.
-Keep the SVG and source changes in the same commit and check the diagrams at normal document width.
+Class, object and component diagrams use the bundled [Smetana layout](https://plantuml.com/smetana02);
+sequence and activity diagrams use built-in renderers. No separate Graphviz installation or client-side
+diagram service is needed. Keep generated SVGs with their sources and check readability at normal
+document width. The Pages include adds keyboard-accessible diagram enlargement without changing the
+SVGs themselves.

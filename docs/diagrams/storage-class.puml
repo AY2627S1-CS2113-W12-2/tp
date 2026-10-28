@@ -1,0 +1,45 @@
+@startuml
+!pragma layout smetana
+skinparam backgroundColor white
+skinparam defaultFontSize 14
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+hide empty members
+title Storage: responsibilities and relationships
+
+class TutorLedger {
+  {static} +main(args)
+}
+class StorageCommands {
+  +execute(input) : String
+  +loadOnStartup() : String
+  +snapshot() : String
+  +saveIfChanged(before) : String
+}
+class Storage {
+  +load() : LoadResult
+  +save(data)
+  {static} +encode(data) : String
+  {static} +decode(lines) : LoadResult
+}
+class TutorLedgerData {
+  +replaceAllWith(source)
+}
+class "Storage.LoadResult" as LoadResult <<record>> {
+  +data() : TutorLedgerData
+  +problems() : List<String>
+}
+
+TutorLedger ..> StorageCommands : coordinates persistence
+StorageCommands --> Storage : storage
+StorageCommands --> TutorLedgerData : shared data
+StorageCommands ..> LoadResult : reads result
+Storage ..> TutorLedgerData : encodes / rebuilds
+Storage ..> LoadResult : creates
+LoadResult --> TutorLedgerData : restored data
+
+note bottom of Storage
+  File encoding and I/O stay here.
+  Command handlers work with shared in-memory records.
+end note
+@enduml

@@ -1,0 +1,33 @@
+@startuml
+skinparam backgroundColor white
+skinparam defaultFontSize 14
+skinparam shadowing false
+skinparam sequenceReferenceBackgroundColor #F5F5F5
+hide footbox
+title Fee statement: validate the request
+mainframe **sd** validate request and build statement
+
+participant ":PaymentCommands" as Commands
+participant ":TutorLedgerData" as Data
+
+activate Commands
+Commands -> Commands : validate exactly one student ID
+activate Commands
+deactivate Commands
+
+alt missing or extra argument
+  Commands -->[ : usage error
+else one student ID
+  Commands -> Data : getStudent("S1")
+  activate Data
+  Data --> Commands : student or lookup error
+  deactivate Data
+  alt student exists
+    ref over Commands, Data : collect and format statement rows
+    Commands -->[ : statement or empty-history message
+  else invalid or unknown student ID
+    Commands -->[ : student error
+  end
+end
+deactivate Commands
+@enduml
