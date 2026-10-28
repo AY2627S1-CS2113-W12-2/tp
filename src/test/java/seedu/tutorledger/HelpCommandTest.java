@@ -71,7 +71,8 @@ class HelpCommandTest {
         String help = commands.execute("help");
         assertTrue(help.contains("delete STUDENT_ID [confirm]"));
         assertTrue(help.contains("STUDENT DELETION"));
-        assertTrue(help.contains("With lesson records: confirm is required. Without lessons: deletion is immediate."));
+        assertTrue(help.contains(
+                "With lessons, homework, scores or tasks: confirm is required. With none: immediate."));
         assertTrue(help.contains("Run delete S5 to review the warning, then delete S5 confirm to delete."));
         assertTrue(help.contains("To keep the records, continue with another command."));
         assertTrue(help.contains("delete LESSON_ID"));

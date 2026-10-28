@@ -129,7 +129,14 @@ class TaskCommandsTest {
         commands.execute("task S1 Print past paper");
         commands.execute("task Print term calendar");
 
-        String output = new StudentCommands(data, clock).execute("delete S1");
+        StudentCommands students = new StudentCommands(data, clock);
+        // S1 has no lessons, but deleting them would lose two reminders, so a warning comes first.
+        String warning = students.execute("delete S1");
+        assertTrue(warning.startsWith("Warning: deleting S1:"), warning);
+        assertTrue(warning.contains("  2 follow-up tasks." + System.lineSeparator()), warning);
+        assertEquals(3, data.getTasks().size());
+
+        String output = students.execute("delete S1 confirm");
 
         assertTrue(output.endsWith("Also deleted 2 follow-up tasks."), output);
         assertEquals(1, data.getTasks().size());

@@ -339,7 +339,8 @@ new status, and `replaceTask` stores it under the same ID.
   list is easy to forget to check, but `next` is already what the tutor runs before a lesson. The line only
   appears when there are pending reminders, so the usual `next` output is unchanged.
 * *Deleting a student deletes their tasks.* A reminder about a student who is no longer taught is not
-  useful. Tasks not linked to anyone are kept.
+  useful. Tasks not linked to anyone are kept. Because the tasks are removed too, a student with follow-up
+  tasks gets the deletion warning (see *Student deletion warnings*), so reminders are never lost silently.
 
 #### Defensive checks and persistence
 
@@ -676,9 +677,10 @@ scenario below checks the visible behaviour and restart persistence.
 [Issue #40](https://github.com/AY2627S1-CS2113-W12-2/tp/issues/40), story US34, protects lesson history
 from accidental student deletion. `StudentCommands.delete` accepts `delete STUDENT_ID [confirm]`.
 It validates the complete argument list and resolves the current student before taking any action.
-An unconfirmed command checks all lessons belonging to that student, regardless of date, attendance,
-payment or cancellation status. If any exist, `deletionWarning` returns the student's identity, counts
-of every linked record type and the exact confirmation command. Submitted homework and all scores are
+An unconfirmed command counts every record linked to that student (lessons, regardless of date,
+attendance, payment or cancellation status, plus homework, scores and follow-up tasks) in
+`countLinkedRecords`. If any exist, `deletionWarning` returns the student's identity, counts of every
+linked record type and the exact confirmation command. Submitted homework and all scores are
 included because the existing cascade would remove them too. A warning changes neither records nor
 ID counters, so the existing snapshot-based automatic save performs no write.
 
@@ -688,8 +690,14 @@ reload or restart needs no cancellation handling. A repeated unconfirmed command
 records and warns again. Explicit confirmation may be used directly and always resolves the student
 again before calling `TutorLedgerData.deleteStudent`; that method retains responsibility for deleting
 linked lessons, homework and scores and returning the actual removal counts. The success output and
-permanent-ID rules are unchanged. Students without lessons still delete immediately, including those
-with only homework or scores. Single-lesson deletion is unchanged.
+permanent-ID rules are unchanged. Only a student with no linked records deletes immediately.
+Single-lesson deletion is unchanged.
+
+*Extension (v2.0, Isaac):* originally only lessons triggered the warning, and students with only homework
+or scores were deleted at once. Follow-up tasks then added another record type that the cascade removes,
+and a review found that such students lost their reminders without warning. The rule was therefore
+widened to every linked record type, so that the warning matches what the cascade actually deletes.
+Lessons remain the most common reason for the warning.
 
 The alternative was a yes/no prompt in the main input loop. That would require tracking the target and
 deciding how unrelated commands, reload and end-of-input affect a pending confirmation. The explicit
@@ -698,7 +706,8 @@ permanent deletion, rather than an undo or archive mechanism; backups remain nec
 
 Invalid IDs, missing students, unknown confirmation tokens and extra arguments produce normal
 `IllegalArgumentException` messages before mutation; user-input checks work with assertions disabled.
-Internal assertions ensure that the warning is built for an existing student with at least one lesson.
+Internal assertions ensure that the warning is built for an existing student with at least one linked
+record.
 `FINE` logging records warning and deletion decisions using the student ID. Existing Gradle and shared
 IDEA run configurations enable assertions. No public model API or storage-format change is needed.
 
@@ -1011,8 +1020,9 @@ Use an empty working directory and run the packaged application with Java 25 and
    `delete S1` again. All records remain and the warning appears again.
 5. Run `delete S1 confirm`. Expected: Alice and her linked lesson, homework and score are deleted.
    Bob remains. Restart; Alice's records must remain absent. Add another student; its ID must be S3.
-6. Run `delete S2`. Expected: immediate deletion because Bob has no lessons. This also applies to
-   students with only homework or scores. A single `delete LESSON_ID` remains immediate.
+6. Run `delete S2`. Expected: immediate deletion because Bob has no linked records. Add a student with
+   only homework, only a score or only a follow-up task, and run `delete` on them. Expected: a warning
+   each time. A single `delete LESSON_ID` remains immediate.
 7. Repeat the warning and malformed-confirmation checks with Java's `-da` option. Expected: the same
    protection and error messages; input validation does not depend on assertions.
 
