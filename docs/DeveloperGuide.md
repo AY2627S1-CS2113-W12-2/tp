@@ -61,7 +61,7 @@ classDiagram
 
 #### File format
 
-Each record is one line of fields separated by ` | `:
+Each record is one line of fields separated by a vertical bar, `|`, with a space on each side:
 
 ```
 NEXT | S3 | L2 | H2 | A2 | T2
