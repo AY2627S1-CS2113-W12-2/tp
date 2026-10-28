@@ -1,0 +1,36 @@
+@startuml
+skinparam backgroundColor white
+skinparam defaultFontSize 14
+skinparam shadowing false
+title Attendance calculation in a progress summary
+
+start
+:Read the student's lessons and date range;
+:Set attended, absent and not-recorded counts to zero;
+while (Another lesson?) is (yes)
+  :Read the next lesson;
+  if (Inside the date range, dated no later than today,
+      and not cancelled?) then (yes)
+    if (Attendance is present or late?) then (yes)
+      :Increment attended count;
+    else (no)
+      if (Attendance is absent?) then (yes)
+        :Increment absent count;
+      else (not recorded)
+        :Increment not-recorded count;
+      endif
+    endif
+  else (no)
+    :Exclude this lesson;
+  endif
+endwhile (no)
+:recorded = attended + absent;
+if (recorded is zero?) then (yes)
+  :Report no recorded lessons;
+else (no)
+  :Report attended / recorded as a percentage,
+  rounded to one decimal place;
+endif
+:Report the not-recorded count when positive;
+stop
+@enduml

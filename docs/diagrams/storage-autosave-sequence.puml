@@ -1,0 +1,62 @@
+@startuml
+skinparam backgroundColor white
+skinparam defaultFontSize 14
+skinparam shadowing false
+hide footbox
+title Automatic saving after an ordinary feature command
+
+participant "TutorLedger" as Main
+participant ":StorageCommands" as Persistence
+participant ":StudentCommands" as Commands
+participant ":TutorLedgerData" as Data
+participant ":Storage" as Storage
+
+note over Main, Storage
+  StudentCommands represents an existing feature handler.
+  Parsing, display output and detailed error paths are omitted.
+  Explicit save and reload commands follow a separate path.
+end note
+
+activate Main
+Main -> Persistence : snapshot()
+activate Persistence
+note right of Persistence : Encode the current shared data\nusing Storage.encode(data).
+Persistence --> Main : before
+deactivate Persistence
+
+Main -> Commands : execute(line)
+activate Commands
+opt command changes records
+  Commands -> Data : replaceStudent(updatedStudent)
+  activate Data
+  Data --> Commands
+  deactivate Data
+end
+Commands --> Main : output
+deactivate Commands
+
+Main -> Persistence : saveIfChanged(before)
+activate Persistence
+Persistence -> Persistence : snapshot()
+activate Persistence
+Persistence --> Persistence : after
+deactivate Persistence
+
+alt before and after differ
+  Persistence -> Storage : save(data)
+  activate Storage
+  note right of Storage
+    Encode records and write
+    data/tutorledger.txt.
+    File errors become a warning.
+  end note
+  Storage --> Persistence
+  deactivate Storage
+else snapshots are equal
+  note right of Persistence : No file write.
+end
+
+Persistence --> Main : warning or empty string
+deactivate Persistence
+deactivate Main
+@enduml

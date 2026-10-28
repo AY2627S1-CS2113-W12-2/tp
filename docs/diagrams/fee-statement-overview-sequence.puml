@@ -1,0 +1,39 @@
+@startuml
+skinparam backgroundColor white
+skinparam defaultFontSize 14
+skinparam shadowing false
+skinparam sequenceReferenceBackgroundColor #F5F5F5
+hide footbox
+title Fee statement: command routing and automatic-save checks
+
+actor Tutor
+participant "TutorLedger" as Main
+participant ":StorageCommands" as Persistence
+participant ":PaymentCommands" as Commands
+
+Tutor -> Main : fee_statement S1
+activate Main
+Main -> Persistence : snapshot()
+activate Persistence
+Persistence --> Main : before
+deactivate Persistence
+note right of Main
+  PaymentCommands.handles(input) selects
+  the payment command handler.
+end note
+Main -> Commands : execute(input)
+activate Commands
+ref over Commands : validate request and build statement
+Commands --> Main : statement or error
+deactivate Commands
+Main --> Tutor : display statement or error
+Main -> Persistence : saveIfChanged(before)
+activate Persistence
+note right of Persistence
+  A fee statement changes no records.
+  The snapshots match, so no file is written.
+end note
+Persistence --> Main : empty string
+deactivate Persistence
+deactivate Main
+@enduml

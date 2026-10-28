@@ -1,0 +1,41 @@
+@startuml
+skinparam backgroundColor white
+skinparam defaultFontSize 14
+skinparam shadowing false
+hide footbox
+mainframe **sd** collect and format statement rows
+
+participant ":PaymentCommands" as Commands
+participant ":TutorLedgerData" as Data
+participant "student:Student" as Student
+participant "lesson:Lesson" as Lesson
+
+activate Commands
+Commands -> Student : read student ID and name
+activate Student
+Student --> Commands : heading details and filter ID
+deactivate Student
+Commands -> Data : getLessons()
+activate Data
+Data --> Commands : all lessons
+deactivate Data
+note right of Commands
+  Filter by the resolved student ID.
+  Sort by date, time, then lesson ID.
+  Keep paid, partial, unpaid, future and cancelled lessons.
+end note
+
+loop each matching lesson
+  Commands -> Lesson : read lesson ID, date, subject, fee and payment details
+  activate Lesson
+  Lesson --> Commands : saved lesson details
+  deactivate Lesson
+  note right of Commands : Append a formatted row.\nShow the amount received for partial payments.
+end
+
+note right of Commands
+  Build the heading and rows, or an empty-history message.
+  Saved fees are not recalculated from current hourly rates.
+end note
+deactivate Commands
+@enduml

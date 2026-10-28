@@ -19,8 +19,9 @@ else ([lesson found])
   latest earlier lesson;
   :List the student's outstanding homework,
   flagging overdue items;
-  :Total the student's unpaid lessons
-  up to today;
+  :Total remaining balances of non-cancelled
+  lessons up to today, including partial payments;
+  :Include the student's pending follow-up tasks;
   :Show the summary;
   stop
 endif

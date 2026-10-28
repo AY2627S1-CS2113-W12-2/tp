@@ -1,0 +1,39 @@
+@startuml
+!pragma layout smetana
+title TutorLedger architecture
+
+top to bottom direction
+skinparam backgroundColor white
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam defaultFontSize 16
+skinparam defaultTextAlignment center
+skinparam nodesep 45
+skinparam ranksep 55
+
+actor "Independent tutor" as Tutor
+
+component "Application entry point\n\nTutorLedger" as App #FFF2CC
+component "Feature commands\n\nStudentCommands, LessonCommands,\nPaymentCommands and other handlers" as Commands #DAE8FC
+component "Shared helpers\n\nArgumentParser\nCommandAliases, HelpCommand" as Helpers #E1D5E7
+component "Data and models\n\nTutorLedgerData\nStudent, Lesson, Homework,\nScore, FollowUpTask" as Model #D5E8D4
+component "Persistence\n\nStorageCommands, Storage" as Persistence #F8CECC
+artifact "data/tutorledger.txt" as File #F5F5F5
+
+Tutor --> App : uses the console
+App --> Commands : routes input
+App --> Helpers : expands aliases
+App --> Model : creates the shared store
+App --> Persistence : loads, saves and reloads
+Commands --> Helpers : parses fields; obtains help
+Commands --> Model : reads and updates records
+Persistence --> Model : encodes and restores records
+Persistence --> File : reads and writes
+
+legend bottom
+  Arrows indicate dependencies and use.
+  Boxes are conceptual responsibility groups within seedu.tutorledger,
+  not separately deployed services or separate Java packages.
+endlegend
+@enduml
