@@ -337,13 +337,14 @@ to a student are kept.
 
 Format: `delete STUDENT_ID [confirm]`
 
-* If the student has any saved lessons, `delete STUDENT_ID` shows a warning without changing your records.
-  The warning identifies the student and counts all of their lessons, homework and scores, including
-  future, paid and cancelled lessons and submitted homework.
+* If the student has any linked records (lessons, homework, scores or follow-up tasks), `delete STUDENT_ID`
+  shows a warning without changing your records. The warning identifies the student and counts all of their
+  lessons, homework and scores, including future, paid and cancelled lessons and submitted homework, plus
+  their follow-up tasks if they have any.
 * To delete the student after reviewing the warning, enter `delete STUDENT_ID confirm`. To keep the
   records, simply enter another command or exit. Repeating the command without `confirm` keeps warning.
 * `confirm` is case-insensitive and can also be supplied directly, without first requesting the warning.
-* A student with no lessons is deleted immediately, even if they have homework or scores.
+* A student with no linked records at all is deleted immediately.
 
 Example: deleting S5, who has one lesson and no homework or scores:
 
@@ -1374,7 +1375,7 @@ LEVELS (l/LEVEL; case-insensitive, optional space)
       Examples: l/Pri5, l/Sec 3, l/JC1
 
 STUDENT DELETION
-  With lesson records: confirm is required. Without lessons: deletion is immediate.
+  With lessons, homework, scores or tasks: confirm is required. With none: immediate.
   Run delete S5 to review the warning, then delete S5 confirm to delete.
   To keep the records, continue with another command.
 

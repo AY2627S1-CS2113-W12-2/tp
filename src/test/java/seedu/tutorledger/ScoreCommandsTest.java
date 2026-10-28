@@ -137,11 +137,15 @@ class ScoreCommandsTest {
         commands.execute("score S2 WA1 m/10/40");
 
         Clock clock = Clock.fixed(Instant.parse("2026-10-14T10:00:00Z"), ZoneOffset.UTC);
-        String output = new StudentCommands(data, clock).execute("delete S1");
+        StudentCommands students = new StudentCommands(data, clock);
+        // Scores alone are enough to need confirmation, because they are deleted with the student.
+        assertTrue(students.execute("delete S1").contains("3 scores."));
+        assertEquals(4, data.getScores().size());
+        String output = students.execute("delete S1 confirm");
 
         assertTrue(output.endsWith("Also deleted 3 scores."), output);
         assertEquals(1, data.getScores().size());
-        assertTrue(new StudentCommands(data, clock).execute("delete S2").endsWith("Also deleted 1 score."));
+        assertTrue(students.execute("delete S2 confirm").endsWith("Also deleted 1 score."));
         // A student without scores keeps the usual two-line message.
         data.addStudent("Ryan Koh", "Sec 1", "87654321");
         assertFalse(new StudentCommands(data, clock).execute("delete S3").contains("score"));

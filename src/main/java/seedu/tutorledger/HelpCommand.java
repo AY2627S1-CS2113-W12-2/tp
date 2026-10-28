@@ -115,7 +115,7 @@ public final class HelpCommand {
         text.append(System.lineSeparator()).append(System.lineSeparator())
                 .append("STUDENT DELETION")
                 .append(System.lineSeparator()).append(FORMAT_INDENT)
-                .append("With lesson records: confirm is required. Without lessons: deletion is immediate.")
+                .append("With lessons, homework, scores or tasks: confirm is required. With none: immediate.")
                 .append(System.lineSeparator()).append(FORMAT_INDENT)
                 .append("Run delete S5 to review the warning, then delete S5 confirm to delete.")
                 .append(System.lineSeparator()).append(FORMAT_INDENT)

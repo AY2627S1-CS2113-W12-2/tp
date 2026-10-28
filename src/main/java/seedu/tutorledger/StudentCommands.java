@@ -181,8 +181,9 @@ public class StudentCommands {
     }
 
     /**
-     * Handles {@code delete STUDENT_ID [confirm]} (US34). Without explicit confirmation,
-     * students with any lesson records receive a warning and all records stay unchanged.
+     * Handles {@code delete STUDENT_ID [confirm]} (US34). Without explicit confirmation, a student with any
+     * linked record (lesson, homework, score or follow-up task) receives a warning and all records stay
+     * unchanged. Only a student with no linked records is deleted straight away.
      */
     private String delete(String arguments) {
         String[] words = arguments.split("\\s+");
@@ -193,11 +194,10 @@ public class StudentCommands {
         Student student = data.getStudent(singleId(words[0]));
         boolean confirmed = words.length == 2;
         if (!confirmed) {
-            long lessonCount = data.getLessons().stream()
-                    .filter(lesson -> student.getStudentId().equalsIgnoreCase(lesson.getStudentId()))
-                    .count();
-            if (lessonCount > 0) {
-                return deletionWarning(student, lessonCount);
+            // Every linked record is deleted with the student, so any of them is worth a warning first.
+            LinkedRecords linked = countLinkedRecords(student.getStudentId());
+            if (linked.total() > 0) {
+                return deletionWarning(student, linked);
             }
         }
         LOGGER.log(Level.FINE, "Deleting student {0}; explicitly confirmed: {1}",
@@ -216,30 +216,44 @@ public class StudentCommands {
         return result;
     }
 
-    /** Describes the current cascade without deleting anything or remembering a pending action. */
-    private String deletionWarning(Student student, long lessonCount) {
-        assert student != null : "A deletion warning needs an existing student";
-        assert lessonCount > 0 : "Only students with lessons require a deletion warning";
-        String id = student.getStudentId();
+    /** Counts the records that deleting the student would also remove. */
+    private LinkedRecords countLinkedRecords(String id) {
+        long lessonCount = data.getLessons().stream()
+                .filter(lesson -> id.equalsIgnoreCase(lesson.getStudentId())).count();
         long homeworkCount = data.getHomework().stream()
                 .filter(item -> id.equalsIgnoreCase(item.getStudentId())).count();
         long scoreCount = data.getScores().stream()
                 .filter(score -> id.equalsIgnoreCase(score.getStudentId())).count();
         long taskCount = data.getTasks().stream()
                 .filter(task -> task.getStudentId().filter(id::equalsIgnoreCase).isPresent()).count();
-        LOGGER.log(Level.FINE, "Deletion requires confirmation for {0}: {1} linked lessons",
-                new Object[]{id, lessonCount});
+        return new LinkedRecords(lessonCount, homeworkCount, scoreCount, taskCount);
+    }
+
+    /** Describes the current cascade without deleting anything or remembering a pending action. */
+    private String deletionWarning(Student student, LinkedRecords linked) {
+        assert student != null : "A deletion warning needs an existing student";
+        assert linked.total() > 0 : "Only students with linked records require a deletion warning";
+        String id = student.getStudentId();
+        LOGGER.log(Level.FINE, "Deletion requires confirmation for {0}: {1}", new Object[]{id, linked});
         // Follow-up tasks are only mentioned when there are some, so the usual warning stays short.
-        String taskLine = taskCount == 0 ? ""
-                : "  " + count(taskCount, "follow-up task") + "." + System.lineSeparator();
+        String taskLine = linked.taskCount() == 0 ? ""
+                : "  " + count(linked.taskCount(), "follow-up task") + "." + System.lineSeparator();
         return "Warning: deleting " + id + ": " + student.getName() + " (" + student.getLevel()
                 + ") will permanently remove:" + System.lineSeparator()
-                + "  " + count(lessonCount, "lesson") + ", " + count(homeworkCount, "homework item")
-                + " and " + count(scoreCount, "score") + "." + System.lineSeparator()
+                + "  " + count(linked.lessonCount(), "lesson") + ", "
+                + count(linked.homeworkCount(), "homework item")
+                + " and " + count(linked.scoreCount(), "score") + "." + System.lineSeparator()
                 + taskLine
                 + "This cannot be undone. No records have been deleted." + System.lineSeparator()
                 + "To confirm, type: delete " + id + " confirm" + System.lineSeparator()
                 + "Otherwise, continue with another command.";
+    }
+
+    /** How many of each kind of record belong to one student. */
+    private record LinkedRecords(long lessonCount, long homeworkCount, long scoreCount, long taskCount) {
+        long total() {
+            return lessonCount + homeworkCount + scoreCount + taskCount;
+        }
     }
 
     private String view(String arguments) {

@@ -129,20 +129,39 @@ class StudentDeletionWarningTest {
     }
 
     @Test
-    void delete_withoutLessons_deletesImmediatelyEvenWithHomeworkAndScores() {
+    void delete_withOnlyHomeworkScoresOrTasks_warnsBeforeDeleting() {
         data.addHomework("S1", "Worksheet", LocalDate.of(2026, 12, 1));
-        data.addScore("S1", "WA1", "8", "10", "15-09-2026");
+        data.addScore("S2", "WA1", "8", "10", "15-09-2026");
+        data.addTask("S2", "Bring worksheet", null);
+
+        // Each of these records would be lost with the student, so each one alone needs confirmation.
+        String homeworkOnly = commands.execute("delete S1");
+        assertTrue(homeworkOnly.startsWith("Warning: deleting S1:"), homeworkOnly);
+        assertTrue(homeworkOnly.contains("0 lessons, 1 homework item and 0 scores."), homeworkOnly);
+        String scoresAndTasks = commands.execute("delete S2");
+        assertTrue(scoresAndTasks.contains("0 lessons, 0 homework items and 1 score." + NL
+                + "  1 follow-up task." + NL), scoresAndTasks);
+        assertEquals(2, data.getStudents().size());
+        assertEquals(1, data.getHomework().size());
+
+        String output = commands.execute("delete S1 confirm");
+
+        assertTrue(output.startsWith("Deleted S1:"), output);
+        assertTrue(output.contains("0 lessons and 1 homework item."), output);
+        assertTrue(data.getHomework().isEmpty());
+        assertEquals(1, data.getScores().size());
+        assertEquals(1, data.getTasks().size());
+    }
+
+    @Test
+    void delete_withNoLinkedRecords_deletesImmediately() {
         data.addLesson("S2", "Math", "15-09-2026", "1600", "60");
 
         String output = commands.execute("delete S1");
 
-        assertTrue(output.startsWith("Deleted S1:"), output);
-        assertTrue(output.contains("0 lessons and 1 homework item."), output);
-        assertTrue(output.endsWith("Also deleted 1 score."), output);
+        assertEquals("Deleted S1: Alice Tan (Pri 5)" + NL + "Also deleted 0 lessons and 0 homework items.", output);
         assertEquals("S2", data.getStudents().iterator().next().getStudentId());
         assertEquals(1, data.getLessons().size());
-        assertTrue(data.getHomework().isEmpty());
-        assertTrue(data.getScores().isEmpty());
     }
 
     @Test
