@@ -16,6 +16,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -23,6 +25,7 @@ import java.util.regex.Pattern;
  * Parses and runs commands that update lesson payment status.
  */
 public class PaymentCommands {
+    private static final Logger LOGGER = Logger.getLogger(PaymentCommands.class.getName());
     private static final Set<String> COMMAND_WORDS = Set.of("mark", "pay", "unpaid", "owed", "fee_statement",
             "income");
     private static final Pattern MARK_FORMAT = Pattern.compile("(?i)(\\S+)\\s+(\\S+)");
@@ -41,6 +44,8 @@ public class PaymentCommands {
     }
 
     public PaymentCommands(TutorLedgerData data, Clock clock) {
+        assert data != null : "PaymentCommands needs shared records";
+        assert clock != null : "PaymentCommands needs a clock";
         this.data = data;
         this.clock = clock;
     }
@@ -62,22 +67,24 @@ public class PaymentCommands {
         String[] words = input.strip().split("\\s+", 2);
         String command = words[0].toLowerCase(Locale.ROOT);
         String arguments = words.length == 2 ? words[1].trim() : "";
-        if (command.equals("unpaid")) {
-            return listUnpaid(arguments);
+        LOGGER.log(Level.FINE, "Running payment command {0} with arguments: {1}",
+                new Object[]{command, arguments});
+        try {
+            return switch (command) {
+                case "unpaid" -> listUnpaid(arguments);
+                case "owed" -> listOwed(arguments);
+                case "fee_statement" -> feeStatement(arguments);
+                case "income" -> income(arguments);
+                case "pay" -> pay(arguments);
+                case "mark" -> mark(arguments);
+                // handles() lets only payment command words through, so reaching here means a word was missed above.
+                default -> throw new AssertionError("Unexpected payment command: " + command);
+            };
+        } catch (IllegalArgumentException exception) {
+            LOGGER.log(Level.FINE, "Payment command {0} rejected: {1}",
+                    new Object[]{command, exception.getMessage()});
+            return "Error: " + exception.getMessage();
         }
-        if (command.equals("owed")) {
-            return listOwed(arguments);
-        }
-        if (command.equals("fee_statement")) {
-            return feeStatement(arguments);
-        }
-        if (command.equals("income")) {
-            return income(arguments);
-        }
-        if (command.equals("pay")) {
-            return pay(arguments);
-        }
-        return mark(arguments);
     }
 
     /** Allocates a payment across the listed lessons in order, allowing the final lesson to be partial. */
@@ -87,67 +94,64 @@ public class PaymentCommands {
             return "Error: Use: pay STUDENT_ID AMOUNT LESSON_ID [LESSON_ID...].";
         }
 
-        try {
-            Student student = data.getStudent(words[0]);
-            if (!words[1].matches("\\d+(?:\\.\\d{1,2})?")) {
-                return "Error: AMOUNT must be a non-negative dollar amount with at most 2 decimals.";
-            }
-            BigDecimal amount = new BigDecimal(words[1]);
-            if (amount.signum() <= 0) {
-                return "Error: AMOUNT must be greater than $0.00.";
-            }
-
-            Set<String> lessonIds = new HashSet<>();
-            List<Lesson> lessons = new ArrayList<>();
-            BigDecimal totalOwed = BigDecimal.ZERO;
-            for (int index = 2; index < words.length; index++) {
-                Lesson lesson = data.getLesson(words[index]);
-                String lessonId = lesson.getLessonId().toUpperCase(Locale.ROOT);
-                if (!lessonIds.add(lessonId)) {
-                    return "Error: Lesson " + lesson.getLessonId() + " was listed more than once.";
-                }
-                if (!student.getStudentId().equalsIgnoreCase(lesson.getStudentId())) {
-                    return "Error: Lesson " + lesson.getLessonId() + " does not belong to "
-                            + student.getStudentId() + ".";
-                }
-                if (lesson.isCancelled()) {
-                    return "Error: Cancelled lesson " + lesson.getLessonId() + " cannot be paid.";
-                }
-                if (Lesson.PAYMENT_PAID.equalsIgnoreCase(lesson.getPaymentStatus())) {
-                    return "Error: Lesson " + lesson.getLessonId() + " is already paid.";
-                }
-                lessons.add(lesson);
-                totalOwed = totalOwed.add(lesson.getAmountOwed());
-            }
-
-            if (amount.compareTo(totalOwed) > 0) {
-                return "Error: Payment exceeds the selected lessons' outstanding balance ($"
-                        + formatMoney(totalOwed) + ").";
-            }
-
-            // Validation is complete before updates begin; the amount is then consumed in command order.
-            BigDecimal remaining = amount;
-            List<String> paidLessonIds = new ArrayList<>();
-            for (Lesson lesson : lessons) {
-                BigDecimal allocation = remaining.min(lesson.getAmountOwed());
-                if (allocation.signum() > 0) {
-                    data.updateLessonAmountPaid(lesson.getLessonId(), lesson.getAmountPaid().add(allocation));
-                    paidLessonIds.add(lesson.getLessonId());
-                    remaining = remaining.subtract(allocation);
-                }
-                if (remaining.signum() == 0) {
-                    break;
-                }
-            }
-            return "Recorded payment of $" + formatMoney(amount) + " for "
-                    + paidLessonIds.size() + (paidLessonIds.size() == 1 ? " lesson: " : " lessons: ")
-                    + String.join(", ", paidLessonIds) + ".";
-        } catch (IllegalArgumentException exception) {
-            return "Error: " + exception.getMessage();
+        Student student = data.getStudent(words[0]);
+        if (!words[1].matches("\\d+(?:\\.\\d{1,2})?")) {
+            return "Error: AMOUNT must be a non-negative dollar amount with at most 2 decimals.";
         }
+        BigDecimal amount = new BigDecimal(words[1]);
+        if (amount.signum() <= 0) {
+            return "Error: AMOUNT must be greater than $0.00.";
+        }
+
+        Set<String> lessonIds = new HashSet<>();
+        List<Lesson> lessons = new ArrayList<>();
+        BigDecimal totalOwed = BigDecimal.ZERO;
+        for (int index = 2; index < words.length; index++) {
+            Lesson lesson = data.getLesson(words[index]);
+            String lessonId = lesson.getLessonId().toUpperCase(Locale.ROOT);
+            if (!lessonIds.add(lessonId)) {
+                return "Error: Lesson " + lesson.getLessonId() + " was listed more than once.";
+            }
+            if (!student.getStudentId().equalsIgnoreCase(lesson.getStudentId())) {
+                return "Error: Lesson " + lesson.getLessonId() + " does not belong to "
+                        + student.getStudentId() + ".";
+            }
+            if (lesson.isCancelled()) {
+                return "Error: Cancelled lesson " + lesson.getLessonId() + " cannot be paid.";
+            }
+            if (Lesson.PAYMENT_PAID.equalsIgnoreCase(lesson.getPaymentStatus())) {
+                return "Error: Lesson " + lesson.getLessonId() + " is already paid.";
+            }
+            lessons.add(lesson);
+            totalOwed = totalOwed.add(lesson.getAmountOwed());
+        }
+
+        if (amount.compareTo(totalOwed) > 0) {
+            return "Error: Payment exceeds the selected lessons' outstanding balance ($"
+                    + formatMoney(totalOwed) + ").";
+        }
+
+        // Validation is complete before updates begin; the amount is then consumed in command order.
+        BigDecimal remaining = amount;
+        List<String> paidLessonIds = new ArrayList<>();
+        for (Lesson lesson : lessons) {
+            BigDecimal allocation = remaining.min(lesson.getAmountOwed());
+            if (allocation.signum() > 0) {
+                data.updateLessonAmountPaid(lesson.getLessonId(), lesson.getAmountPaid().add(allocation));
+                paidLessonIds.add(lesson.getLessonId());
+                remaining = remaining.subtract(allocation);
+            }
+            if (remaining.signum() == 0) {
+                break;
+            }
+        }
+        return "Recorded payment of $" + formatMoney(amount) + " for "
+                + paidLessonIds.size() + (paidLessonIds.size() == 1 ? " lesson: " : " lessons: ")
+                + String.join(", ", paidLessonIds) + ".";
     }
 
     private static String formatMoney(BigDecimal amount) {
+        assert amount.scale() <= 2 : "Payment amount has more than two decimal places: " + amount;
         return amount.setScale(2, RoundingMode.UNNECESSARY).toPlainString();
     }
 
@@ -161,23 +165,15 @@ public class PaymentCommands {
         if (!status.equals(Lesson.PAYMENT_PAID) && !status.equals(Lesson.PAYMENT_UNPAID)) {
             return "Error: STATUS must be paid or unpaid.";
         }
-        try {
-            Lesson lesson = data.updateLessonPaymentStatus(matcher.group(1), status);
-            return "Marked " + lesson.getLessonId() + " as " + lesson.getPaymentStatus() + ".";
-        } catch (IllegalArgumentException exception) {
-            return "Error: " + exception.getMessage();
-        }
+        Lesson lesson = data.updateLessonPaymentStatus(matcher.group(1), status);
+        return "Marked " + lesson.getLessonId() + " as " + lesson.getPaymentStatus() + ".";
     }
 
     /** Lists unpaid lessons that have taken place, optionally for one student. */
     private String listUnpaid(String studentId) {
         String selectedStudentId = null;
         if (!studentId.isEmpty()) {
-            try {
-                selectedStudentId = data.getStudent(studentId).getStudentId();
-            } catch (IllegalArgumentException exception) {
-                return "Error: " + exception.getMessage();
-            }
+            selectedStudentId = data.getStudent(studentId).getStudentId();
         }
 
         List<Lesson> unpaidLessons = unpaidLessons(LocalDate.now(clock), selectedStudentId);
@@ -250,12 +246,7 @@ public class PaymentCommands {
             return "Error: Use: fee_statement STUDENT_ID.";
         }
 
-        Student student;
-        try {
-            student = data.getStudent(studentId);
-        } catch (IllegalArgumentException exception) {
-            return "Error: " + exception.getMessage();
-        }
+        Student student = data.getStudent(studentId);
 
         List<Lesson> lessons = data.getLessons().stream()
                 .filter(lesson -> student.getStudentId().equalsIgnoreCase(lesson.getStudentId()))
