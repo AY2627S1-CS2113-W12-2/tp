@@ -357,6 +357,7 @@ change plans when real life gets in the way:
 | `edit LESSON_ID ...` / `delete LESSON_ID` | Correct any detail of a lesson, or remove one entered by mistake |
 | `reschedule LESSON_ID [d/DATE] [t/TIME]` | Move a lesson that has not taken place yet |
 | `cancel LESSON_ID r/REASON` | Call off a lesson but keep it, with the reason, in the history |
+| `uncancel LESSON_ID` | Undo a cancellation made by mistake |
 
 #### Responsibilities and object relationships
 
@@ -371,7 +372,8 @@ example, `edit L3 t/1700` is routed here, while `edit S1 p/91234567` is left for
 *Figure 9. `LessonCommands` changes lessons only through `TutorLedgerData`, which owns every `Lesson`.*
 
 * **`TutorLedgerData`** is the only class that stores lessons. It gives each new lesson the next ID (`L1`,
-  `L2`, ...) and checks that no two lessons start at the same date and time (`ensureSlotFree`). It never
+  `L2`, ...) and checks that no two lessons are taught at the same time (`ensureSlotFree`). Two lessons
+  clash if their intervals, from start time to start time plus duration, share a minute. It never
   reuses an ID, even after a lesson is deleted, so an ID in an old note or message never points at a
   different lesson.
 * **`Lesson`** is immutable: a change produces a new copy through `withDetails` or `withCancellation`, and
@@ -379,7 +381,10 @@ example, `edit L3 t/1700` is routed here, while `edit S1 p/91234567` is left for
   lesson (`cancellationReason` is set) is never confused with one the student missed (`ABSENT`).
 * **`ArgumentParser`** splits prefixed values such as `d/01-12-2026 s/A Math`. It was extracted from
   `StudentCommands` so that every command reads a prefix the same way. The values may be in any order,
-  values may contain spaces, and a repeated or unknown prefix is rejected.
+  values may contain spaces, and a repeated or unknown prefix is rejected. A command can name some of its
+  prefixes as free text (`note/`, the `r/` of `cancel`, and homework's `desc/`). Inside such a value, an
+  unknown word ending in `/`, such as `and/or`, is kept as text, while the command's own prefixes still
+  start new values.
 
 Fees and durations are omitted from Figure 9; see [Default hourly rates](#default-hourly-rates)
 for how a lesson's fee is chosen.
@@ -404,7 +409,8 @@ splitting its arguments in the same way, so that step is drawn once, in Figure 1
 2. `TutorLedgerData.addWeeklyLessons` builds one `Lesson` per week, numbering them from the next lesson ID,
    and checks each slot as it goes.
 3. Only after every slot passes does it store the lessons. If week 3 clashes with an existing lesson, the
-   tutor sees `Error: <ID> already starts at that date and time.` and no lesson is added. The counter only
+   tutor sees `Error: <ID> already starts at that date and time.` (or, for a partial overlap,
+   `Error: That time overlaps <ID> (...)`) and no lesson is added. The counter only
    moves when lessons are stored, so a rejected command never skips an ID.
 
 Figure 12 shows the objects after this command and a later `cancel L2 r/Student sick`. Each week is an
@@ -423,8 +429,9 @@ These four commands share one pattern: get the lesson, make a changed copy, chec
 
 *Figure 13. The original lesson stays in the store until its validated replacement is stored.*
 
-* `replaceLesson` checks the slot only when the date or time has changed, so recording attendance on a busy
-  day is never blocked by a clash check.
+* `replaceLesson` checks the slot only when the time the lesson takes up has changed: a new date or time, a
+  new duration, or an undone cancellation. Recording attendance on a busy day is never blocked by a clash
+  check.
 * If any check fails, nothing has been replaced, so a rejected command never leaves a half-changed lesson.
   The store replaces its reference only after validation. The handler may still read the original
   object when displaying the old slot; map replacement does not explicitly destroy a Java object.
@@ -437,7 +444,10 @@ These four commands share one pattern: get the lesson, make a changed copy, chec
 * `cancel` keeps the lesson with its reason. A cancelled lesson frees its slot, is left out of `owed` and
   `unpaid`, and still appears in `lessons` marked `(cancelled: REASON)`. Any positive amount received,
   including a partial payment, triggers a reminder to refund or carry over that amount. No refund is
-  recorded automatically.
+  recorded automatically. `uncancel` reverses this with `Lesson.withoutCancellation`. Because the lesson
+  takes its slot back, `replaceLesson` checks it for clashes.
+* `edit` accepts `a/none`, which sets the attendance back to `NOT_RECORDED`, so a lesson recorded by mistake
+  can be corrected or cancelled. `record` and `log` reject `none`, since they exist to record an outcome.
 
 #### Preparing for the next lesson
 
@@ -600,9 +610,10 @@ displayed was also considered. Saving the chosen total instead keeps historical 
 Per-subject rates, effective-date rate histories and automatic recalculation are possible future
 extensions; they would need explicit rules for existing and paid lessons.
 
-Duration currently supports billing and display. Conflict checking retains the existing identical-start
-rule; it does not detect overlapping lesson intervals. Adding interval scheduling would be a separate
-enhancement requiring corresponding tests and documentation.
+Duration supports billing and display, and is also used by conflict checking: a new or changed lesson may not
+overlap another lesson's interval. Data files are an exception. `importLesson` still rejects only an
+identical start, because files saved before overlap checking may hold overlapping lessons, and rejecting
+those lines would drop them from the tutor's records.
 
 `DefaultHourlyRateTest` exercises command validation, decimal rounding, overrides, rate clearing,
 immutable copies, payment totals, legacy files, malformed records and save/restart behaviour. The manual
@@ -768,6 +779,10 @@ later. Back up any real data before testing deletion, reload or hand-edited file
 2. Run `submit H1`, then `homework S1`. Expected: H1 is no longer outstanding. Repeating `submit H1`
    reports that it is already submitted without adding a record.
 3. Exit and restart. Expected: H1 remains submitted; `view S1` does not list it as outstanding homework.
+4. Run `edit H1 status/outstanding d/02-12-2026 desc/Worksheet and/or notes`. Expected: H1 is outstanding
+   again, due 02-12-2026, and its description keeps `and/or`.
+5. Run `delete H1`, then `assign S1 Essay d/03-12-2026`. Expected: H1 is gone, and the new item is H2,
+   because IDs are never reused.
 
 ### Payments and fee-edit boundaries
 
@@ -824,6 +839,13 @@ Use an empty working directory and Java 25 with `-ea`. The steps assume today is
 6. Run `edit L1 t/1530`, `delete L5` and `lessons week`. Expected: L1 now starts at 1530 and L5 is gone.
    `lessons` lists only lessons in the current week, so it may show none.
 7. Exit, restart and run `next S1`. Expected: the same summary as in step 5, showing L1 at 1530.
+8. Run `uncancel L2`. Expected: `Error: L6 already starts at that date and time. Reschedule or delete that
+   lesson first.` Run `delete L6`, then `uncancel L2`. Expected: L2 is no longer cancelled.
+9. Run `schedule S1 d/01-12-2026 t/1600 s/A Math f/60`. Expected:
+   `Error: That time overlaps L1 (01-12-2026 1530, 60 min).` The same command with `t/1630` succeeds,
+   because L1 ends at 1630.
+10. Run `record L7 a/absent note/Speed in km/h and/or m/s`, then `edit L7 a/none`. Expected: the notes keep
+    `km/h` and `and/or`, and `view S1` shows L7 as not recorded.
 
 ### Student deletion warnings
 

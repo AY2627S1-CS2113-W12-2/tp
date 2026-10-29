@@ -42,6 +42,7 @@ public final class HelpCommand {
                             "record L41 a/present note/Started simultaneous equations"),
                     new Entry("reschedule LESSON_ID [d/DATE] [t/TIME]", "reschedule L42 d/25-09-2026 t/1800"),
                     new Entry("cancel LESSON_ID r/REASON", "cancel L43 r/Student sick"),
+                    new Entry("uncancel LESSON_ID", "uncancel L43"),
                     new Entry("edit LESSON_ID [d/DATE] [t/TIME] [s/SUBJECT] [f/FEE]"
                             + " [dur/MINUTES] [a/ATTENDANCE] [note/NOTES]",
                             "edit L42 d/25-09-2026 t/1800"),
@@ -49,7 +50,10 @@ public final class HelpCommand {
             new Section("HOMEWORK", List.of(
                     new Entry("assign STUDENT_ID DESCRIPTION d/DUE_DATE", "assign S1 Worksheet 4A d/29-09-2026"),
                     new Entry("submit HOMEWORK_ID", "submit H7"),
-                    new Entry("homework [STUDENT_ID]", "homework S1"))),
+                    new Entry("homework [STUDENT_ID]", "homework S1"),
+                    new Entry("edit HOMEWORK_ID [desc/DESCRIPTION] [d/DUE_DATE] [status/STATUS]",
+                            "edit H7 d/02-10-2026"),
+                    new Entry("delete HOMEWORK_ID", "delete H7"))),
             new Section("PAYMENTS", List.of(
                     new Entry("mark LESSON_ID STATUS", "mark L37 paid"),
                     new Entry("pay STUDENT_ID AMOUNT LESSON_ID [LESSON_ID...]",

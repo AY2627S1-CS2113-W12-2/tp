@@ -15,11 +15,12 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 /**
  * Parses and runs the lesson commands: {@code schedule}, {@code log}, {@code lessons}, {@code next},
- * {@code record}, {@code reschedule} and {@code cancel}, plus {@code edit} and {@code delete} when they
- * are given a lesson ID.
+ * {@code record}, {@code reschedule}, {@code cancel} and {@code uncancel}, plus {@code edit} and
+ * {@code delete} when they are given a lesson ID.
  * Like {@link StudentCommands}, each command returns its display text, and validation problems
  * are reported as an "Error: ..." message instead of crashing the program.
  */
@@ -32,13 +33,22 @@ public class LessonCommands {
 
     /** Command words that always belong to lessons, used by the main loop to route input here. */
     private static final Set<String> COMMAND_WORDS = Set.of("schedule", "log", "lessons", "next", "record",
-            "reschedule", "cancel");
+            "reschedule", "cancel", "uncancel");
 
     /** Command words shared with students; they are lesson commands only when given a lesson ID. */
     private static final Set<String> SHARED_COMMAND_WORDS = Set.of("edit", "delete");
 
     /** Attendance values a tutor can type; "not recorded" is only the state a new lesson starts in. */
     private static final Set<String> ATTENDANCE_WORDS = Set.of("present", "absent", "late");
+
+    /** Attendance word that only {@code edit} accepts, to set a lesson back to "not recorded". */
+    private static final String NO_ATTENDANCE = "none";
+
+    /**
+     * Prefixes whose values are free text: notes and a cancellation reason. Inside them, a word such as
+     * "and/or" is kept as text rather than rejected as an unknown prefix.
+     */
+    private static final Set<String> FREE_TEXT_PREFIXES = Set.of("note", "r");
 
     /** Date format shown to the user, e.g. Tue 22-09-2026. */
     private static final DateTimeFormatter DISPLAY_DATE = DateTimeFormatter.ofPattern("EEE dd-MM-uuuu",
@@ -116,6 +126,7 @@ public class LessonCommands {
             case "record" -> record(arguments);
             case "reschedule" -> reschedule(arguments);
             case "cancel" -> cancel(arguments);
+            case "uncancel" -> uncancel(arguments);
             case "edit" -> edit(arguments);
             case "delete" -> delete(arguments);
             // handles() lets only lesson command words through, so reaching here means a word was missed above.
@@ -182,7 +193,7 @@ public class LessonCommands {
         String time = fields.single("t", true);
         String subject = findSubjectTakenBy(student, fields.single("s", true));
         String fee = fields.single("f", true);
-        String attendance = parseAttendance(fields.single("a", true));
+        String attendance = parseAttendance(fields.single("a", true), false);
         String notes = parseNotes(fields);
         // The same rule as record: a lesson that has not happened yet has no outcome to log.
         if (isAfterToday(Lesson.parseDate(date))) {
@@ -356,10 +367,10 @@ public class LessonCommands {
     private String record(String arguments) {
         IdAndFields input = splitIdAndFields(arguments, List.of("a", "note"));
         Lesson lesson = data.getLesson(input.id());
-        String attendance = parseAttendance(input.fields().single("a", true));
+        String attendance = parseAttendance(input.fields().single("a", true), false);
         // Recording again replaces the attendance, and the notes only if note/ was typed.
         Lesson recorded = lesson.withDetails(null, null, null, attendance, null, parseNotes(input.fields()));
-        // parseAttendance only allows present, absent or late, so the copy must count as recorded.
+        // Without allowing none, parseAttendance only gives present, absent or late, so the copy counts as recorded.
         assert recorded.isRecorded() : "Recording a lesson should leave it with attendance";
         ensureNoAttendanceIfCancelled(recorded);
         // A lesson that has not happened yet has no outcome to record.
@@ -385,7 +396,8 @@ public class LessonCommands {
         Student student = data.getStudent(lesson.getStudentId());
         // A value that was not typed stays null, which withDetails reads as "keep the current value".
         String subject = fields.has("s") ? findSubjectTakenBy(student, fields.single("s", true)) : null;
-        String attendance = fields.has("a") ? parseAttendance(fields.single("a", true)) : null;
+        // a/none is accepted here only, so a lesson recorded by mistake can be set back to "not recorded".
+        String attendance = fields.has("a") ? parseAttendance(fields.single("a", true), true) : null;
         Lesson edited = lesson.withDetails(subject, fields.singleOr("d", null), fields.singleOr("t", null),
                 attendance, fields.singleOr("f", null), parseNotes(fields));
         if (fields.has("dur")) {
@@ -396,6 +408,8 @@ public class LessonCommands {
         if (hasOutcome(edited) && isAfterToday(edited.getDate())) {
             throw new IllegalArgumentException("A lesson dated after today cannot have attendance or notes.");
         }
+        assert !Lesson.Attendance.NOT_RECORDED.name().equals(attendance) || !edited.isRecorded()
+                : "a/none should clear the attendance";
         data.replaceLesson(edited);
         LOGGER.log(Level.FINE, "Edited {0} using prefixes {1}",
                 new Object[]{edited.getLessonId(), fields.fields().keySet()});
@@ -472,6 +486,36 @@ public class LessonCommands {
                 + "  Reason: " + cancelled.getCancellationReason() + paidReminder;
     }
 
+    /**
+     * Handles {@code uncancel LESSON_ID}: undoes a cancellation made by mistake.
+     * The lesson takes up its slot again and is charged as usual, so it is rejected if another lesson
+     * has been given that time since it was cancelled.
+     */
+    private String uncancel(String arguments) {
+        if (arguments.split("\\s+").length != 1) {
+            throw new IllegalArgumentException("Use: uncancel LESSON_ID");
+        }
+        Lesson lesson = data.getLesson(arguments);
+        if (!lesson.isCancelled()) {
+            throw new IllegalArgumentException(lesson.getLessonId() + " is not cancelled.");
+        }
+        Lesson restored = lesson.withoutCancellation();
+        try {
+            data.replaceLesson(restored);
+        } catch (IllegalArgumentException exception) {
+            // The slot was given to another lesson after the cancellation, so say how to free it.
+            throw new IllegalArgumentException(exception.getMessage()
+                    + " Reschedule or delete that lesson first.", exception);
+        }
+        assert !data.getLesson(lesson.getLessonId()).isCancelled() : "Uncancelled lesson is still cancelled";
+        LOGGER.log(Level.FINE, "Uncancelled {0}, which was cancelled for: {1}",
+                new Object[]{lesson.getLessonId(), lesson.getCancellationReason()});
+        Student student = data.getStudent(restored.getStudentId());
+        return "Uncancelled " + restored.getLessonId() + " for " + formatStudent(student)
+                + " (" + formatSlot(restored) + ")" + System.lineSeparator()
+                + "  It was cancelled for: " + lesson.getCancellationReason();
+    }
+
     /** Handles {@code delete LESSON_ID}. The student and their homework are not affected. */
     private String delete(String arguments) {
         if (arguments.split("\\s+").length != 1) {
@@ -540,14 +584,22 @@ public class LessonCommands {
     /**
      * Returns the attendance in lower case after checking it is one a tutor may type.
      *
-     * @throws IllegalArgumentException If the value is not present, absent or late.
+     * @param value The attendance as typed.
+     * @param isNoneAllowed Whether {@value #NO_ATTENDANCE} may be typed to clear the attendance.
+     * @return The attendance, with {@value #NO_ATTENDANCE} turned into "not recorded".
+     * @throws IllegalArgumentException If the value is not present, absent or late (or none, when allowed).
      */
-    private static String parseAttendance(String value) {
+    private static String parseAttendance(String value, boolean isNoneAllowed) {
         // Callers pass a required a/ value, which the parser has already checked is present.
         assert value != null : "Attendance should have been checked as required before parsing";
         String word = value.toLowerCase(Locale.ROOT);
+        if (isNoneAllowed && word.equals(NO_ATTENDANCE)) {
+            return Lesson.Attendance.NOT_RECORDED.name();
+        }
         if (!ATTENDANCE_WORDS.contains(word)) {
-            throw new IllegalArgumentException("Attendance must be present, absent, or late.");
+            throw new IllegalArgumentException(isNoneAllowed
+                    ? "Attendance must be present, absent, late, or none."
+                    : "Attendance must be present, absent, or late.");
         }
         return word;
     }
@@ -586,11 +638,17 @@ public class LessonCommands {
                 + "'s subjects (" + String.join(", ", student.getSubjects()) + ").");
     }
 
-    /** Splits {@code ID prefix/value ...} into the ID and its prefixed values. */
+    /**
+     * Splits {@code ID prefix/value ...} into the ID and its prefixed values.
+     * Notes and reasons are read as free text, so they may contain words such as "and/or".
+     */
     private static IdAndFields splitIdAndFields(String arguments, List<String> allowedPrefixes) {
         String[] pieces = arguments.split("\\s+", 2);
         String remainder = pieces.length == 2 ? pieces[1] : "";
-        return new IdAndFields(pieces[0], ArgumentParser.parseFields(remainder, allowedPrefixes));
+        Set<String> freeText = FREE_TEXT_PREFIXES.stream()
+                .filter(allowedPrefixes::contains)
+                .collect(Collectors.toSet());
+        return new IdAndFields(pieces[0], ArgumentParser.parseFields(remainder, allowedPrefixes, freeText));
     }
 
     /** Formats when a lesson starts as "Tue 22-09-2026 1600". */

@@ -400,7 +400,7 @@ class LessonCommandsTest {
         assertEquals(
                 "Error: Pure Chemistry is not one of S1 Amirah Binte Rahman's subjects (E Math, A Math).",
                 commands.execute("edit L1 s/Pure Chemistry"));
-        assertEquals("Error: Attendance must be present, absent, or late.",
+        assertEquals("Error: Attendance must be present, absent, late, or none.",
                 commands.execute("edit L1 a/excused"));
         // Payment status is changed with mark, and student prefixes do not apply to a lesson.
         assertEquals("Error: Unexpected prefix n/.", commands.execute("edit L1 n/Tan Wei Ming"));
@@ -758,5 +758,142 @@ class LessonCommandsTest {
         assertEquals("No upcoming lessons for S1 Amirah Binte Rahman.", commands.execute("next S1"));
         assertEquals("Error: No student found with ID S9.", commands.execute("next S9"));
         assertEquals("Error: Use: next [STUDENT_ID]", commands.execute("next S1 S2"));
+    }
+
+    @Test
+    void record_notesWithSlashWords_keepsThemAsText() {
+        commands.execute("schedule S1 d/21-09-2026 t/0900 s/A Math f/60");
+
+        assertEquals("Recorded L1 for S1 Amirah Binte Rahman (Mon 21-09-2026 0900)" + NEW_LINE
+                + "  Attendance: present" + NEW_LINE
+                + "  Notes: Speed in km/h and/or m/s",
+                commands.execute("record L1 a/present note/Speed in km/h and/or m/s"));
+        // A prefix the command accepts still starts a new value after the notes.
+        commands.execute("record L1 note/Graphs and/or tables a/late");
+        assertEquals("Graphs and/or tables", data.getLesson("L1").getNotes());
+        assertEquals(Lesson.Attendance.LATE, data.getLesson("L1").getAttendance());
+    }
+
+    @Test
+    void logEditAndCancel_freeTextWithSlashWords_keepsThemAsText() {
+        commands.execute("log S1 d/15-09-2026 t/1600 s/A Math f/60 a/present note/Ratios and/or rates");
+        assertEquals("Ratios and/or rates", data.getLesson("L1").getNotes());
+
+        commands.execute("edit L1 note/Revise w/o calculator");
+        assertEquals("Revise w/o calculator", data.getLesson("L1").getNotes());
+
+        commands.execute("schedule S1 d/22-09-2026 t/1600 s/A Math f/60");
+        commands.execute("cancel L2 r/Exam week and/or CCA");
+        assertEquals("Exam week and/or CCA", data.getLesson("L2").getCancellationReason());
+
+        // Outside notes, a mistyped prefix is still reported instead of being absorbed.
+        assertEquals("Error: Unexpected prefix tt/.", commands.execute("edit L2 tt/1700"));
+    }
+
+    @Test
+    void edit_attendanceNone_setsLessonBackToNotRecorded() {
+        commands.execute("schedule S1 d/21-09-2026 t/0900 s/A Math f/60");
+        commands.execute("record L1 a/present");
+
+        assertEquals("Edited L1 for S1 Amirah Binte Rahman" + NEW_LINE
+                + "  Mon 21-09-2026 0900, A Math, $60.00, not recorded, unpaid",
+                commands.execute("edit L1 a/NONE"));
+        assertFalse(data.getLesson("L1").isRecorded());
+        // With its attendance cleared, a lesson recorded by mistake can now be cancelled.
+        assertTrue(commands.execute("cancel L1 r/Student sick").startsWith("Cancelled L1"));
+    }
+
+    @Test
+    void recordAndLog_attendanceNone_rejected() {
+        commands.execute("schedule S1 d/21-09-2026 t/0900 s/A Math f/60");
+
+        assertEquals("Error: Attendance must be present, absent, or late.", commands.execute("record L1 a/none"));
+        assertEquals("Error: Attendance must be present, absent, or late.",
+                commands.execute("log S1 d/15-09-2026 t/1600 s/A Math f/60 a/none"));
+        assertFalse(data.getLesson("L1").isRecorded());
+        assertEquals(1, data.getLessons().size());
+    }
+
+    @Test
+    void uncancel_cancelledLesson_restoresItsSlotAndCharge() {
+        commands.execute("schedule S1 d/22-09-2026 t/1600 s/A Math f/60");
+        commands.execute("cancel L1 r/Student sick");
+
+        assertEquals("Uncancelled L1 for S1 Amirah Binte Rahman (Tue 22-09-2026 1600)" + NEW_LINE
+                + "  It was cancelled for: Student sick", commands.execute("UNCANCEL l1"));
+        Lesson lesson = data.getLesson("L1");
+        assertFalse(lesson.isCancelled());
+        assertEquals("", lesson.getCancellationReason());
+        // It takes its slot again, so another lesson cannot be given that time.
+        assertEquals("Error: L1 already starts at that date and time.",
+                commands.execute("schedule S2 d/22-09-2026 t/1600 s/Pure Chemistry f/62.50"));
+    }
+
+    @Test
+    void uncancel_slotTakenSinceCancelling_rejectedAndStaysCancelled() {
+        commands.execute("schedule S1 d/22-09-2026 t/1600 s/A Math f/60");
+        commands.execute("cancel L1 r/Student sick");
+        commands.execute("schedule S2 d/22-09-2026 t/1630 s/Pure Chemistry f/62.50");
+
+        assertEquals("Error: That time overlaps L2 (22-09-2026 1630, 60 min). Reschedule or delete that lesson first.",
+                commands.execute("uncancel L1"));
+        assertTrue(data.getLesson("L1").isCancelled());
+    }
+
+    @Test
+    void uncancel_invalidInput_changesNothing() {
+        commands.execute("schedule S1 d/22-09-2026 t/1600 s/A Math f/60");
+
+        assertTrue(LessonCommands.handles("uncancel L1"));
+        assertEquals("Error: L1 is not cancelled.", commands.execute("uncancel L1"));
+        assertEquals("Error: Use: uncancel LESSON_ID", commands.execute("uncancel L1 now"));
+        assertEquals("Error: Lesson ID must look like L1.", commands.execute("uncancel"));
+        assertEquals("Error: No lesson found with ID L9.", commands.execute("uncancel L9"));
+        assertFalse(data.getLesson("L1").isCancelled());
+    }
+
+    @Test
+    void schedule_overlappingLesson_rejectedEvenForAnotherStudent() {
+        commands.execute("schedule S1 d/22-09-2026 t/1600 s/A Math f/60 dur/90");
+
+        assertEquals("Error: That time overlaps L1 (22-09-2026 1600, 90 min).",
+                commands.execute("schedule S2 d/22-09-2026 t/1700 s/Pure Chemistry f/62.50"));
+        assertEquals("Error: That time overlaps L1 (22-09-2026 1600, 90 min).",
+                commands.execute("schedule S2 d/22-09-2026 t/1530 s/Pure Chemistry f/62.50"));
+        // A lesson that starts as another ends does not overlap it.
+        assertTrue(commands.execute("schedule S2 d/22-09-2026 t/1730 s/Pure Chemistry f/62.50")
+                .startsWith("Scheduled L2"));
+        assertEquals(2, data.getLessons().size());
+    }
+
+    @Test
+    void schedule_lessonPastMidnight_clashesWithTheNextMorning() {
+        commands.execute("schedule S1 d/22-09-2026 t/2300 s/A Math f/60 dur/120");
+
+        assertEquals("Error: That time overlaps L1 (22-09-2026 2300, 120 min).",
+                commands.execute("schedule S2 d/23-09-2026 t/0030 s/Pure Chemistry f/62.50"));
+    }
+
+    @Test
+    void scheduleWeekly_laterWeekOverlaps_addsNoLessons() {
+        commands.execute("schedule S2 d/06-10-2026 t/1630 s/Pure Chemistry f/62.50");
+
+        assertEquals("Error: That time overlaps L1 (06-10-2026 1630, 60 min).",
+                commands.execute("schedule S1 d/22-09-2026 t/1600 s/A Math f/60 w/4"));
+        assertEquals(1, data.getLessons().size());
+    }
+
+    @Test
+    void editAndReschedule_intoOverlap_rejectedAndLessonUnchanged() {
+        commands.execute("schedule S1 d/22-09-2026 t/1600 s/A Math f/60");
+        commands.execute("schedule S2 d/22-09-2026 t/1700 s/Pure Chemistry f/62.50");
+
+        assertEquals("Error: That time overlaps L2 (22-09-2026 1700, 60 min).", commands.execute("edit L1 dur/90"));
+        assertEquals("Error: That time overlaps L1 (22-09-2026 1600, 60 min).",
+                commands.execute("reschedule L2 t/1630"));
+        assertEquals(60, data.getLesson("L1").getDurationMinutes());
+        assertEquals(LocalTime.of(17, 0), data.getLesson("L2").getTime());
+        // Edits that do not change when a lesson is taught are never blocked by the check.
+        assertTrue(commands.execute("edit L1 f/65").startsWith("Edited L1"));
     }
 }

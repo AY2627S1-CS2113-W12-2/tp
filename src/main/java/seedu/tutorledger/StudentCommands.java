@@ -272,6 +272,10 @@ public class StudentCommands {
                 .sorted(Comparator.comparing(Lesson::getDate).thenComparing(Lesson::getTime)
                         .thenComparing(Lesson::getLessonId).reversed())
                 .toList();
+        // A heading with nothing under it looks like missing output, so an empty section says none.
+        if (lessons.isEmpty()) {
+            output.append(System.lineSeparator()).append("  none");
+        }
         LocalDate today = LocalDate.now(clock);
         BigDecimal owed = BigDecimal.ZERO;
         int unpaidCount = 0;
@@ -306,13 +310,17 @@ public class StudentCommands {
             }
         }
         output.append(System.lineSeparator()).append("Outstanding homework");
-        data.getHomework().stream()
+        List<Homework> outstanding = data.getHomework().stream()
                 .filter(item -> id.equalsIgnoreCase(item.getStudentId()))
-                .filter(item -> !item.getSubmitStatus().equalsIgnoreCase("submitted"))
+                .filter(item -> !item.isSubmitted())
                 .sorted(Comparator.comparing(Homework::getDueDate).thenComparing(Homework::getHomeworkId))
-                .forEach(item -> output.append(System.lineSeparator()).append("  ").append(item.getHomeworkId())
-                        .append("  ").append(item.getDescription()).append("  due ")
-                        .append(DATE.format(item.getDueDate())));
+                .toList();
+        if (outstanding.isEmpty()) {
+            output.append(System.lineSeparator()).append("  none");
+        }
+        outstanding.forEach(item -> output.append(System.lineSeparator()).append("  ").append(item.getHomeworkId())
+                .append("  ").append(item.getDescription()).append("  due ")
+                .append(DATE.format(item.getDueDate())));
         output.append(System.lineSeparator()).append("Amount owed: ").append(money(owed))
                 .append(" (").append(unpaidCount).append(unpaidCount == 1 ? " lesson)" : " lessons)");
         return output.toString();

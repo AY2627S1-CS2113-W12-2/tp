@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
+import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 
@@ -56,5 +57,37 @@ class ArgumentParserTest {
         assertTrue(fields.has("note"));
         assertNull(fields.single("note", false));
         assertThrows(IllegalArgumentException.class, () -> fields.single("note", true));
+    }
+
+    @Test
+    void parseFields_slashWordsInsideFreeText_keptAsText() {
+        ArgumentParser.Fields fields = ArgumentParser.parseFields("a/present note/Speed in km/h and/or m/s",
+                List.of("a", "note"), Set.of("note"));
+
+        assertEquals("present", fields.single("a", true));
+        assertEquals("Speed in km/h and/or m/s", fields.single("note", true));
+    }
+
+    @Test
+    void parseFields_allowedPrefixAfterFreeText_stillStartsANewValue() {
+        ArgumentParser.Fields fields = ArgumentParser.parseFields("note/Graphs and/or tables a/late",
+                List.of("a", "note"), Set.of("note"));
+
+        assertEquals("Graphs and/or tables", fields.single("note", true));
+        assertEquals("late", fields.single("a", true));
+    }
+
+    @Test
+    void parseFields_unknownPrefixOutsideFreeText_stillRejected() {
+        List<String> allowed = List.of("t", "note");
+        // Before any free-text value, and after a value that is not free text, a mistyped prefix is reported.
+        IllegalArgumentException beforeNotes = assertThrows(IllegalArgumentException.class,
+                () -> ArgumentParser.parseFields("tt/1600 note/Vectors", allowed, Set.of("note")));
+        assertEquals("Unexpected prefix tt/.", beforeNotes.getMessage());
+        assertThrows(IllegalArgumentException.class,
+                () -> ArgumentParser.parseFields("t/1600 tt/1700 note/Vectors", allowed, Set.of("note")));
+        // Without free-text prefixes, a slash word in a value is rejected as before.
+        assertThrows(IllegalArgumentException.class,
+                () -> ArgumentParser.parseFields("note/this and/or that", allowed));
     }
 }

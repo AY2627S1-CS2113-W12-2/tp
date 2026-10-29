@@ -165,4 +165,84 @@ class TutorLedgerDataTest {
         assertEquals("L2", second.getLessonId());
         assertEquals(2, data.getLessons().size());
     }
+
+    @Test
+    void addLesson_overlappingLesson_throwsEvenForAnotherStudent() {
+        data.addLesson("S1", "A Math", "22-09-2026", "1600", "60", 90);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> data.addLesson("S2", "Pure Chemistry", "22-09-2026", "1700", "62.50"));
+
+        assertEquals("That time overlaps L1 (22-09-2026 1600, 90 min).", exception.getMessage());
+        assertEquals(1, data.getLessons().size());
+        assertEquals(2, data.getNextLessonNumber());
+    }
+
+    @Test
+    void addLesson_overlappingCancelledLesson_allowed() {
+        Lesson first = data.addLesson("S1", "A Math", "22-09-2026", "1600", "60");
+        data.replaceLesson(first.withCancellation("Student sick"));
+
+        Lesson second = data.addLesson("S2", "Pure Chemistry", "22-09-2026", "1630", "62.50");
+
+        assertEquals("L2", second.getLessonId());
+    }
+
+    @Test
+    void importLesson_overlapButDifferentStart_stillLoadsSoOldFilesKeepEveryLesson() {
+        data.addLesson("S1", "A Math", "22-09-2026", "1600", "60");
+
+        data.importLesson(new Lesson("L2", "S2", "Pure Chemistry", "22-09-2026", "1630", "not recorded",
+                "62.50", ""));
+
+        assertEquals(2, data.getLessons().size());
+    }
+
+    @Test
+    void replaceLesson_undoingCancellationIntoTakenSlot_throwsAndKeepsItCancelled() {
+        Lesson first = data.addLesson("S1", "A Math", "22-09-2026", "1600", "60");
+        data.replaceLesson(first.withCancellation("Student sick"));
+        data.addLesson("S2", "Pure Chemistry", "22-09-2026", "1600", "62.50");
+
+        Lesson restored = data.getLesson("L1").withoutCancellation();
+        assertThrows(IllegalArgumentException.class, () -> data.replaceLesson(restored));
+
+        assertTrue(data.getLesson("L1").isCancelled());
+    }
+
+    @Test
+    void replaceLesson_longerLessonIntoNextOne_throws() {
+        data.addLesson("S1", "A Math", "22-09-2026", "1600", "60");
+        data.addLesson("S2", "Pure Chemistry", "22-09-2026", "1700", "62.50");
+
+        Lesson longer = data.getLesson("L1").withDurationMinutes(90);
+        assertThrows(IllegalArgumentException.class, () -> data.replaceLesson(longer));
+
+        assertEquals(60, data.getLesson("L1").getDurationMinutes());
+    }
+
+    @Test
+    void deleteHomework_existingId_removesOnlyThatItemAndNeverReusesTheId() {
+        data.addHomework("S1", "Worksheet 4A", LocalDate.of(2026, 9, 29));
+        data.addHomework("S1", "Worksheet 4B", LocalDate.of(2026, 9, 30));
+
+        Homework deleted = data.deleteHomework("h1");
+
+        assertEquals("Worksheet 4A", deleted.getDescription());
+        assertEquals(List.of("H2"), data.getHomework().stream().map(Homework::getHomeworkId).toList());
+        assertEquals("H3", data.addHomework("S1", "Worksheet 4C", LocalDate.of(2026, 10, 1)).getHomeworkId());
+        assertThrows(IllegalArgumentException.class, () -> data.deleteHomework("H1"));
+    }
+
+    @Test
+    void replaceHomework_changedCopy_replacesTheStoredItem() {
+        Homework item = data.addHomework("S1", "Worksheet 4A", LocalDate.of(2026, 9, 29));
+
+        data.replaceHomework(item.withDetails("Worksheet 4B", null, null));
+
+        assertEquals("Worksheet 4B", data.getHomeworkById("H1").getDescription());
+        assertEquals(1, data.getHomework().size());
+        Homework unknown = new Homework("H9", "S1", "Extra", LocalDate.of(2026, 9, 29), Homework.STATUS_OUTSTANDING);
+        assertThrows(IllegalArgumentException.class, () -> data.replaceHomework(unknown));
+    }
 }

@@ -3,6 +3,7 @@ package seedu.tutorledger;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -16,6 +17,9 @@ import java.util.logging.Logger;
 /** Shared in-memory records used by student commands and future feature commands. */
 public class TutorLedgerData {
     private static final Logger LOGGER = Logger.getLogger(TutorLedgerData.class.getName());
+
+    /** Start time format used when describing a clashing lesson, e.g. 1600. */
+    private static final DateTimeFormatter START_TIME = DateTimeFormatter.ofPattern("HHmm", Locale.ROOT);
 
     private final Map<String, Student> students = new LinkedHashMap<>();
     private final Map<String, Lesson> lessons = new LinkedHashMap<>();
@@ -277,14 +281,17 @@ public class TutorLedgerData {
         // The replacement is a copy of an existing lesson, so it must still belong to the same student.
         assert existing.getStudentId().equals(lesson.getStudentId())
                 : "Replacement moved the lesson to another student";
-        // Only a lesson that actually moved needs the check, so other edits are never blocked by it.
-        boolean isMoved = !existing.getDate().equals(lesson.getDate())
-                || !existing.getTime().equals(lesson.getTime());
-        if (isMoved) {
+        // Only a lesson that now takes up different time needs the check, so other edits are never blocked
+        // by it. That covers a move, a longer or shorter lesson, and a cancellation being undone.
+        boolean takesNewTime = !existing.getStart().equals(lesson.getStart())
+                || existing.getDurationMinutes() != lesson.getDurationMinutes()
+                || (existing.isCancelled() && !lesson.isCancelled());
+        if (takesNewTime) {
             ensureSlotFree(lesson);
         }
         lessons.put(existing.getLessonId().toUpperCase(Locale.ROOT), lesson);
-        LOGGER.log(Level.FINE, "Lesson replaced: {0} (moved={1})", new Object[]{lesson.getLessonId(), isMoved});
+        LOGGER.log(Level.FINE, "Lesson replaced: {0} (takes new time={1})",
+                new Object[]{lesson.getLessonId(), takesNewTime});
     }
 
     /** Removes a lesson and returns it, so the caller can report what was deleted. */
@@ -303,6 +310,7 @@ public class TutorLedgerData {
      *
      * <p>Unlike {@link #putLesson}, this rejects a lesson whose ID is already taken or that starts at
      * the same date and time as another lesson, so a hand-edited data file cannot break those rules.
+     * A lesson that only overlaps another one is still loaded, so that older data files keep every lesson.
      *
      * @throws IllegalArgumentException If the student is missing, the ID is taken or the slot is not free.
      */
@@ -314,7 +322,9 @@ public class TutorLedgerData {
         if (lessons.containsKey(lesson.getLessonId().toUpperCase(Locale.ROOT))) {
             throw new IllegalArgumentException("Duplicate lesson ID " + lesson.getLessonId() + ".");
         }
-        ensureSlotFree(lesson);
+        // Files saved before overlaps were checked may hold overlapping lessons. Rejecting them here would
+        // drop those lessons from the tutor's records, so loading only rejects two lessons with one start.
+        ensureNoClash(lesson, false);
         putLesson(lesson);
     }
 
@@ -407,6 +417,38 @@ public class TutorLedgerData {
         if (item == null) {
             throw new IllegalArgumentException("No homework found with ID " + key + ".");
         }
+        return item;
+    }
+
+    /**
+     * Replaces existing homework with a changed copy that has the same ID.
+     *
+     * @param item The changed copy.
+     * @throws IllegalArgumentException If no homework has that ID.
+     */
+    public void replaceHomework(Homework item) {
+        assert item != null : "Replacement homework should not be null";
+        LOGGER.log(Level.FINE, "Replacing homework {0}", item.getHomeworkId());
+        Homework existing = getHomeworkById(item.getHomeworkId());
+        // Editing homework never moves it to another student.
+        assert existing.getStudentId().equals(item.getStudentId()) : "Replacement moved homework to another student";
+        homework.put(existing.getHomeworkId().toUpperCase(Locale.ROOT), item);
+    }
+
+    /**
+     * Removes homework and returns it, so the caller can report what was deleted.
+     * Its ID is not reused, because the homework counter never decreases.
+     *
+     * @param id The homework ID, in either case.
+     * @return The deleted homework.
+     * @throws IllegalArgumentException If the ID is malformed or no homework has it.
+     */
+    public Homework deleteHomework(String id) {
+        LOGGER.log(Level.FINE, "Deleting homework {0}", id);
+        Homework item = getHomeworkById(id);
+        String key = item.getHomeworkId().toUpperCase(Locale.ROOT);
+        homework.remove(key);
+        assert !homework.containsKey(key) : "Deleted homework is still stored";
         return item;
     }
 
@@ -659,23 +701,42 @@ public class TutorLedgerData {
     }
 
     /**
-     * Rejects a lesson that would start at the same date and time as a different lesson.
-     * A cancelled lesson will not take place, so it neither blocks a slot nor is blocked by one.
+     * Rejects a lesson that would be taught at the same time as a different lesson, even for a minute.
+     * A tutor can only teach one lesson at a time, so this applies across all students.
      */
     private void ensureSlotFree(Lesson candidate) {
+        ensureNoClash(candidate, true);
+    }
+
+    /**
+     * Rejects a lesson that clashes with a different lesson.
+     * A cancelled lesson will not take place, so it neither blocks a slot nor is blocked by one.
+     *
+     * @param candidate The lesson about to be stored.
+     * @param isOverlapChecked Whether a lesson that only overlaps another one, without sharing its start
+     *     time, also counts as a clash.
+     * @throws IllegalArgumentException If another lesson starts at the same time, or overlaps when checked.
+     */
+    private void ensureNoClash(Lesson candidate, boolean isOverlapChecked) {
         assert candidate != null : "Cannot check the slot of a null lesson";
         if (candidate.isCancelled()) {
             return;
         }
-        LOGGER.log(Level.FINE, "Checking slot availability for lesson {0} at {1} {2}",
-                new Object[]{candidate.getLessonId(), candidate.getDate(), candidate.getTime()});
+        LOGGER.log(Level.FINE, "Checking slot availability for lesson {0} from {1} to {2}",
+                new Object[]{candidate.getLessonId(), candidate.getStart(), candidate.getEnd()});
         for (Lesson existing : lessons.values()) {
-            if (!existing.getLessonId().equalsIgnoreCase(candidate.getLessonId())
-                    && !existing.isCancelled()
-                    && existing.getDate().equals(candidate.getDate())
-                    && existing.getTime().equals(candidate.getTime())) {
+            if (existing.getLessonId().equalsIgnoreCase(candidate.getLessonId()) || existing.isCancelled()) {
+                continue;
+            }
+            // The same start is reported on its own, since it is the clearest description of the clash.
+            if (existing.getStart().equals(candidate.getStart())) {
                 throw new IllegalArgumentException(existing.getLessonId()
                         + " already starts at that date and time.");
+            }
+            if (isOverlapChecked && existing.overlaps(candidate)) {
+                throw new IllegalArgumentException("That time overlaps " + existing.getLessonId() + " ("
+                        + Lesson.formatDate(existing.getDate()) + " " + existing.getTime().format(START_TIME)
+                        + ", " + existing.getDurationMinutes() + " min).");
             }
         }
     }

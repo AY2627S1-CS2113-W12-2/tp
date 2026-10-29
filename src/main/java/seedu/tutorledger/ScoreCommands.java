@@ -86,7 +86,8 @@ public class ScoreCommands {
             default -> progress(arguments);
             };
         } catch (IllegalArgumentException exception) {
-            LOGGER.log(Level.WARNING, "Rejected score command {0}: {1}",
+            // A rejected command is the user's mistake and is already explained on screen, so it is only traced.
+            LOGGER.log(Level.FINE, "Rejected score command {0}: {1}",
                     new Object[]{input.strip(), exception.getMessage()});
             return "Error: " + exception.getMessage();
         }

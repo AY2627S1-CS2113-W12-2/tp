@@ -3,6 +3,7 @@ package seedu.tutorledger;
 import java.math.BigDecimal;
 import java.time.DateTimeException;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
@@ -305,6 +306,39 @@ public class Lesson {
                 paymentStatus, requireText(reason, "Reason").strip(), durationMinutes, amountPaid);
         assert cancelled.isCancelled() : "A lesson given a non-blank reason should count as cancelled";
         return cancelled;
+    }
+
+    /**
+     * Returns a copy of this lesson that is no longer cancelled, keeping every other detail.
+     * It is used to undo a cancellation made by mistake.
+     *
+     * @return The copy, which takes up its slot again and is charged as usual.
+     */
+    public Lesson withoutCancellation() {
+        LOGGER.log(Level.INFO, "Removing cancellation from lesson {0}", lessonId);
+        Lesson restored = new Lesson(lessonId, studentId, subject, date, time, attendance, fee, notes,
+                paymentStatus, "", durationMinutes, amountPaid);
+        assert !restored.isCancelled() : "A lesson with an empty reason should not count as cancelled";
+        return restored;
+    }
+
+    /** Returns the date and time the lesson starts. */
+    public LocalDateTime getStart() {
+        return LocalDateTime.of(date, time);
+    }
+
+    /** Returns the date and time the lesson finishes, which may be on the next day. */
+    public LocalDateTime getEnd() {
+        return getStart().plusMinutes(durationMinutes);
+    }
+
+    /**
+     * Returns true if this lesson and the other one are taught at the same time for at least a minute.
+     * A lesson that ends exactly when the other starts does not overlap it.
+     */
+    public boolean overlaps(Lesson other) {
+        assert other != null : "Cannot compare a lesson with a null lesson";
+        return getStart().isBefore(other.getEnd()) && other.getStart().isBefore(getEnd());
     }
 
     /**

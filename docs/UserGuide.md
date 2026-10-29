@@ -17,8 +17,8 @@ your own tutoring work.
 * [Features](#features)
   * [Student book](#student-book): `add`, `subject`, `view`, `list`, `edit`, `archive`, `restore`, `delete`
   * [Lessons](#lessons): `schedule`, `log`, `lessons`, `filter`, `next`, `topics`, `record`, `reschedule`,
-    `cancel`, `edit`, `delete`
-  * [Homework](#homework): `assign`, `submit`, `homework`
+    `cancel`, `uncancel`, `edit`, `delete`
+  * [Homework](#homework): `assign`, `submit`, `homework`, `edit`, `delete`
   * [Payments](#payments): `mark`, `unpaid`, `owed`
   * [Scores and progress](#scores-and-progress): `score`, `scores`, `progress`
   * [Follow-up tasks](#follow-up-tasks): `task`, `tasks`, `done`
@@ -53,6 +53,10 @@ your own tutoring work.
 * Unless a command says otherwise, each prefix can be given only once. For example,
   `schedule S1 d/20-10-2026 d/21-10-2026 ...` is rejected.
 * Command words, prefixes and IDs are not case-sensitive, so `VIEW s1` works the same as `view S1`.
+* Notes (`note/`), cancellation reasons (`r/` in `cancel`) and homework descriptions (`desc/`) are free text.
+  In them, a word ending in `/`, such as `and/or` or `km/h`, is kept as part of the text. Only a prefix the
+  command itself accepts starts a new value, so `record L3 note/Graphs and/or tables a/late` records the notes
+  `Graphs and/or tables` and the attendance `late`.
 * Extra words after `help` and `reload` are ignored. For example, `help 123` is read as `help`.
 * If a command cannot be carried out, TutorLedger shows a message starting with `Error:` that says what to fix,
   and nothing is changed.
@@ -84,10 +88,11 @@ An ID is never reused, even after its item is deleted.
 | `FEE`            | `f/`    | Dollars without the `$`, up to 2 decimal places. Zero or more.                  | `f/62.50`            |
 | `RATE`           | `r/`    | Default dollars per hour, up to 2 decimal places. Zero or more.                | `r/60`               |
 | `MINUTES`        | `dur/`  | Whole minutes from 1 to 1440; defaults to 60 when scheduling.                 | `dur/90`             |
-| `ATTENDANCE`     | `a/`    | `present`, `absent` or `late`.                                                  | `a/late`             |
-| `NOTES`          | `note/` | Any text: what was covered and anything to remember. See [Known issues](#known-issues). | `note/Started vectors` |
+| `ATTENDANCE`     | `a/`    | `present`, `absent` or `late`. In `edit` only, `none` clears it.                | `a/late`             |
+| `NOTES`          | `note/` | Any text: what was covered and anything to remember. May contain words like `and/or`. | `note/Started vectors` |
 | `WEEKS`          | `w/`    | A whole number of weeks from 2 to 52.                                           | `w/10`               |
-| `REASON`         | `r/`    | Any text saying why a lesson was called off. Same limits as `NOTES`.            | `r/Student sick`     |
+| `DESCRIPTION` (homework edit) | `desc/` | Any text describing the homework. Same rules as `NOTES`.            | `desc/Worksheet 4B`  |
+| `REASON`         | `r/`    | Any text saying why a lesson was called off. Same rules as `NOTES`.             | `r/Student sick`     |
 | `STATUS`         | (none)  | `paid` or `unpaid`.                                                             | `paid`               |
 | `STATUS` (student list) | `status/` | `active`, `archived` or `all`, ignoring case. | `status/archived` |
 | `DESCRIPTION`    | (none)  | Any text, written straight after the student ID.                                | `Worksheet 3B`       |
@@ -367,12 +372,14 @@ A rejected schedule creates no lessons and consumes no IDs.
   using half-up rounding. At $60/hour, `dur/90` costs $90.00.
 * `dur/MINUTES` is optional, defaults to 60, and accepts whole minutes from 1 to 1440.
   Durations other than 60 minutes are shown in scheduling confirmations, lesson lists and student views.
-* Duration is used for billing; TutorLedger still checks conflicts by identical start time, not overlap.
-* Two lessons cannot start at the same date and time, even for different students.
+* Two lessons cannot be taught at the same time, even for different students. A lesson clashes with another if
+  they share even one minute, so with a 90-minute lesson at 1600, the next lesson can start at 1730 at the
+  earliest. The duration counts, including a lesson that runs past midnight. Cancelled lessons do not count.
 * A new lesson starts as not recorded. Lessons with a positive fee start unpaid; $0 lessons are already paid.
 * `w/WEEKS` adds one lesson a week, on the same day and at the same time, starting on `DATE`. Each lesson gets
   its own ID, so you can record, reschedule or cancel one week without affecting the others.
-* If any week's slot is already taken, no lessons are added, and the error names the lesson in the way.
+* If any week's slot clashes with another lesson, no lessons are added, and the error names the lesson in the
+  way.
 
 Examples:
 
@@ -580,7 +587,7 @@ Moves a lesson that has not happened yet to a new date, time, or both.
 Format: `reschedule LESSON_ID [d/DATE] [t/TIME]`
 
 * Give a new date, a new time, or both. The part you leave out stays the same.
-* The new slot must not have passed yet, must be different from the current one, and must not be taken by
+* The new slot must not have passed yet, must be different from the current one, and must not clash with
   another lesson.
 * A lesson that already has attendance or notes has taken place, so it cannot be rescheduled. To correct its
   date or time, use [`edit`](#editing-a-lesson-edit).
@@ -615,8 +622,7 @@ Format: `cancel LESSON_ID r/REASON`
 * If any payment was received, including a partial payment, TutorLedger reminds you to refund or carry over
   the amount received. The saved payment is retained; cancellation does not record a refund automatically.
   Unpaid and $0 lessons do not need a refund reminder.
-* A cancellation cannot be undone from inside TutorLedger. If you cancelled the wrong lesson, schedule it
-  again, or see [Known issues](#known-issues).
+* If you cancelled the wrong lesson, undo it with [`uncancel`](#undoing-a-cancellation-uncancel).
 
 Examples:
 
@@ -631,6 +637,26 @@ Cancelled L8 for S2 Tan Wei Ming (Sat 17-10-2026 0900)
   Reason: Student sick
 ```
 
+#### Undoing a cancellation: `uncancel`
+
+Puts back a lesson that was cancelled by mistake.
+
+Format: `uncancel LESSON_ID`
+
+* The lesson keeps all its other details, including any payment, and is charged again as usual.
+* The lesson takes its slot back, so it is rejected if another lesson has been given a clashing time since it was
+  cancelled. Reschedule or delete that lesson first.
+
+Example: `uncancel L8`
+
+Example output:
+
+```
+> uncancel L8
+Uncancelled L8 for S2 Tan Wei Ming (Sat 17-10-2026 0900)
+  It was cancelled for: Student sick
+```
+
 #### Editing a lesson: `edit`
 
 Changes the details of an existing lesson, such as moving it to another day.
@@ -638,14 +664,17 @@ Changes the details of an existing lesson, such as moving it to another day.
 Format: `edit LESSON_ID [d/DATE] [t/TIME] [s/SUBJECT] [f/FEE] [dur/MINUTES] [a/ATTENDANCE] [note/NOTES]`
 
 * Give at least one value to change. Values you leave out stay the same.
-* The same rules as `schedule` and `record` apply to the new values. For example, a lesson cannot be moved to a
-  slot another lesson already has, and a lesson dated after today cannot have attendance or notes.
+* The same rules as `schedule` and `record` apply to the new values. For example, a lesson cannot be moved or
+  lengthened so that it clashes with another lesson, and a lesson dated after today cannot have attendance or notes.
 * Type `note/` with nothing after it to clear the lesson's notes.
+* Type `a/none` to set a lesson recorded by mistake back to "not recorded". For example, a lesson recorded as
+  `absent` that was actually called off can then be cancelled with `cancel`.
 * `dur/MINUTES` changes duration but keeps the saved fee. Give `f/FEE` explicitly to change the charge.
 * Changing the fee keeps the amount already paid and does not change income. Raising a paid lesson's fee
   creates an outstanding balance; reducing it to the amount already paid settles it. A fee below the amount
   already paid is rejected, and none of the other edits in that command are applied.
-* A cancelled lesson stays cancelled when edited, and cannot be given attendance.
+* A cancelled lesson stays cancelled when edited, and cannot be given attendance. To undo the cancellation, use
+  [`uncancel`](#undoing-a-cancellation-uncancel).
 * This is the same `edit` command used for students. The ID tells TutorLedger which kind of item to change.
 * To change whether a lesson is paid, use [`mark`](#marking-a-lesson-paid-or-unpaid-mark).
 
@@ -748,6 +777,51 @@ Example output (today is Wed 14-10-2026):
   H2  S4 Daniel Lim           Algebra drill 2          due Mon 12-10-2026  OVERDUE
   H3  S2 Tan Wei Ming         TYS 2023 Paper 1, Q1-10  due Sat 17-10-2026
   H4  S1 Amirah Binte Rahman  Worksheet 4A             due Tue 20-10-2026
+```
+
+#### Editing homework: `edit`
+
+Corrects a homework item's description or due date, or undoes a mistaken `submit`.
+
+Format: `edit HOMEWORK_ID [desc/DESCRIPTION] [d/DUE_DATE] [status/STATUS]`
+
+* Give at least one value to change. Values you leave out stay the same.
+* `STATUS` is `outstanding` or `submitted`, ignoring case. `status/outstanding` puts submitted homework back on
+  the outstanding list.
+* Unlike in `assign`, the description is given with `desc/`, so a description that contains ` d/` must be
+  changed with `assign` and `delete` instead.
+* This is the same `edit` command used for students and lessons. The ID tells TutorLedger which kind of item to
+  change.
+
+Examples:
+
+* `edit H4 d/22-10-2026`
+* `edit H1 status/outstanding`
+* `edit H3 desc/TYS 2023 Paper 1, Q1-15`
+
+Example output:
+
+```
+> edit H4 d/22-10-2026
+Edited H4 for S1 Amirah Binte Rahman
+  Worksheet 4A, due Thu 22-10-2026, outstanding
+```
+
+#### Deleting homework: `delete`
+
+Deletes a homework item, for example one assigned to the wrong student.
+
+Format: `delete HOMEWORK_ID`
+
+* The student and their other records are not affected. The ID is not reused.
+
+Example: `delete H4`
+
+Example output:
+
+```
+> delete H4
+Deleted H4 for S1 Amirah Binte Rahman: Worksheet 4A, due Tue 20-10-2026
 ```
 
 ### Payments
@@ -1249,6 +1323,8 @@ LESSONS
       reschedule L42 d/25-09-2026 t/1800
   cancel LESSON_ID r/REASON
       cancel L43 r/Student sick
+  uncancel LESSON_ID
+      uncancel L43
   edit LESSON_ID [d/DATE] [t/TIME] [s/SUBJECT] [f/FEE] [dur/MINUTES] [a/ATTENDANCE] [note/NOTES]
       edit L42 d/25-09-2026 t/1800
   delete LESSON_ID
@@ -1261,10 +1337,16 @@ HOMEWORK
       submit H7
   homework [STUDENT_ID]
       homework S1
+  edit HOMEWORK_ID [desc/DESCRIPTION] [d/DUE_DATE] [status/STATUS]
+      edit H7 d/02-10-2026
+  delete HOMEWORK_ID
+      delete H7
 
 PAYMENTS
   mark LESSON_ID STATUS
       mark L37 paid
+  pay STUDENT_ID AMOUNT LESSON_ID [LESSON_ID...]
+      pay S1 117.50 L37 L38
   unpaid [STUDENT_ID]
       unpaid S1
   owed
@@ -1383,15 +1465,13 @@ as absent; if you also do not want to charge for it, delete the lesson with `del
 
 ## Known issues
 
-1. **Homework cannot be edited or deleted from inside TutorLedger.** To fix a mistake, edit its line in
-   `data/tutorledger.txt` and run `reload`. Deleting a student also deletes their homework.
-1. **Notes cannot contain a word followed directly by `/`.** In `NOTES`, text such as ` and/or` or ` km/h` is
-   read as an unknown prefix, and the command is rejected with `Error: Unexpected prefix and/.` (or similar).
-   Write "and or" or "km per h" instead. Homework descriptions are not affected.
-1. **A lesson's attendance cannot be set back to "not recorded"** once it has been recorded. Edit its line in
-   `data/tutorledger.txt` and run `reload` if you need to.
-1. **A cancellation cannot be undone from inside TutorLedger.** Remove the reason at the end of the lesson's
-   line in `data/tutorledger.txt` and run `reload`.
+1. **A command's own prefixes cannot appear inside notes.** Words such as `and/or` are kept in notes (see
+   [Notes about the command format](#notes-about-the-command-format)), but a prefix the command accepts still
+   starts a new value. For example, in `record L3 note/Part a/b`, ` a/b` is read as the attendance. Write
+   "Part a, b" instead.
+1. **Data files from older versions may hold overlapping lessons.** Earlier versions only stopped two lessons
+   from starting at the same time. Such lessons still load, so nothing is lost, but moving, lengthening or
+   uncancelling one of them is checked against the others. Reschedule one of the pair to clear the overlap.
 
 ## Command summary
 
@@ -1415,11 +1495,14 @@ as absent; if you also do not want to charge for it, delete the lesson with `del
 | **Record lesson**       | `record LESSON_ID a/ATTENDANCE [note/NOTES]`<br>e.g. `record L3 a/present note/Started simultaneous equations`          |
 | **Reschedule lesson**   | `reschedule LESSON_ID [d/DATE] [t/TIME]`<br>e.g. `reschedule L6 d/16-10-2026 t/1800`                                     |
 | **Cancel lesson**       | `cancel LESSON_ID r/REASON`<br>e.g. `cancel L8 r/Student sick`                                                           |
+| **Undo cancellation**   | `uncancel LESSON_ID`<br>e.g. `uncancel L8`                                                                               |
 | **Edit lesson**         | `edit LESSON_ID [d/DATE] [t/TIME] [s/SUBJECT] [f/FEE] [dur/MINUTES] [a/ATTENDANCE] [note/NOTES]`<br>e.g. `edit L6 d/16-10-2026 t/1800` |
 | **Delete lesson**       | `delete LESSON_ID`<br>e.g. `delete L10`                                                                                  |
 | **Assign homework**     | `assign STUDENT_ID DESCRIPTION d/DUE_DATE`<br>e.g. `assign S1 Worksheet 4A d/20-10-2026`                                |
 | **Submit homework**     | `submit HOMEWORK_ID`<br>e.g. `submit H1`                                                                                 |
 | **List homework**       | `homework [STUDENT_ID]`<br>e.g. `homework S1`                                                                            |
+| **Edit homework**       | `edit HOMEWORK_ID [desc/DESCRIPTION] [d/DUE_DATE] [status/STATUS]`<br>e.g. `edit H4 d/22-10-2026`                       |
+| **Delete homework**     | `delete HOMEWORK_ID`<br>e.g. `delete H4`                                                                                 |
 | **Mark paid / unpaid**  | `mark LESSON_ID STATUS`<br>e.g. `mark L1 paid`                                                                           |
 | **Record a payment**    | `pay STUDENT_ID AMOUNT LESSON_ID [LESSON_ID...]`<br>e.g. `pay S1 80 L37 L38`                                             |
 | **List unpaid lessons** | `unpaid [STUDENT_ID]`<br>e.g. `unpaid S1`                                                                                |

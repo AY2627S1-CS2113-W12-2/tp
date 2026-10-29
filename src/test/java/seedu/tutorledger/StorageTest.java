@@ -301,4 +301,31 @@ class StorageTest {
         assertEquals(List.of("Line 3: A cancelled lesson cannot have attendance."), result.problems());
         assertFalse(result.data().getLesson("L1").isCancelled());
     }
+
+    @Test
+    void decode_overlappingLessonsFromAnOlderFile_loadsBoth() {
+        List<String> lines = List.of(
+                "S | S1 | Amirah Binte Rahman | Sec 3 | 91234567 | A Math",
+                "L | L1 | S1 | 22-09-2026 | 1600 | A Math | 60 | not recorded | unpaid | ",
+                "L | L2 | S1 | 22-09-2026 | 1630 | A Math | 60 | not recorded | unpaid | ");
+
+        Storage.LoadResult result = Storage.decode(lines);
+
+        assertTrue(result.problems().isEmpty());
+        assertEquals(2, result.data().getLessons().size());
+    }
+
+    @Test
+    void encodeThenDecode_uncancelledLesson_isNoLongerCancelled() {
+        TutorLedgerData data = new TutorLedgerData();
+        data.addStudent("Amirah Binte Rahman", "Sec 3", "91234567");
+        Lesson lesson = data.addLesson("S1", "A Math", "22-09-2026", "1600", "60");
+        data.replaceLesson(lesson.withCancellation("Student sick"));
+        data.replaceLesson(data.getLesson("L1").withoutCancellation());
+
+        Storage.LoadResult result = Storage.decode(List.of(Storage.encode(data).split("\\R")));
+
+        assertTrue(result.problems().isEmpty());
+        assertFalse(result.data().getLesson("L1").isCancelled());
+    }
 }

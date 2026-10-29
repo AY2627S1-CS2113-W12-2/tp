@@ -41,7 +41,8 @@ class HelpCommandTest {
             "schedule STUDENT_ID d/DATE t/TIME s/SUBJECT [dur/MINUTES] [f/FEE]",
             "assign STUDENT_ID DESCRIPTION d/DUE_DATE",
             "mark LESSON_ID STATUS", "pay STUDENT_ID AMOUNT LESSON_ID [LESSON_ID...]",
-            "owed", "save [FILE_PATH]", "reload"}) {
+            "owed", "save [FILE_PATH]", "reload", "uncancel LESSON_ID",
+            "edit HOMEWORK_ID [desc/DESCRIPTION] [d/DUE_DATE] [status/STATUS]", "delete HOMEWORK_ID"}) {
             assertTrue(help.contains(format), "missing format " + format);
         }
     }

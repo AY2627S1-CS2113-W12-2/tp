@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
@@ -35,11 +36,32 @@ final class ArgumentParser {
      * @throws IllegalArgumentException If the text has an unexpected prefix or a value with no prefix.
      */
     static Fields parseFields(String text, List<String> allowed) {
+        return parseFields(text, allowed, Set.of());
+    }
+
+    /**
+     * Separates prefixed values, letting free-text values such as notes contain words like "and/or".
+     *
+     * <p>Inside the value of a free-text prefix, a word ending in a slash that this command does not
+     * accept, such as {@code and/} or {@code km/}, is kept as part of the text instead of being rejected.
+     * A prefix the command does accept still starts a new value, so {@code note/Revision a/present}
+     * records the attendance as usual. Outside free-text values, an unknown prefix is still rejected, so
+     * a mistyped prefix such as {@code tt/1600} is reported rather than silently absorbed.
+     *
+     * @param text The part of the command that holds the prefixed values.
+     * @param allowed The prefixes this command accepts, in lower case and without the slash.
+     * @param freeText The allowed prefixes whose values are free text.
+     * @return The values found, grouped by prefix.
+     * @throws IllegalArgumentException If the text has an unexpected prefix or a value with no prefix.
+     */
+    static Fields parseFields(String text, List<String> allowed, Set<String> freeText) {
         LOGGER.log(Level.INFO, "Parsing fields: text={0}, allowed={1}", new Object[]{text, allowed});
         assert text != null : "Callers pass an empty string, not null, when there are no values";
         // Matched keys are lower-cased letters, so an allowed prefix in any other form could never match.
         assert allowed != null && allowed.stream().allMatch(prefix -> prefix.matches("[a-z]+"))
                 : "Allowed prefixes must be lower-case letters without the slash: " + allowed;
+        assert freeText != null && allowed.containsAll(freeText)
+                : "Free-text prefixes must also be allowed: " + freeText;
         Map<String, List<String>> values = new HashMap<>();
         Matcher matcher = PREFIX.matcher(text);
         int previousEnd = 0;
@@ -48,10 +70,16 @@ final class ArgumentParser {
             if (previousKey == null && !text.substring(0, matcher.start()).isBlank()) {
                 throw new IllegalArgumentException("Expected a prefixed value.");
             }
+            String key = matcher.group(1).toLowerCase(Locale.ROOT);
+            // This is checked before the previous value is stored, because that value has not ended yet.
+            // previousEnd is left alone, so the word stays inside the free-text value being read.
+            if (!allowed.contains(key) && previousKey != null && freeText.contains(previousKey)) {
+                LOGGER.log(Level.FINE, "Keeping {0}/ as text inside {1}/", new Object[]{key, previousKey});
+                continue;
+            }
             if (previousKey != null) {
                 values.get(previousKey).add(text.substring(previousEnd, matcher.start()).trim());
             }
-            String key = matcher.group(1).toLowerCase(Locale.ROOT);
             if (!allowed.contains(key)) {
                 throw new IllegalArgumentException("Unexpected prefix " + key + "/.");
             }

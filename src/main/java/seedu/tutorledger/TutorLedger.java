@@ -2,14 +2,39 @@ package seedu.tutorledger;
 
 import java.time.Clock;
 import java.util.Scanner;
+import java.util.logging.Handler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /** Command-line entry point for the student book. */
 public class TutorLedger {
+    /** System property that names a logging configuration file, as defined by java.util.logging. */
+    static final String LOGGING_CONFIG_PROPERTY = "java.util.logging.config.file";
+
+    /**
+     * Keeps routine log messages off the tutor's screen.
+     *
+     * <p>By default Java prints every INFO message to the terminal, so each command would be followed by
+     * lines of log text. Only warnings and errors are shown instead. A developer who wants the full trace
+     * can still start the app with {@code -Djava.util.logging.config.file=FILE}, which is left untouched.
+     *
+     * @param rootLogger The logger every other logger passes its messages up to.
+     */
+    static void configureLogging(Logger rootLogger) {
+        assert rootLogger != null : "The root logger is needed to configure logging";
+        if (System.getProperty(LOGGING_CONFIG_PROPERTY) != null) {
+            return;
+        }
+        for (Handler handler : rootLogger.getHandlers()) {
+            handler.setLevel(Level.WARNING);
+        }
+    }
     /**
      * Loads the saved data, then reads commands until the user exits or standard input closes.
      * Any command that changes data is saved straight away, so nothing needs saving on exit.
      */
     public static void main(String[] args) {
+        configureLogging(Logger.getLogger(""));
         TutorLedgerData data = new TutorLedgerData();
         Clock clock = Clock.systemDefaultZone();
         StudentCommands commands = new StudentCommands(data, clock);
