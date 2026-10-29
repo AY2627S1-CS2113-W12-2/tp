@@ -1345,6 +1345,8 @@ HOMEWORK
 PAYMENTS
   mark LESSON_ID STATUS
       mark L37 paid
+  pay STUDENT_ID AMOUNT LESSON_ID [LESSON_ID...]
+      pay S1 117.50 L37 L38
   unpaid [STUDENT_ID]
       unpaid S1
   owed
