@@ -17,8 +17,8 @@ your own tutoring work.
 * [Features](#features)
   * [Student book](#student-book): `add`, `subject`, `view`, `list`, `edit`, `archive`, `restore`, `delete`
   * [Lessons](#lessons): `schedule`, `log`, `lessons`, `filter`, `next`, `topics`, `record`, `reschedule`,
-  * [Homework](#homework): `assign`, `submit`, `homework`
     `cancel`, `uncancel`, `edit`, `delete`
+  * [Homework](#homework): `assign`, `submit`, `homework`, `edit`, `delete`
   * [Payments](#payments): `mark`, `unpaid`, `owed`
   * [Scores and progress](#scores-and-progress): `score`, `scores`, `progress`
   * [Follow-up tasks](#follow-up-tasks): `task`, `tasks`, `done`
@@ -53,7 +53,7 @@ your own tutoring work.
 * Unless a command says otherwise, each prefix can be given only once. For example,
   `schedule S1 d/20-10-2026 d/21-10-2026 ...` is rejected.
 * Command words, prefixes and IDs are not case-sensitive, so `VIEW s1` works the same as `view S1`.
-* Notes (`note/`) and cancellation reasons (`r/` in `cancel`) are free text.
+* Notes (`note/`), cancellation reasons (`r/` in `cancel`) and homework descriptions (`desc/`) are free text.
   In them, a word ending in `/`, such as `and/or` or `km/h`, is kept as part of the text. Only a prefix the
   command itself accepts starts a new value, so `record L3 note/Graphs and/or tables a/late` records the notes
   `Graphs and/or tables` and the attendance `late`.
@@ -779,6 +779,51 @@ Example output (today is Wed 14-10-2026):
   H4  S1 Amirah Binte Rahman  Worksheet 4A             due Tue 20-10-2026
 ```
 
+#### Editing homework: `edit`
+
+Corrects a homework item's description or due date, or undoes a mistaken `submit`.
+
+Format: `edit HOMEWORK_ID [desc/DESCRIPTION] [d/DUE_DATE] [status/STATUS]`
+
+* Give at least one value to change. Values you leave out stay the same.
+* `STATUS` is `outstanding` or `submitted`, ignoring case. `status/outstanding` puts submitted homework back on
+  the outstanding list.
+* Unlike in `assign`, the description is given with `desc/`, so a description that contains ` d/` must be
+  changed with `assign` and `delete` instead.
+* This is the same `edit` command used for students and lessons. The ID tells TutorLedger which kind of item to
+  change.
+
+Examples:
+
+* `edit H4 d/22-10-2026`
+* `edit H1 status/outstanding`
+* `edit H3 desc/TYS 2023 Paper 1, Q1-15`
+
+Example output:
+
+```
+> edit H4 d/22-10-2026
+Edited H4 for S1 Amirah Binte Rahman
+  Worksheet 4A, due Thu 22-10-2026, outstanding
+```
+
+#### Deleting homework: `delete`
+
+Deletes a homework item, for example one assigned to the wrong student.
+
+Format: `delete HOMEWORK_ID`
+
+* The student and their other records are not affected. The ID is not reused.
+
+Example: `delete H4`
+
+Example output:
+
+```
+> delete H4
+Deleted H4 for S1 Amirah Binte Rahman: Worksheet 4A, due Tue 20-10-2026
+```
+
 ### Payments
 
 #### Marking a lesson paid or unpaid: `mark`
@@ -1292,6 +1337,10 @@ HOMEWORK
       submit H7
   homework [STUDENT_ID]
       homework S1
+  edit HOMEWORK_ID [desc/DESCRIPTION] [d/DUE_DATE] [status/STATUS]
+      edit H7 d/02-10-2026
+  delete HOMEWORK_ID
+      delete H7
 
 PAYMENTS
   mark LESSON_ID STATUS
@@ -1414,8 +1463,6 @@ as absent; if you also do not want to charge for it, delete the lesson with `del
 
 ## Known issues
 
-1. **Homework cannot be edited or deleted from inside TutorLedger.** To fix a mistake, edit its line in
-   `data/tutorledger.txt` and run `reload`. Deleting a student also deletes their homework.
 1. **A command's own prefixes cannot appear inside notes.** Words such as `and/or` are kept in notes (see
    [Notes about the command format](#notes-about-the-command-format)), but a prefix the command accepts still
    starts a new value. For example, in `record L3 note/Part a/b`, ` a/b` is read as the attendance. Write
@@ -1452,6 +1499,8 @@ as absent; if you also do not want to charge for it, delete the lesson with `del
 | **Assign homework**     | `assign STUDENT_ID DESCRIPTION d/DUE_DATE`<br>e.g. `assign S1 Worksheet 4A d/20-10-2026`                                |
 | **Submit homework**     | `submit HOMEWORK_ID`<br>e.g. `submit H1`                                                                                 |
 | **List homework**       | `homework [STUDENT_ID]`<br>e.g. `homework S1`                                                                            |
+| **Edit homework**       | `edit HOMEWORK_ID [desc/DESCRIPTION] [d/DUE_DATE] [status/STATUS]`<br>e.g. `edit H4 d/22-10-2026`                       |
+| **Delete homework**     | `delete HOMEWORK_ID`<br>e.g. `delete H4`                                                                                 |
 | **Mark paid / unpaid**  | `mark LESSON_ID STATUS`<br>e.g. `mark L1 paid`                                                                           |
 | **Record a payment**    | `pay STUDENT_ID AMOUNT LESSON_ID [LESSON_ID...]`<br>e.g. `pay S1 80 L37 L38`                                             |
 | **List unpaid lessons** | `unpaid [STUDENT_ID]`<br>e.g. `unpaid S1`                                                                                |

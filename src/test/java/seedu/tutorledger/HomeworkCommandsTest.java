@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneOffset;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -81,5 +82,73 @@ class HomeworkCommandsTest {
         assertTrue(HomeworkCommands.handles("ASSIGN S1 x d/01-01-2027"));
         assertTrue(HomeworkCommands.handles("homework"));
         assertFalse(HomeworkCommands.handles("add n/Tan l/Sec 1 p/91234567"));
+    }
+
+    @Test
+    void handles_editOrDeleteWithHomeworkId_trueOnlyForHomework() {
+        assertTrue(HomeworkCommands.handles("edit H1 d/30-09-2026"));
+        assertTrue(HomeworkCommands.handles("DELETE h3"));
+        assertFalse(HomeworkCommands.handles("edit S1 n/Tan Wei Ming"));
+        assertFalse(HomeworkCommands.handles("delete L1"));
+        assertFalse(HomeworkCommands.handles("edit"));
+        // h/ would be a prefix, not a homework ID.
+        assertFalse(HomeworkCommands.handles("edit h/x"));
+        assertFalse(LessonCommands.handles("edit H1 d/30-09-2026"));
+    }
+
+    @Test
+    void edit_someValues_changesOnlyThoseAndKeepsTheRest() {
+        commands.execute("assign S1 Worksheet 4A d/29-09-2026");
+
+        assertEquals("Edited H1 for S1 Amirah Binte Rahman" + System.lineSeparator()
+                + "  Worksheet 4A and/or 4B, due Wed 30-09-2026, outstanding",
+                commands.execute("edit h1 d/30-09-2026 desc/Worksheet 4A and/or 4B"));
+        Homework item = data.getHomeworkById("H1");
+        assertEquals("Worksheet 4A and/or 4B", item.getDescription());
+        assertEquals(LocalDate.of(2026, 9, 30), item.getDueDate());
+        assertEquals("S1", item.getStudentId());
+    }
+
+    @Test
+    void edit_statusOutstanding_undoesAMistakenSubmit() {
+        commands.execute("assign S1 Worksheet 4A d/29-09-2026");
+        commands.execute("submit H1");
+
+        assertTrue(commands.execute("edit H1 status/Outstanding").endsWith(", outstanding"));
+        assertFalse(data.getHomeworkById("H1").isSubmitted());
+        assertTrue(commands.execute("homework").contains("Worksheet 4A"));
+        assertTrue(commands.execute("submit H1").startsWith("Marked H1"));
+    }
+
+    @Test
+    void edit_invalidValues_changesNothing() {
+        commands.execute("assign S1 Worksheet 4A d/29-09-2026");
+
+        assertEquals("Error: Give at least one value to edit: desc/, d/ or status/.", commands.execute("edit H1"));
+        assertEquals("Error: Due date must be a real date in DD-MM-YYYY format.",
+                commands.execute("edit H1 d/31-02-2026"));
+        assertEquals("Error: Status must be outstanding or submitted.", commands.execute("edit H1 status/done"));
+        assertEquals("Error: Give a non-blank desc/ value.", commands.execute("edit H1 desc/"));
+        assertEquals("Error: Unexpected prefix n/.", commands.execute("edit H1 n/Tan Wei Ming"));
+        assertEquals("Error: No homework found with ID H9.", commands.execute("edit H9 d/30-09-2026"));
+        // One bad value rejects the whole edit, so the valid date is not applied.
+        assertTrue(commands.execute("edit H1 d/30-09-2026 status/done").startsWith("Error:"));
+
+        Homework item = data.getHomeworkById("H1");
+        assertEquals("Worksheet 4A", item.getDescription());
+        assertEquals(LocalDate.of(2026, 9, 29), item.getDueDate());
+        assertFalse(item.isSubmitted());
+    }
+
+    @Test
+    void delete_homeworkId_removesItAndKeepsTheStudent() {
+        commands.execute("assign S1 Worksheet 4A d/29-09-2026");
+
+        assertEquals("Deleted H1 for S1 Amirah Binte Rahman: Worksheet 4A, due Tue 29-09-2026",
+                commands.execute("delete H1"));
+        assertTrue(data.getHomework().isEmpty());
+        assertEquals("Amirah Binte Rahman", data.getStudent("S1").getName());
+        assertEquals("Error: No homework found with ID H1.", commands.execute("delete H1"));
+        assertEquals("Error: Use: delete HOMEWORK_ID", commands.execute("delete H1 confirm"));
     }
 }

@@ -421,6 +421,38 @@ public class TutorLedgerData {
     }
 
     /**
+     * Replaces existing homework with a changed copy that has the same ID.
+     *
+     * @param item The changed copy.
+     * @throws IllegalArgumentException If no homework has that ID.
+     */
+    public void replaceHomework(Homework item) {
+        assert item != null : "Replacement homework should not be null";
+        LOGGER.log(Level.FINE, "Replacing homework {0}", item.getHomeworkId());
+        Homework existing = getHomeworkById(item.getHomeworkId());
+        // Editing homework never moves it to another student.
+        assert existing.getStudentId().equals(item.getStudentId()) : "Replacement moved homework to another student";
+        homework.put(existing.getHomeworkId().toUpperCase(Locale.ROOT), item);
+    }
+
+    /**
+     * Removes homework and returns it, so the caller can report what was deleted.
+     * Its ID is not reused, because the homework counter never decreases.
+     *
+     * @param id The homework ID, in either case.
+     * @return The deleted homework.
+     * @throws IllegalArgumentException If the ID is malformed or no homework has it.
+     */
+    public Homework deleteHomework(String id) {
+        LOGGER.log(Level.FINE, "Deleting homework {0}", id);
+        Homework item = getHomeworkById(id);
+        String key = item.getHomeworkId().toUpperCase(Locale.ROOT);
+        homework.remove(key);
+        assert !homework.containsKey(key) : "Deleted homework is still stored";
+        return item;
+    }
+
+    /**
      * Imports saved homework, keeping its ID, for storage loading.
      *
      * @throws IllegalArgumentException If the student is missing or the ID is already taken.

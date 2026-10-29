@@ -220,4 +220,29 @@ class TutorLedgerDataTest {
 
         assertEquals(60, data.getLesson("L1").getDurationMinutes());
     }
+
+    @Test
+    void deleteHomework_existingId_removesOnlyThatItemAndNeverReusesTheId() {
+        data.addHomework("S1", "Worksheet 4A", LocalDate.of(2026, 9, 29));
+        data.addHomework("S1", "Worksheet 4B", LocalDate.of(2026, 9, 30));
+
+        Homework deleted = data.deleteHomework("h1");
+
+        assertEquals("Worksheet 4A", deleted.getDescription());
+        assertEquals(List.of("H2"), data.getHomework().stream().map(Homework::getHomeworkId).toList());
+        assertEquals("H3", data.addHomework("S1", "Worksheet 4C", LocalDate.of(2026, 10, 1)).getHomeworkId());
+        assertThrows(IllegalArgumentException.class, () -> data.deleteHomework("H1"));
+    }
+
+    @Test
+    void replaceHomework_changedCopy_replacesTheStoredItem() {
+        Homework item = data.addHomework("S1", "Worksheet 4A", LocalDate.of(2026, 9, 29));
+
+        data.replaceHomework(item.withDetails("Worksheet 4B", null, null));
+
+        assertEquals("Worksheet 4B", data.getHomeworkById("H1").getDescription());
+        assertEquals(1, data.getHomework().size());
+        Homework unknown = new Homework("H9", "S1", "Extra", LocalDate.of(2026, 9, 29), Homework.STATUS_OUTSTANDING);
+        assertThrows(IllegalArgumentException.class, () -> data.replaceHomework(unknown));
+    }
 }

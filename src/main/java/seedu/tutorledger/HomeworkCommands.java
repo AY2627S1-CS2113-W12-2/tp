@@ -15,7 +15,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Parses and runs the homework commands: {@code assign}, {@code submit} and {@code homework}.
+ * Parses and runs the homework commands: {@code assign}, {@code submit} and {@code homework}, plus
+ * {@code edit} and {@code delete} when they are given a homework ID.
  * Like {@link StudentCommands}, each command returns its display text, and validation problems
  * are reported as an "Error: ..." message instead of crashing the program.
  */
@@ -24,6 +25,9 @@ public class HomeworkCommands {
 
     /** Command words this class understands, used by the main loop to route input here. */
     private static final Set<String> COMMAND_WORDS = Set.of("assign", "submit", "homework");
+
+    /** Command words shared with students and lessons; they are homework commands only when given a homework ID. */
+    private static final Set<String> SHARED_COMMAND_WORDS = Set.of("edit", "delete");
 
     /**
      * Matches {@code STUDENT_ID DESCRIPTION d/DUE_DATE}. The description is everything between
@@ -50,13 +54,23 @@ public class HomeworkCommands {
         this.clock = clock;
     }
 
-    /** Returns true if the first word of the input is a homework command. */
+    /**
+     * Returns true if the input is a homework command.
+     *
+     * <p>{@code edit} and {@code delete} are shared with students and lessons, so they count only when
+     * the ID after them starts with H, in the same way {@link LessonCommands} claims IDs starting with L.
+     */
     public static boolean handles(String input) {
         if (input == null || input.isBlank()) {
             return false;
         }
-        String command = input.strip().split("\\s+", 2)[0].toLowerCase(Locale.ROOT);
-        return COMMAND_WORDS.contains(command);
+        String[] words = input.strip().split("\\s+", 3);
+        String command = words[0].toLowerCase(Locale.ROOT);
+        if (COMMAND_WORDS.contains(command)) {
+            return true;
+        }
+        // "[^/]*" keeps a prefixed value from being mistaken for a homework ID.
+        return SHARED_COMMAND_WORDS.contains(command) && words.length > 1 && words[1].matches("(?i)H[^/]*");
     }
 
     /** Executes one homework command and returns its display text, including validation errors. */
@@ -73,6 +87,8 @@ public class HomeworkCommands {
             return switch (command) {
             case "assign" -> assign(arguments);
             case "submit" -> submit(arguments);
+            case "edit" -> edit(arguments);
+            case "delete" -> delete(arguments);
             default -> listOutstanding(arguments);
             };
         } catch (IllegalArgumentException exception) {
@@ -112,6 +128,44 @@ public class HomeworkCommands {
         Student student = data.getStudent(item.getStudentId());
         return "Marked " + item.getHomeworkId() + " as submitted: " + item.getDescription()
                 + " (" + studentLabel(student) + ")";
+    }
+
+    /**
+     * Handles {@code edit HOMEWORK_ID [desc/DESCRIPTION] [d/DUE_DATE] [status/STATUS]}.
+     * It corrects a mistake made in {@code assign}, and {@code status/outstanding} undoes a mistaken {@code submit}.
+     */
+    private String edit(String arguments) {
+        String[] pieces = arguments.split("\\s+", 2);
+        // desc/ is free text, so a description such as "Read p.3 and/or p.4" is not cut short.
+        ArgumentParser.Fields fields = ArgumentParser.parseFields(pieces.length == 2 ? pieces[1] : "",
+                List.of("desc", "d", "status"), Set.of("desc"));
+        Homework item = data.getHomeworkById(pieces[0]);
+        if (fields.isEmpty()) {
+            throw new IllegalArgumentException("Give at least one value to edit: desc/, d/ or status/.");
+        }
+        String description = fields.singleOr("desc", null);
+        LocalDate dueDate = fields.has("d") ? parseDate(fields.single("d", true)) : null;
+        String status = fields.has("status") ? fields.single("status", true).toLowerCase(Locale.ROOT) : null;
+        Homework edited = item.withDetails(description, dueDate, status);
+        data.replaceHomework(edited);
+        LOGGER.log(Level.FINE, "Edited {0} using prefixes {1}",
+                new Object[]{edited.getHomeworkId(), fields.fields().keySet()});
+        Student student = data.getStudent(edited.getStudentId());
+        return "Edited " + edited.getHomeworkId() + " for " + studentLabel(student) + System.lineSeparator()
+                + "  " + edited.getDescription() + ", due " + DISPLAY_DATE.format(edited.getDueDate()) + ", "
+                + edited.getSubmitStatus();
+    }
+
+    /** Handles {@code delete HOMEWORK_ID}. The student and their other records are not affected. */
+    private String delete(String arguments) {
+        if (arguments.split("\\s+").length != 1) {
+            throw new IllegalArgumentException("Use: delete HOMEWORK_ID");
+        }
+        Homework item = data.deleteHomework(arguments);
+        LOGGER.log(Level.FINE, "Deleted {0}", item.getHomeworkId());
+        Student student = data.getStudent(item.getStudentId());
+        return "Deleted " + item.getHomeworkId() + " for " + studentLabel(student) + ": "
+                + item.getDescription() + ", due " + DISPLAY_DATE.format(item.getDueDate());
     }
 
     /** Handles {@code homework [STUDENT_ID]}: lists unsubmitted homework, due soonest first. */

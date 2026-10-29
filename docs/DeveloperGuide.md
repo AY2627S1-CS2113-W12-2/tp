@@ -382,7 +382,7 @@ example, `edit L3 t/1700` is routed here, while `edit S1 p/91234567` is left for
 * **`ArgumentParser`** splits prefixed values such as `d/01-12-2026 s/A Math`. It was extracted from
   `StudentCommands` so that every command reads a prefix the same way. The values may be in any order,
   values may contain spaces, and a repeated or unknown prefix is rejected. A command can name some of its
-  prefixes as free text (`note/` and the `r/` of `cancel`). Inside such a value, an
+  prefixes as free text (`note/`, the `r/` of `cancel`, and homework's `desc/`). Inside such a value, an
   unknown word ending in `/`, such as `and/or`, is kept as text, while the command's own prefixes still
   start new values.
 
@@ -779,6 +779,10 @@ later. Back up any real data before testing deletion, reload or hand-edited file
 2. Run `submit H1`, then `homework S1`. Expected: H1 is no longer outstanding. Repeating `submit H1`
    reports that it is already submitted without adding a record.
 3. Exit and restart. Expected: H1 remains submitted; `view S1` does not list it as outstanding homework.
+4. Run `edit H1 status/outstanding d/02-12-2026 desc/Worksheet and/or notes`. Expected: H1 is outstanding
+   again, due 02-12-2026, and its description keeps `and/or`.
+5. Run `delete H1`, then `assign S1 Essay d/03-12-2026`. Expected: H1 is gone, and the new item is H2,
+   because IDs are never reused.
 
 ### Payments and fee-edit boundaries
 

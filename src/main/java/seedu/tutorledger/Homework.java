@@ -117,6 +117,33 @@ public class Homework {
         return updated;
     }
 
+    /**
+     * Returns a copy of this homework with some details changed, leaving this homework untouched.
+     * Pass {@code null} for any detail that should stay as it is.
+     *
+     * @param newDescription The new description, or null to keep the current one.
+     * @param newDueDate The new due date, or null to keep the current one.
+     * @param newStatus {@value #STATUS_OUTSTANDING} or {@value #STATUS_SUBMITTED}, or null to keep the current one.
+     * @return The changed copy, with the same ID and student.
+     * @throws IllegalArgumentException If the description is blank or the status is not recognised.
+     */
+    public Homework withDetails(String newDescription, LocalDate newDueDate, String newStatus) {
+        LOGGER.log(Level.FINE, "Updating homework {0}: description={1}, dueDate={2}, status={3}",
+                new Object[]{homeworkId, newDescription, newDueDate, newStatus});
+        assert studentId != null : "Only homework linked to a student can be edited";
+        if (newStatus != null && !newStatus.equals(STATUS_OUTSTANDING) && !newStatus.equals(STATUS_SUBMITTED)) {
+            throw new IllegalArgumentException("Status must be " + STATUS_OUTSTANDING + " or "
+                    + STATUS_SUBMITTED + ".");
+        }
+        Homework updated = new Homework(homeworkId, studentId,
+                newDescription == null ? description : newDescription,
+                newDueDate == null ? dueDate : newDueDate,
+                newStatus == null ? submitStatus : newStatus);
+        assert updated.homeworkId.equals(homeworkId) : "withDetails changed the homework ID";
+        assert updated.studentId.equals(studentId) : "withDetails changed the student";
+        return updated;
+    }
+
     private static String requireText(String value, String fieldName) {
         LOGGER.log(Level.FINE, "Validating required text field {0}", fieldName);
         if (value == null) {

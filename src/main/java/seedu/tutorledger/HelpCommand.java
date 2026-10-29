@@ -50,7 +50,10 @@ public final class HelpCommand {
             new Section("HOMEWORK", List.of(
                     new Entry("assign STUDENT_ID DESCRIPTION d/DUE_DATE", "assign S1 Worksheet 4A d/29-09-2026"),
                     new Entry("submit HOMEWORK_ID", "submit H7"),
-                    new Entry("homework [STUDENT_ID]", "homework S1"))),
+                    new Entry("homework [STUDENT_ID]", "homework S1"),
+                    new Entry("edit HOMEWORK_ID [desc/DESCRIPTION] [d/DUE_DATE] [status/STATUS]",
+                            "edit H7 d/02-10-2026"),
+                    new Entry("delete HOMEWORK_ID", "delete H7"))),
             new Section("PAYMENTS", List.of(
                     new Entry("mark LESSON_ID STATUS", "mark L37 paid"),
                     new Entry("pay STUDENT_ID AMOUNT LESSON_ID [LESSON_ID...]",
