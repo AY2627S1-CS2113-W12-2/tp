@@ -815,6 +815,44 @@ class LessonCommandsTest {
     }
 
     @Test
+    void uncancel_cancelledLesson_restoresItsSlotAndCharge() {
+        commands.execute("schedule S1 d/22-09-2026 t/1600 s/A Math f/60");
+        commands.execute("cancel L1 r/Student sick");
+
+        assertEquals("Uncancelled L1 for S1 Amirah Binte Rahman (Tue 22-09-2026 1600)" + NEW_LINE
+                + "  It was cancelled for: Student sick", commands.execute("UNCANCEL l1"));
+        Lesson lesson = data.getLesson("L1");
+        assertFalse(lesson.isCancelled());
+        assertEquals("", lesson.getCancellationReason());
+        // It takes its slot again, so another lesson cannot be given that time.
+        assertEquals("Error: L1 already starts at that date and time.",
+                commands.execute("schedule S2 d/22-09-2026 t/1600 s/Pure Chemistry f/62.50"));
+    }
+
+    @Test
+    void uncancel_slotTakenSinceCancelling_rejectedAndStaysCancelled() {
+        commands.execute("schedule S1 d/22-09-2026 t/1600 s/A Math f/60");
+        commands.execute("cancel L1 r/Student sick");
+        commands.execute("schedule S2 d/22-09-2026 t/1630 s/Pure Chemistry f/62.50");
+
+        assertEquals("Error: That time overlaps L2 (22-09-2026 1630, 60 min). Reschedule or delete that lesson first.",
+                commands.execute("uncancel L1"));
+        assertTrue(data.getLesson("L1").isCancelled());
+    }
+
+    @Test
+    void uncancel_invalidInput_changesNothing() {
+        commands.execute("schedule S1 d/22-09-2026 t/1600 s/A Math f/60");
+
+        assertTrue(LessonCommands.handles("uncancel L1"));
+        assertEquals("Error: L1 is not cancelled.", commands.execute("uncancel L1"));
+        assertEquals("Error: Use: uncancel LESSON_ID", commands.execute("uncancel L1 now"));
+        assertEquals("Error: Lesson ID must look like L1.", commands.execute("uncancel"));
+        assertEquals("Error: No lesson found with ID L9.", commands.execute("uncancel L9"));
+        assertFalse(data.getLesson("L1").isCancelled());
+    }
+
+    @Test
     void schedule_overlappingLesson_rejectedEvenForAnotherStudent() {
         commands.execute("schedule S1 d/22-09-2026 t/1600 s/A Math f/60 dur/90");
 

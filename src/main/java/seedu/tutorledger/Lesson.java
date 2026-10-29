@@ -308,6 +308,20 @@ public class Lesson {
         return cancelled;
     }
 
+    /**
+     * Returns a copy of this lesson that is no longer cancelled, keeping every other detail.
+     * It is used to undo a cancellation made by mistake.
+     *
+     * @return The copy, which takes up its slot again and is charged as usual.
+     */
+    public Lesson withoutCancellation() {
+        LOGGER.log(Level.INFO, "Removing cancellation from lesson {0}", lessonId);
+        Lesson restored = new Lesson(lessonId, studentId, subject, date, time, attendance, fee, notes,
+                paymentStatus, "", durationMinutes, amountPaid);
+        assert !restored.isCancelled() : "A lesson with an empty reason should not count as cancelled";
+        return restored;
+    }
+
     /** Returns the date and time the lesson starts. */
     public LocalDateTime getStart() {
         return LocalDateTime.of(date, time);

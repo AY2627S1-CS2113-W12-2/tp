@@ -357,6 +357,7 @@ change plans when real life gets in the way:
 | `edit LESSON_ID ...` / `delete LESSON_ID` | Correct any detail of a lesson, or remove one entered by mistake |
 | `reschedule LESSON_ID [d/DATE] [t/TIME]` | Move a lesson that has not taken place yet |
 | `cancel LESSON_ID r/REASON` | Call off a lesson but keep it, with the reason, in the history |
+| `uncancel LESSON_ID` | Undo a cancellation made by mistake |
 
 #### Responsibilities and object relationships
 
@@ -428,8 +429,8 @@ These four commands share one pattern: get the lesson, make a changed copy, chec
 
 *Figure 13. The original lesson stays in the store until its validated replacement is stored.*
 
-* `replaceLesson` checks the slot only when the time the lesson takes up has changed: a new date or time, or a
-  new duration. Recording attendance on a busy day is never blocked by a clash
+* `replaceLesson` checks the slot only when the time the lesson takes up has changed: a new date or time, a
+  new duration, or an undone cancellation. Recording attendance on a busy day is never blocked by a clash
   check.
 * If any check fails, nothing has been replaced, so a rejected command never leaves a half-changed lesson.
   The store replaces its reference only after validation. The handler may still read the original
@@ -443,7 +444,8 @@ These four commands share one pattern: get the lesson, make a changed copy, chec
 * `cancel` keeps the lesson with its reason. A cancelled lesson frees its slot, is left out of `owed` and
   `unpaid`, and still appears in `lessons` marked `(cancelled: REASON)`. Any positive amount received,
   including a partial payment, triggers a reminder to refund or carry over that amount. No refund is
-  recorded automatically.
+  recorded automatically. `uncancel` reverses this with `Lesson.withoutCancellation`. Because the lesson
+  takes its slot back, `replaceLesson` checks it for clashes.
 * `edit` accepts `a/none`, which sets the attendance back to `NOT_RECORDED`, so a lesson recorded by mistake
   can be corrected or cancelled. `record` and `log` reject `none`, since they exist to record an outcome.
 
@@ -833,10 +835,12 @@ Use an empty working directory and Java 25 with `-ea`. The steps assume today is
 6. Run `edit L1 t/1530`, `delete L5` and `lessons week`. Expected: L1 now starts at 1530 and L5 is gone.
    `lessons` lists only lessons in the current week, so it may show none.
 7. Exit, restart and run `next S1`. Expected: the same summary as in step 5, showing L1 at 1530.
-8. Run `schedule S1 d/01-12-2026 t/1600 s/A Math f/60`. Expected:
+8. Run `uncancel L2`. Expected: `Error: L6 already starts at that date and time. Reschedule or delete that
+   lesson first.` Run `delete L6`, then `uncancel L2`. Expected: L2 is no longer cancelled.
+9. Run `schedule S1 d/01-12-2026 t/1600 s/A Math f/60`. Expected:
    `Error: That time overlaps L1 (01-12-2026 1530, 60 min).` The same command with `t/1630` succeeds,
    because L1 ends at 1630.
-9. Run `record L7 a/absent note/Speed in km/h and/or m/s`, then `edit L7 a/none`. Expected: the notes keep
+10. Run `record L7 a/absent note/Speed in km/h and/or m/s`, then `edit L7 a/none`. Expected: the notes keep
     `km/h` and `and/or`, and `view S1` shows L7 as not recorded.
 
 ### Student deletion warnings

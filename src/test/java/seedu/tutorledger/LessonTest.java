@@ -182,4 +182,20 @@ class LessonTest {
         assertEquals(LocalDateTime.of(2026, 9, 23, 1, 0), late.getEnd());
         assertTrue(late.overlaps(early));
     }
+
+    @Test
+    void withoutCancellation_cancelledLesson_keepsEveryOtherDetail() {
+        Lesson cancelled = new Lesson("L1", "S1", "Math", "22-09-2026", "1600", "not recorded", "60", "Vectors")
+                .withAmountPaid(new BigDecimal("20")).withCancellation("Student sick");
+
+        Lesson restored = cancelled.withoutCancellation();
+
+        assertFalse(restored.isCancelled());
+        assertEquals("", restored.getCancellationReason());
+        assertEquals("Vectors", restored.getNotes());
+        assertEquals(0, new BigDecimal("20").compareTo(restored.getAmountPaid()));
+        assertEquals(Lesson.PAYMENT_PARTIAL, restored.getPaymentStatus());
+        // The original is unchanged, since lessons are immutable.
+        assertTrue(cancelled.isCancelled());
+    }
 }

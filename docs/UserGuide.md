@@ -17,8 +17,8 @@ your own tutoring work.
 * [Features](#features)
   * [Student book](#student-book): `add`, `subject`, `view`, `list`, `edit`, `archive`, `restore`, `delete`
   * [Lessons](#lessons): `schedule`, `log`, `lessons`, `filter`, `next`, `topics`, `record`, `reschedule`,
-    `cancel`, `edit`, `delete`
   * [Homework](#homework): `assign`, `submit`, `homework`
+    `cancel`, `uncancel`, `edit`, `delete`
   * [Payments](#payments): `mark`, `unpaid`, `owed`
   * [Scores and progress](#scores-and-progress): `score`, `scores`, `progress`
   * [Follow-up tasks](#follow-up-tasks): `task`, `tasks`, `done`
@@ -622,8 +622,7 @@ Format: `cancel LESSON_ID r/REASON`
 * If any payment was received, including a partial payment, TutorLedger reminds you to refund or carry over
   the amount received. The saved payment is retained; cancellation does not record a refund automatically.
   Unpaid and $0 lessons do not need a refund reminder.
-* A cancellation cannot be undone from inside TutorLedger. If you cancelled the wrong lesson, schedule it
-  again, or see [Known issues](#known-issues).
+* If you cancelled the wrong lesson, undo it with [`uncancel`](#undoing-a-cancellation-uncancel).
 
 Examples:
 
@@ -636,6 +635,26 @@ Example output:
 > cancel L8 r/Student sick
 Cancelled L8 for S2 Tan Wei Ming (Sat 17-10-2026 0900)
   Reason: Student sick
+```
+
+#### Undoing a cancellation: `uncancel`
+
+Puts back a lesson that was cancelled by mistake.
+
+Format: `uncancel LESSON_ID`
+
+* The lesson keeps all its other details, including any payment, and is charged again as usual.
+* The lesson takes its slot back, so it is rejected if another lesson has been given a clashing time since it was
+  cancelled. Reschedule or delete that lesson first.
+
+Example: `uncancel L8`
+
+Example output:
+
+```
+> uncancel L8
+Uncancelled L8 for S2 Tan Wei Ming (Sat 17-10-2026 0900)
+  It was cancelled for: Student sick
 ```
 
 #### Editing a lesson: `edit`
@@ -654,7 +673,8 @@ Format: `edit LESSON_ID [d/DATE] [t/TIME] [s/SUBJECT] [f/FEE] [dur/MINUTES] [a/A
 * Changing the fee keeps the amount already paid and does not change income. Raising a paid lesson's fee
   creates an outstanding balance; reducing it to the amount already paid settles it. A fee below the amount
   already paid is rejected, and none of the other edits in that command are applied.
-* A cancelled lesson stays cancelled when edited, and cannot be given attendance.
+* A cancelled lesson stays cancelled when edited, and cannot be given attendance. To undo the cancellation, use
+  [`uncancel`](#undoing-a-cancellation-uncancel).
 * This is the same `edit` command used for students. The ID tells TutorLedger which kind of item to change.
 * To change whether a lesson is paid, use [`mark`](#marking-a-lesson-paid-or-unpaid-mark).
 
@@ -1258,6 +1278,8 @@ LESSONS
       reschedule L42 d/25-09-2026 t/1800
   cancel LESSON_ID r/REASON
       cancel L43 r/Student sick
+  uncancel LESSON_ID
+      uncancel L43
   edit LESSON_ID [d/DATE] [t/TIME] [s/SUBJECT] [f/FEE] [dur/MINUTES] [a/ATTENDANCE] [note/NOTES]
       edit L42 d/25-09-2026 t/1800
   delete LESSON_ID
@@ -1394,15 +1416,13 @@ as absent; if you also do not want to charge for it, delete the lesson with `del
 
 1. **Homework cannot be edited or deleted from inside TutorLedger.** To fix a mistake, edit its line in
    `data/tutorledger.txt` and run `reload`. Deleting a student also deletes their homework.
-1. **A cancellation cannot be undone from inside TutorLedger.** Remove the reason at the end of the lesson's
-   line in `data/tutorledger.txt` and run `reload`.
 1. **A command's own prefixes cannot appear inside notes.** Words such as `and/or` are kept in notes (see
    [Notes about the command format](#notes-about-the-command-format)), but a prefix the command accepts still
    starts a new value. For example, in `record L3 note/Part a/b`, ` a/b` is read as the attendance. Write
    "Part a, b" instead.
 1. **Data files from older versions may hold overlapping lessons.** Earlier versions only stopped two lessons
-   from starting at the same time. Such lessons still load, so nothing is lost, but moving or lengthening
-   one of them is checked against the others. Reschedule one of the pair to clear the overlap.
+   from starting at the same time. Such lessons still load, so nothing is lost, but moving, lengthening or
+   uncancelling one of them is checked against the others. Reschedule one of the pair to clear the overlap.
 
 ## Command summary
 
@@ -1426,6 +1446,7 @@ as absent; if you also do not want to charge for it, delete the lesson with `del
 | **Record lesson**       | `record LESSON_ID a/ATTENDANCE [note/NOTES]`<br>e.g. `record L3 a/present note/Started simultaneous equations`          |
 | **Reschedule lesson**   | `reschedule LESSON_ID [d/DATE] [t/TIME]`<br>e.g. `reschedule L6 d/16-10-2026 t/1800`                                     |
 | **Cancel lesson**       | `cancel LESSON_ID r/REASON`<br>e.g. `cancel L8 r/Student sick`                                                           |
+| **Undo cancellation**   | `uncancel LESSON_ID`<br>e.g. `uncancel L8`                                                                               |
 | **Edit lesson**         | `edit LESSON_ID [d/DATE] [t/TIME] [s/SUBJECT] [f/FEE] [dur/MINUTES] [a/ATTENDANCE] [note/NOTES]`<br>e.g. `edit L6 d/16-10-2026 t/1800` |
 | **Delete lesson**       | `delete LESSON_ID`<br>e.g. `delete L10`                                                                                  |
 | **Assign homework**     | `assign STUDENT_ID DESCRIPTION d/DUE_DATE`<br>e.g. `assign S1 Worksheet 4A d/20-10-2026`                                |

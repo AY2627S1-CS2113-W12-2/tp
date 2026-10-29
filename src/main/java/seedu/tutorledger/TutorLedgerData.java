@@ -282,9 +282,10 @@ public class TutorLedgerData {
         assert existing.getStudentId().equals(lesson.getStudentId())
                 : "Replacement moved the lesson to another student";
         // Only a lesson that now takes up different time needs the check, so other edits are never blocked
-        // by it. That covers a move and a longer or shorter lesson.
+        // by it. That covers a move, a longer or shorter lesson, and a cancellation being undone.
         boolean takesNewTime = !existing.getStart().equals(lesson.getStart())
-                || existing.getDurationMinutes() != lesson.getDurationMinutes();
+                || existing.getDurationMinutes() != lesson.getDurationMinutes()
+                || (existing.isCancelled() && !lesson.isCancelled());
         if (takesNewTime) {
             ensureSlotFree(lesson);
         }

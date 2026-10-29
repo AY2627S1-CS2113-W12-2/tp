@@ -199,6 +199,18 @@ class TutorLedgerDataTest {
     }
 
     @Test
+    void replaceLesson_undoingCancellationIntoTakenSlot_throwsAndKeepsItCancelled() {
+        Lesson first = data.addLesson("S1", "A Math", "22-09-2026", "1600", "60");
+        data.replaceLesson(first.withCancellation("Student sick"));
+        data.addLesson("S2", "Pure Chemistry", "22-09-2026", "1600", "62.50");
+
+        Lesson restored = data.getLesson("L1").withoutCancellation();
+        assertThrows(IllegalArgumentException.class, () -> data.replaceLesson(restored));
+
+        assertTrue(data.getLesson("L1").isCancelled());
+    }
+
+    @Test
     void replaceLesson_longerLessonIntoNextOne_throws() {
         data.addLesson("S1", "A Math", "22-09-2026", "1600", "60");
         data.addLesson("S2", "Pure Chemistry", "22-09-2026", "1700", "62.50");

@@ -42,6 +42,7 @@ public final class HelpCommand {
                             "record L41 a/present note/Started simultaneous equations"),
                     new Entry("reschedule LESSON_ID [d/DATE] [t/TIME]", "reschedule L42 d/25-09-2026 t/1800"),
                     new Entry("cancel LESSON_ID r/REASON", "cancel L43 r/Student sick"),
+                    new Entry("uncancel LESSON_ID", "uncancel L43"),
                     new Entry("edit LESSON_ID [d/DATE] [t/TIME] [s/SUBJECT] [f/FEE]"
                             + " [dur/MINUTES] [a/ATTENDANCE] [note/NOTES]",
                             "edit L42 d/25-09-2026 t/1800"),

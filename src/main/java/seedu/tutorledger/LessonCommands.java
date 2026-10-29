@@ -19,8 +19,8 @@ import java.util.stream.Collectors;
 
 /**
  * Parses and runs the lesson commands: {@code schedule}, {@code log}, {@code lessons}, {@code next},
- * {@code record}, {@code reschedule} and {@code cancel}, plus {@code edit} and {@code delete} when they
- * are given a lesson ID.
+ * {@code record}, {@code reschedule}, {@code cancel} and {@code uncancel}, plus {@code edit} and
+ * {@code delete} when they are given a lesson ID.
  * Like {@link StudentCommands}, each command returns its display text, and validation problems
  * are reported as an "Error: ..." message instead of crashing the program.
  */
@@ -33,7 +33,7 @@ public class LessonCommands {
 
     /** Command words that always belong to lessons, used by the main loop to route input here. */
     private static final Set<String> COMMAND_WORDS = Set.of("schedule", "log", "lessons", "next", "record",
-            "reschedule", "cancel");
+            "reschedule", "cancel", "uncancel");
 
     /** Command words shared with students; they are lesson commands only when given a lesson ID. */
     private static final Set<String> SHARED_COMMAND_WORDS = Set.of("edit", "delete");
@@ -126,6 +126,7 @@ public class LessonCommands {
             case "record" -> record(arguments);
             case "reschedule" -> reschedule(arguments);
             case "cancel" -> cancel(arguments);
+            case "uncancel" -> uncancel(arguments);
             case "edit" -> edit(arguments);
             case "delete" -> delete(arguments);
             // handles() lets only lesson command words through, so reaching here means a word was missed above.
@@ -483,6 +484,36 @@ public class LessonCommands {
         return "Cancelled " + cancelled.getLessonId() + " for " + formatStudent(student)
                 + " (" + formatSlot(cancelled) + ")" + System.lineSeparator()
                 + "  Reason: " + cancelled.getCancellationReason() + paidReminder;
+    }
+
+    /**
+     * Handles {@code uncancel LESSON_ID}: undoes a cancellation made by mistake.
+     * The lesson takes up its slot again and is charged as usual, so it is rejected if another lesson
+     * has been given that time since it was cancelled.
+     */
+    private String uncancel(String arguments) {
+        if (arguments.split("\\s+").length != 1) {
+            throw new IllegalArgumentException("Use: uncancel LESSON_ID");
+        }
+        Lesson lesson = data.getLesson(arguments);
+        if (!lesson.isCancelled()) {
+            throw new IllegalArgumentException(lesson.getLessonId() + " is not cancelled.");
+        }
+        Lesson restored = lesson.withoutCancellation();
+        try {
+            data.replaceLesson(restored);
+        } catch (IllegalArgumentException exception) {
+            // The slot was given to another lesson after the cancellation, so say how to free it.
+            throw new IllegalArgumentException(exception.getMessage()
+                    + " Reschedule or delete that lesson first.", exception);
+        }
+        assert !data.getLesson(lesson.getLessonId()).isCancelled() : "Uncancelled lesson is still cancelled";
+        LOGGER.log(Level.FINE, "Uncancelled {0}, which was cancelled for: {1}",
+                new Object[]{lesson.getLessonId(), lesson.getCancellationReason()});
+        Student student = data.getStudent(restored.getStudentId());
+        return "Uncancelled " + restored.getLessonId() + " for " + formatStudent(student)
+                + " (" + formatSlot(restored) + ")" + System.lineSeparator()
+                + "  It was cancelled for: " + lesson.getCancellationReason();
     }
 
     /** Handles {@code delete LESSON_ID}. The student and their homework are not affected. */
