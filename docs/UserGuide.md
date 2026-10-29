@@ -53,6 +53,10 @@ your own tutoring work.
 * Unless a command says otherwise, each prefix can be given only once. For example,
   `schedule S1 d/20-10-2026 d/21-10-2026 ...` is rejected.
 * Command words, prefixes and IDs are not case-sensitive, so `VIEW s1` works the same as `view S1`.
+* Notes (`note/`) and cancellation reasons (`r/` in `cancel`) are free text.
+  In them, a word ending in `/`, such as `and/or` or `km/h`, is kept as part of the text. Only a prefix the
+  command itself accepts starts a new value, so `record L3 note/Graphs and/or tables a/late` records the notes
+  `Graphs and/or tables` and the attendance `late`.
 * Extra words after `help` and `reload` are ignored. For example, `help 123` is read as `help`.
 * If a command cannot be carried out, TutorLedger shows a message starting with `Error:` that says what to fix,
   and nothing is changed.
@@ -85,9 +89,10 @@ An ID is never reused, even after its item is deleted.
 | `RATE`           | `r/`    | Default dollars per hour, up to 2 decimal places. Zero or more.                | `r/60`               |
 | `MINUTES`        | `dur/`  | Whole minutes from 1 to 1440; defaults to 60 when scheduling.                 | `dur/90`             |
 | `ATTENDANCE`     | `a/`    | `present`, `absent` or `late`.                                                  | `a/late`             |
-| `NOTES`          | `note/` | Any text: what was covered and anything to remember. See [Known issues](#known-issues). | `note/Started vectors` |
+| `NOTES`          | `note/` | Any text: what was covered and anything to remember. May contain words like `and/or`. | `note/Started vectors` |
 | `WEEKS`          | `w/`    | A whole number of weeks from 2 to 52.                                           | `w/10`               |
-| `REASON`         | `r/`    | Any text saying why a lesson was called off. Same limits as `NOTES`.            | `r/Student sick`     |
+| `DESCRIPTION` (homework edit) | `desc/` | Any text describing the homework. Same rules as `NOTES`.            | `desc/Worksheet 4B`  |
+| `REASON`         | `r/`    | Any text saying why a lesson was called off. Same rules as `NOTES`.             | `r/Student sick`     |
 | `STATUS`         | (none)  | `paid` or `unpaid`.                                                             | `paid`               |
 | `STATUS` (student list) | `status/` | `active`, `archived` or `all`, ignoring case. | `status/archived` |
 | `DESCRIPTION`    | (none)  | Any text, written straight after the student ID.                                | `Worksheet 3B`       |
@@ -1387,13 +1392,14 @@ as absent; if you also do not want to charge for it, delete the lesson with `del
 
 1. **Homework cannot be edited or deleted from inside TutorLedger.** To fix a mistake, edit its line in
    `data/tutorledger.txt` and run `reload`. Deleting a student also deletes their homework.
-1. **Notes cannot contain a word followed directly by `/`.** In `NOTES`, text such as ` and/or` or ` km/h` is
-   read as an unknown prefix, and the command is rejected with `Error: Unexpected prefix and/.` (or similar).
-   Write "and or" or "km per h" instead. Homework descriptions are not affected.
 1. **A lesson's attendance cannot be set back to "not recorded"** once it has been recorded. Edit its line in
    `data/tutorledger.txt` and run `reload` if you need to.
 1. **A cancellation cannot be undone from inside TutorLedger.** Remove the reason at the end of the lesson's
    line in `data/tutorledger.txt` and run `reload`.
+1. **A command's own prefixes cannot appear inside notes.** Words such as `and/or` are kept in notes (see
+   [Notes about the command format](#notes-about-the-command-format)), but a prefix the command accepts still
+   starts a new value. For example, in `record L3 note/Part a/b`, ` a/b` is read as the attendance. Write
+   "Part a, b" instead.
 1. **Data files from older versions may hold overlapping lessons.** Earlier versions only stopped two lessons
    from starting at the same time. Such lessons still load, so nothing is lost, but moving or lengthening
    one of them is checked against the others. Reschedule one of the pair to clear the overlap.

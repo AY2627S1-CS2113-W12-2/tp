@@ -380,7 +380,10 @@ example, `edit L3 t/1700` is routed here, while `edit S1 p/91234567` is left for
   lesson (`cancellationReason` is set) is never confused with one the student missed (`ABSENT`).
 * **`ArgumentParser`** splits prefixed values such as `d/01-12-2026 s/A Math`. It was extracted from
   `StudentCommands` so that every command reads a prefix the same way. The values may be in any order,
-  values may contain spaces, and a repeated or unknown prefix is rejected.
+  values may contain spaces, and a repeated or unknown prefix is rejected. A command can name some of its
+  prefixes as free text (`note/` and the `r/` of `cancel`). Inside such a value, an
+  unknown word ending in `/`, such as `and/or`, is kept as text, while the command's own prefixes still
+  start new values.
 
 Fees and durations are omitted from Figure 9; see [Default hourly rates](#default-hourly-rates)
 for how a lesson's fee is chosen.

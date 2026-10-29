@@ -15,6 +15,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 /**
  * Parses and runs the lesson commands: {@code schedule}, {@code log}, {@code lessons}, {@code next},
@@ -39,6 +40,12 @@ public class LessonCommands {
 
     /** Attendance values a tutor can type; "not recorded" is only the state a new lesson starts in. */
     private static final Set<String> ATTENDANCE_WORDS = Set.of("present", "absent", "late");
+
+    /**
+     * Prefixes whose values are free text: notes and a cancellation reason. Inside them, a word such as
+     * "and/or" is kept as text rather than rejected as an unknown prefix.
+     */
+    private static final Set<String> FREE_TEXT_PREFIXES = Set.of("note", "r");
 
     /** Date format shown to the user, e.g. Tue 22-09-2026. */
     private static final DateTimeFormatter DISPLAY_DATE = DateTimeFormatter.ofPattern("EEE dd-MM-uuuu",
@@ -586,11 +593,17 @@ public class LessonCommands {
                 + "'s subjects (" + String.join(", ", student.getSubjects()) + ").");
     }
 
-    /** Splits {@code ID prefix/value ...} into the ID and its prefixed values. */
+    /**
+     * Splits {@code ID prefix/value ...} into the ID and its prefixed values.
+     * Notes and reasons are read as free text, so they may contain words such as "and/or".
+     */
     private static IdAndFields splitIdAndFields(String arguments, List<String> allowedPrefixes) {
         String[] pieces = arguments.split("\\s+", 2);
         String remainder = pieces.length == 2 ? pieces[1] : "";
-        return new IdAndFields(pieces[0], ArgumentParser.parseFields(remainder, allowedPrefixes));
+        Set<String> freeText = FREE_TEXT_PREFIXES.stream()
+                .filter(allowedPrefixes::contains)
+                .collect(Collectors.toSet());
+        return new IdAndFields(pieces[0], ArgumentParser.parseFields(remainder, allowedPrefixes, freeText));
     }
 
     /** Formats when a lesson starts as "Tue 22-09-2026 1600". */

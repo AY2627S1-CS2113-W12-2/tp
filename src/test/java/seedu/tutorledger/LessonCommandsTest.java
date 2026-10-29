@@ -761,6 +761,36 @@ class LessonCommandsTest {
     }
 
     @Test
+    void record_notesWithSlashWords_keepsThemAsText() {
+        commands.execute("schedule S1 d/21-09-2026 t/0900 s/A Math f/60");
+
+        assertEquals("Recorded L1 for S1 Amirah Binte Rahman (Mon 21-09-2026 0900)" + NEW_LINE
+                + "  Attendance: present" + NEW_LINE
+                + "  Notes: Speed in km/h and/or m/s",
+                commands.execute("record L1 a/present note/Speed in km/h and/or m/s"));
+        // A prefix the command accepts still starts a new value after the notes.
+        commands.execute("record L1 note/Graphs and/or tables a/late");
+        assertEquals("Graphs and/or tables", data.getLesson("L1").getNotes());
+        assertEquals(Lesson.Attendance.LATE, data.getLesson("L1").getAttendance());
+    }
+
+    @Test
+    void logEditAndCancel_freeTextWithSlashWords_keepsThemAsText() {
+        commands.execute("log S1 d/15-09-2026 t/1600 s/A Math f/60 a/present note/Ratios and/or rates");
+        assertEquals("Ratios and/or rates", data.getLesson("L1").getNotes());
+
+        commands.execute("edit L1 note/Revise w/o calculator");
+        assertEquals("Revise w/o calculator", data.getLesson("L1").getNotes());
+
+        commands.execute("schedule S1 d/22-09-2026 t/1600 s/A Math f/60");
+        commands.execute("cancel L2 r/Exam week and/or CCA");
+        assertEquals("Exam week and/or CCA", data.getLesson("L2").getCancellationReason());
+
+        // Outside notes, a mistyped prefix is still reported instead of being absorbed.
+        assertEquals("Error: Unexpected prefix tt/.", commands.execute("edit L2 tt/1700"));
+    }
+
+    @Test
     void schedule_overlappingLesson_rejectedEvenForAnotherStudent() {
         commands.execute("schedule S1 d/22-09-2026 t/1600 s/A Math f/60 dur/90");
 
