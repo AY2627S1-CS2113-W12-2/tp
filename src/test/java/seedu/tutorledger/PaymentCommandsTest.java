@@ -119,6 +119,8 @@ class PaymentCommandsTest {
     void rejectsUnknownAndMalformedLessonIds() {
         assertTrue(commands.execute("mark L38 paid").contains("No lesson found"));
         assertTrue(commands.execute("mark invalid paid").contains("Lesson ID must look like L1"));
+        assertTrue(commands.execute("pay S99 10 L37").contains("No student found"));
+        assertEquals("unpaid", data.getLesson("L37").getPaymentStatus());
     }
 
     @Test
