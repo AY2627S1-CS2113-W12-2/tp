@@ -161,4 +161,21 @@ class StudentCommandsTest {
         data.setNextStudentNumber(8);
         assertTrue(commands.execute("add n/Tan Wei Ling l/Sec 2 p/81234567").contains("Added S8"));
     }
+
+    @Test
+    void view_noLessonsOrOutstandingHomework_saysNoneUnderEachHeading() {
+        commands.execute("add n/Alice Tan l/Pri5 p/91234567");
+        data.putHomework(new Homework("H1", "S1", "Done already", LocalDate.of(2026, 9, 20),
+                Homework.STATUS_SUBMITTED));
+
+        String newLine = System.lineSeparator();
+        assertEquals("S1  Alice Tan  (Pri 5)  91234567" + newLine
+                + "Subjects: none" + newLine
+                + "Default hourly rate: not set" + newLine
+                + "Lessons" + newLine
+                + "  none" + newLine
+                + "Outstanding homework" + newLine
+                + "  none" + newLine
+                + "Amount owed: $0.00 (0 lessons)", commands.execute("view S1"));
+    }
 }
