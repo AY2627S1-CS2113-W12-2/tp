@@ -76,8 +76,8 @@ public class HomeworkCommands {
             default -> listOutstanding(arguments);
             };
         } catch (IllegalArgumentException exception) {
-            // Invalid user input is expected, so it is a WARNING (not SEVERE) and the user sees a friendly message.
-            LOGGER.log(Level.WARNING, "Rejected homework command {0}: {1}",
+            // Invalid user input is expected and already explained on screen, so it is only traced for debugging.
+            LOGGER.log(Level.FINE, "Rejected homework command {0}: {1}",
                     new Object[]{input.strip(), exception.getMessage()});
             return "Error: " + exception.getMessage();
         }
