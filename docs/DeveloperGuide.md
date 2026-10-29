@@ -14,6 +14,37 @@ Select a diagram to enlarge it.
 * The lesson UML figures follow the notation of the [SE-EDU textbook](https://se-education.org/se-book/)
   and are rendered with [PlantUML](https://plantuml.com/).
 
+## Setting up and running the project
+
+Install Git and JDK 25, then clone your fork and open a terminal in the repository root. Check
+`java -version` before building: it must report Java 25. The repository includes the Gradle wrapper,
+so no separate Gradle installation is needed.
+
+On macOS or Linux, build the application and run the automated checks with:
+
+```sh
+./gradlew check shadowJar
+```
+
+On Windows, use `.\gradlew.bat check shadowJar`. `check` runs the JUnit
+tests and Checkstyle; `shadowJar` creates `build/libs/tutorledger.jar`. The test report is written to
+`build/reports/tests/test/index.html`.
+
+Run the application with `./gradlew run` (Windows: `.\gradlew.bat run`), or run the packaged JAR:
+
+```sh
+java -ea -jar build/libs/tutorledger.jar
+```
+
+The application prints `TutorLedger student book. Type exit to close.` Type `help` to see the commands
+and `exit` to close it. Data is saved under `data/tutorledger.txt`, relative to the working directory;
+use a separate empty directory for the manual-testing scenarios.
+
+For IntelliJ IDEA, import the repository as a Gradle project and set both the project SDK and Gradle
+JVM to JDK 25. The shared **TutorLedger (assertions enabled)** run configuration in `.run/` enables
+assertions with `-ea`, as do Gradle application runs and tests. Enable `-ea` in any custom application
+run configuration too.
+
 ## Design
 
 ### Overall architecture
@@ -25,7 +56,7 @@ separate Java packages. All application classes belong to `seedu.tutorledger`.
 
 ![TutorLedger UML component diagram showing application, commands, helpers, shared data and persistence](diagrams/architecture.svg)
 
-*Architecture overview. Arrows indicate dependencies and use, rather than chronological execution.*
+*Figure 1. Architecture overview. Arrows indicate dependencies and use, rather than chronological execution.*
 
 | Responsibility | Main classes | Role |
 | --- | --- | --- |
@@ -51,6 +82,18 @@ does not require a common command interface: the current handlers use static `ha
 instance `execute` methods. The more detailed class, sequence and activity diagrams below explain the
 selected implementation decisions.
 
+### Validation and updates
+
+Command handlers parse input and report validation failures as `Error: ...` messages. Model constructors
+and data-store methods validate values and relationships before records are inserted or replaced.
+User-input checks use ordinary conditionals and exceptions, so they remain active when Java assertions
+are disabled. Assertions check internal assumptions, such as preserving record identities and advancing
+ID counters after successful insertion.
+
+Records are immutable: edits create validated copies, and the store replaces the original only after
+the relevant checks pass. The automatic-save flow described above then persists the changed store.
+The implementation sections below explain checks and persistence rules specific to each feature.
+
 ## Implementation
 
 ### Storage
@@ -61,7 +104,7 @@ records in a text editor.
 
 ![Storage class diagram showing persistence coordination, file operations and restored data](diagrams/storage-class.svg)
 
-*Storage responsibilities. The entry point coordinates persistence; StorageCommands shares the live store and delegates encoding and file I/O to Storage.*
+*Figure 2. The entry point coordinates persistence; StorageCommands shares the live store and delegates encoding and file I/O to Storage.*
 
 * **`Storage`** knows the file format and does the file input/output. It never prints anything, so it can
   be tested on its own.
@@ -118,7 +161,7 @@ command, `saveIfChanged` compares a new snapshot with it and writes the file onl
 
 ![Automatic-save sequence showing snapshot comparison and conditional file writing](diagrams/storage-autosave-sequence.svg)
 
-*Automatic saving. StudentCommands is one representative feature handler. A changed snapshot triggers a save; unchanged records leave the file untouched.*
+*Figure 3. StudentCommands is one representative feature handler. A changed snapshot triggers a save; unchanged records leave the file untouched.*
 
 * Comparing snapshots means a command that teammates add later is saved automatically. Nobody has to
   remember to update a list of "commands that change data".
@@ -155,6 +198,8 @@ student at the end of a term.
 
 ![Scores and progress class diagram showing commands, shared records and score values](diagrams/score-class.svg)
 
+*Figure 4. ScoreCommands reads and updates scores through the shared data store.*
+
 * **`Score`** is an immutable record of one test result, like `Lesson` and `Homework`. Its constructor
   checks every value, for example that the marks are not more than the total. A score therefore cannot
   exist in an invalid state, whether it was typed in or loaded from a hand-edited file.
@@ -172,6 +217,8 @@ The sequence diagram below shows `score S1 WA2 m/33/40`.
 
 ![Score-recording sequence showing validation, insertion and comparison with the previous result](diagrams/score-record-sequence.svg)
 
+*Figure 5. A score is created and validated before insertion, then compared with previous results.*
+
 1. The test name is everything before the first `m/` or `d/`, so it can contain spaces, like an `assign`
    description. The rest goes to the shared `ArgumentParser`, so `m/` and `d/` can be typed in any order.
 2. `TutorLedgerData.addScore` looks up the student first, so a score can never belong to a missing student.
@@ -179,8 +226,7 @@ The sequence diagram below shows `score S1 WA2 m/33/40`.
 3. `ScoreCommands` sorts the student's scores by date and compares the new score with the one before it.
    The tutor sees at once whether the student did better or worse.
 
-Any invalid value throws `IllegalArgumentException` before anything is stored. `execute` turns this into an
-`Error: ...` message and logs it at `WARNING` level.
+A rejected score is neither stored nor assigned a permanent ID.
 
 **Design decisions**
 
@@ -198,6 +244,8 @@ Any invalid value throws `IllegalArgumentException` before anything is stored. `
 summarises them. The activity diagram shows how each lesson is counted.
 
 ![Progress activity diagram showing lesson eligibility, attendance counts and the recorded-lesson denominator](diagrams/score-progress-activity.svg)
+
+*Figure 6. Only recorded, non-cancelled lessons up to today contribute to the attendance rate.*
 
 * Cancelled lessons are excluded before attendance is counted.
 * Lessons after today are skipped because they cannot have attendance yet. Counting them as "not
@@ -236,6 +284,8 @@ the lesson.
 
 ![Class diagram of TaskCommands, TutorLedgerData, FollowUpTask and their links](diagrams/followup-class.svg)
 
+*Figure 7. The store owns follow-up tasks; each task may identify a student by ID.*
+
 * **`FollowUpTask`** is an immutable record, like `Homework`. Its student and due date are optional, because
   some reminders (such as "Print term calendar") are not about one student or day. The getters return
   `Optional`, so callers cannot forget to handle a task that has neither.
@@ -252,6 +302,8 @@ the lesson.
 The sequence diagram below shows `task S1 Bring Worksheet 4B d/16-10-2026`.
 
 ![Sequence diagram of logging a follow-up task for a student](diagrams/followup-add-sequence.svg)
+
+*Figure 8. A linked task resolves its student before the new reminder is stored.*
 
 1. A regular expression splits off a final `d/DUE_DATE`. As with `assign`, the date must come last, so the
    description may contain spaces and commas.
@@ -279,13 +331,8 @@ new status, and `replaceTask` stores it under the same ID.
   useful. Tasks not linked to anyone are kept. Because the tasks are removed too, a student with follow-up
   tasks gets the deletion warning (see *Student deletion warnings*), so reminders are never lost silently.
 
-#### Defensive checks and persistence
+#### Persistence and verification
 
-* Invalid input (an unknown student, an impossible date, a blank description, a repeated `done`) throws
-  `IllegalArgumentException` before anything is stored. `execute` turns it into an `Error: ...` message
-  and logs it at `WARNING` level.
-* Assertions check things that only a coding mistake could break: a new task is pending, the counter
-  advanced, `done` really stored a done copy, and `tasks` lists no done tasks.
 * `Storage` saves each task as a `T` line with six fields. A missing due date or student is an empty field.
   The task counter is an optional sixth field on the `NEXT` line, so data files saved before this
   feature still load.
@@ -321,7 +368,7 @@ example, `edit L3 t/1700` is routed here, while `edit S1 p/91234567` is left for
 
 ![Class diagram of the lesson commands, the shared data store, Lesson and Attendance](diagrams/lesson-class.svg)
 
-*Figure 1. `LessonCommands` changes lessons only through `TutorLedgerData`, which owns every `Lesson`.*
+*Figure 9. `LessonCommands` changes lessons only through `TutorLedgerData`, which owns every `Lesson`.*
 
 * **`TutorLedgerData`** is the only class that stores lessons. It gives each new lesson the next ID (`L1`,
   `L2`, ...) and checks that no two lessons start at the same date and time (`ensureSlotFree`). It never
@@ -334,23 +381,23 @@ example, `edit L3 t/1700` is routed here, while `edit S1 p/91234567` is left for
   `StudentCommands` so that every command reads a prefix the same way. The values may be in any order,
   values may contain spaces, and a repeated or unknown prefix is rejected.
 
-Fees and durations are omitted from Figure 1; see [Default hourly rates](#default-hourly-rates)
+Fees and durations are omitted from Figure 9; see [Default hourly rates](#default-hourly-rates)
 for how a lesson's fee is chosen.
 
 #### Scheduling a weekly slot
 
 Most students have one regular weekly slot, so `schedule ... w/WEEKS` adds that many lessons in one
-command. Figure 2 shows `schedule S1 d/01-12-2026 t/1600 s/A Math f/60 w/3`. Every lesson command begins by
-splitting its arguments in the same way, so that step is drawn once, in Figure 3, and referred to with a
+command. Figure 10 shows `schedule S1 d/01-12-2026 t/1600 s/A Math f/60 w/3`. Every lesson command begins by
+splitting its arguments in the same way, so that step is drawn once, in Figure 11, and referred to with a
 `ref` frame.
 
 ![Sequence diagram of scheduling three weekly lessons](diagrams/lesson-weekly-sequence.svg)
 
-*Figure 2. Every week is checked before any lesson is stored.*
+*Figure 10. Every week is checked before any lesson is stored.*
 
 ![Sequence diagram fragment for parsing the ID and prefixed fields](diagrams/lesson-parse-sd.svg)
 
-*Figure 3. The `parse ID and fields` fragment used by Figures 2 and 5.*
+*Figure 11. The `parse ID and fields` fragment used by Figures 10 and 13.*
 
 1. `LessonCommands` looks up the student and checks that they take the subject. It uses the student's own
    spelling of the subject, so `a math` and `A Math` are not stored as two subjects.
@@ -360,21 +407,21 @@ splitting its arguments in the same way, so that step is drawn once, in Figure 3
    tutor sees `Error: <ID> already starts at that date and time.` and no lesson is added. The counter only
    moves when lessons are stored, so a rejected command never skips an ID.
 
-Figure 4 shows the objects after this command and a later `cancel L2 r/Student sick`. Each week is an
+Figure 12 shows the objects after this command and a later `cancel L2 r/Student sick`. Each week is an
 ordinary, separate lesson, so `L2` could be cancelled without affecting `L1` or `L3`.
 
 ![Object diagram of the data store holding three weekly lessons, one cancelled](diagrams/lesson-weekly-object.svg)
 
-*Figure 4. After `schedule ... w/3` and `cancel L2 r/Student sick`. The counter has moved past `L3`.*
+*Figure 12. After `schedule ... w/3` and `cancel L2 r/Student sick`. The counter has moved past `L3`.*
 
 #### Changing a lesson: record, edit, reschedule and cancel
 
 These four commands share one pattern: get the lesson, make a changed copy, check it, then call
-`replaceLesson`. Figure 5 shows `reschedule L3 d/16-12-2026`.
+`replaceLesson`. Figure 13 shows `reschedule L3 d/16-12-2026`.
 
 ![Sequence diagram of rescheduling a lesson by replacing it with a changed copy](diagrams/lesson-reschedule-sequence.svg)
 
-*Figure 5. The original lesson stays in the store until its validated replacement is stored.*
+*Figure 13. The original lesson stays in the store until its validated replacement is stored.*
 
 * `replaceLesson` checks the slot only when the date or time has changed, so recording attendance on a busy
   day is never blocked by a clash check.
@@ -394,12 +441,12 @@ These four commands share one pattern: get the lesson, make a changed copy, chec
 
 #### Preparing for the next lesson
 
-`next [STUDENT_ID]` gathers everything a tutor checks just before a lesson. Figure 6 shows how the lesson is
+`next [STUDENT_ID]` gathers everything a tutor checks just before a lesson. Figure 14 shows how the lesson is
 chosen and summarised.
 
 ![Activity diagram of choosing and summarising the next lesson](diagrams/lesson-next-activity.svg)
 
-*Figure 6. Only lessons that can still take place are considered.*
+*Figure 14. Only lessons that can still take place are considered.*
 
 The summary is built from existing records each time; nothing extra is stored. "Unpaid" totals the
 remaining balances of non-cancelled lessons up to today, including partially paid lessons, using the same
@@ -441,13 +488,7 @@ balance rule as `owed`. Pending follow-up tasks for the selected student appear 
   * Cons: the record of a lesson that was planned (and perhaps paid for) disappears. `delete` remains
     available for lessons entered by mistake.
 
-#### Defensive checks and testing
-
-User mistakes, such as a bad date or a clashing slot, throw `IllegalArgumentException`. `execute` turns
-this into an `Error: ...` message, so the program never crashes on bad input and the checks work whether or
-not assertions are enabled. Assertions check things only a bug could break, for example that a recorded
-copy really has attendance and that the lesson counter advanced after storing. Each command logs what it did
-at `FINE` level, so the trace is available for debugging without appearing on the tutor's screen.
+#### Verification
 
 `LessonCommandsTest` covers each command's normal use and its rejections, and uses a fixed `Clock` so tests
 about "today" and "the past" do not depend on the real date. `TutorLedgerDataTest` covers ID allocation,
@@ -471,7 +512,7 @@ shared data boundary rather than only in a particular command handler.
 
 ![Class diagram showing command handlers, shared data, immutable records and storage](diagrams/hourly-rate-class.svg)
 
-*Figure 1. The store owns student and lesson records; a lesson identifies its student by permanent ID.*
+*Figure 15. The store owns student and lesson records; a lesson identifies its student by permanent ID.*
 
 `Student` stores an optional `BigDecimal` rate. Its getter returns `Optional<BigDecimal>` so callers
 must distinguish an unset rate from a valid rate of zero. A missing rate means that scheduling needs an
@@ -492,7 +533,7 @@ The original profile remains available until all validation succeeds.
 
 ![Sequence diagram for setting a student's default hourly rate and automatically saving](diagrams/hourly-rate-edit-sequence.svg)
 
-*Figure 2. A rate edit replaces a validated student and uses the existing automatic-save path.*
+*Figure 16. A rate edit replaces a validated student and uses the existing automatic-save path.*
 
 Omitting `r/` during an edit preserves the current rate. A bare `edit S1 r/` deliberately clears it,
 matching the existing convention for clearing subjects with `s/`. A bare `r/` on `add` is rejected:
@@ -513,7 +554,7 @@ inserting any lessons. A conflict in a later week therefore leaves records and I
 
 ![Sequence diagram showing a 90-minute lesson calculated from a student's default rate](diagrams/hourly-rate-schedule-sequence.svg)
 
-*Figure 3. Calculation happens before insertion; the result is stored as the lesson's fixed charge.*
+*Figure 17. Calculation happens before insertion; the result is stored as the lesson's fixed charge.*
 
 The calculation is `hourly rate × duration in minutes ÷ 60`. All money uses `BigDecimal`; conversion to
 `double` would introduce binary floating-point approximation. Division rounds once to two decimal
@@ -523,7 +564,7 @@ to a per-minute rate too early.
 
 ![Activity diagram explaining fee precedence, missing rates, validation and insertion](diagrams/hourly-rate-fee-activity.svg)
 
-*Figure 4. Invalid explicit values are rejected; they do not trigger a fallback to the default rate.*
+*Figure 18. Invalid explicit values are rejected; they do not trigger a fallback to the default rate.*
 
 Changing the student's rate affects newly scheduled lessons only. Previously scheduled lessons,
 including future appointments, keep their saved fee. Editing a lesson's duration also keeps its fee;
@@ -536,35 +577,20 @@ remaining balance; reducing it exactly to the amount received settles the lesson
 already paid is rejected before any detail is replaced. Constructors and copy operations derive status
 consistently: a zero-fee lesson is already paid, with zero income.
 
-#### Defensive checks and persistence
+#### Rate validation and storage
 
 Rates accept non-negative decimal dollar amounts with at most two fractional digits. Durations accept
-whole minutes from 1 to 1440. Model validation throws `IllegalArgumentException`, so these rules apply
-to direct calls and hand-edited files even when assertions are disabled. The command layer catches
-these exceptions and returns `Error: ...`. Assertions check programming invariants, such as preserving
-student identity and advancing counters only after successful insertion. Debug logging records rate
-changes, calculation results and rejected commands without adding messages to normal command output.
+whole minutes from 1 to 1440. These rules also apply when loading a hand-edited file.
 
-The data file keeps the legacy student layout because every trailing student field is already a
-subject. Inserting a rate into that layout could misread an existing subject as money. Instead, an
-optional `R | S1 | 60` record stores a student's rate. New lesson lines end with `NOTES |
-CANCELLATION_REASON | MINUTES | AMOUNT_PAID`, using an empty cancellation reason for active lessons. Separate fields
-prevent a cancellation reason such as `90` from being confused with a 90-minute duration. Legacy
-ten-field rows and upstream eleven-field cancellation rows still load, with a default duration of 60.
-Files saved by the earlier hourly-rate branch used field eleven for duration; their generated
-`NOTES | MINUTES` header identifies that layout. Headerless eleven-field rows retain upstream's
-cancellation semantics. Loading preserves the saved total fee and never recalculates it from current rates.
+An optional `R | S1 | 60` record stores a student's rate separately from their subject fields. A missing
+record means no rate is set. Invalid or orphaned rate records are reported by line number without
+discarding the student's profile or history; a duplicate cannot replace the first valid rate.
 
-Immutable lesson copies retain both cancellation and duration. Rescheduling keeps the chosen fee;
-cancelling retains its recorded amount for history while excluding it from amounts owed. An edit to a
-cancelled lesson cannot give it attendance, even if it also changes the duration.
-
-Students load in the first pass. The second pass applies rates and imports linked records, allowing
-lines in any order. Invalid or orphaned rate lines are skipped with their line numbers; a duplicate
-rate line cannot override the first valid rate. A bad rate does not discard the student or their
-history. Encoding includes rate records and durations, so the existing snapshot comparison automatically
-saves changes. The new application reads old files; older application versions cannot read all new
-records, so keep a backup before using the new version if a downgrade may be necessary.
+Lesson rows store duration and amount paid alongside the saved fee and cancellation reason, as described
+in [Storage](#storage). The loader recognises older layouts without recalculating saved fees. Duration
+defaults to 60 minutes when absent. For the supported legacy layout ending in `NOTES | MINUTES`, the
+file header identifies the final value as duration; otherwise a numeric cancellation reason remains
+a reason. Snapshot comparison includes rate and duration changes automatically.
 
 #### Alternatives, limits and verification
 
@@ -595,7 +621,7 @@ student produce an error; a valid student with no lessons gets an explicit empty
 
 ![Fee-statement class diagram showing read-only access to student and lesson records](diagrams/fee-statement-class.svg)
 
-*Figure 5. The statement is assembled from the selected student and their stored lessons; it does not
+*Figure 19. The statement is assembled from the selected student and their stored lessons; it does not
 introduce a new domain object.*
 
 The command validates that exactly one student ID was supplied before looking up the student. It then
@@ -608,7 +634,7 @@ change payment state.
 
 ![Fee-statement overview showing console input, command routing, snapshots and the read-only save check](diagrams/fee-statement-overview-sequence.svg)
 
-*End-to-end flow. The command handler is selected before execution. A snapshot is taken before the
+*Figure 20. The command handler is selected before execution. A snapshot is taken before the
 request, and the usual save check runs after its result is displayed. The matching snapshots prevent a
 file write. The `ref` frame expands into the request-validation fragment below.*
 
@@ -616,14 +642,14 @@ file write. The `ref` frame expands into the request-validation fragment below.*
 
 ![Fee-statement request sequence showing argument checks, student lookup and a reference to row formatting](diagrams/fee-statement-request-sequence.svg)
 
-*Request flow. The `ref` frame delegates the row-building detail to the fragment below, keeping
+*Figure 21. The `ref` frame delegates the row-building detail to the fragment below, keeping
 argument errors and student lookup separate from formatting.*
 
 #### Collecting and formatting rows
 
 ![Fee-statement row-building sequence fragment showing selection, ordering and formatting of saved lessons](diagrams/fee-statement-rows-sequence.svg)
 
-*Referenced fragment: collect and format statement rows. The request diagram resumes after these rows
+*Figure 22. Referenced fragment: collect and format statement rows. The request diagram resumes after these rows
 have been assembled; this fragment reads existing records without changing them.*
 
 #### Interaction with payment and lesson features
@@ -643,27 +669,13 @@ remaining balance, including partial payments, and report the amount still owed.
 lessons. A cancellation therefore remains visible in the history, even though it is excluded from the
 amounts due.
 
-#### Defensive checks and persistence
+#### Stable output
 
-The command requires exactly one student ID: an empty value or any extra whitespace-separated argument
-returns the usage message. `TutorLedgerData.getStudent` validates the ID format, normalises it to the
-canonical uppercase key and reports an unknown student; the statement converts that exception to a
-user-facing error. Matching lessons are filtered against the resolved student ID without regard to case.
-`getLessons()` returns a copy of the collection, and the command sorts a stream into a new list, leaving
-the stored order unchanged. Sorting by date, time and lesson ID produces deterministic output even when
-lessons share a date or start time.
-
-Lesson constructors validate fees as non-negative dollar amounts with at most two decimal places and
-store them as `BigDecimal`. The statement formats those already-validated values to two decimal places
-without converting through floating point. Dates use the English weekday formatter so display is
-consistent regardless of the machine's default locale.
-
-The statement creates no data and writes no statement record. The main loop still takes its usual
-pre-command storage snapshot and calls `saveIfChanged` afterwards, but this read-only command leaves the
-snapshot unchanged, so no file write occurs. `mark` does change a lesson; the standard snapshot check
-then saves its updated payment status along with the lesson's existing fee. The storage format keeps
-these values on the lesson record, so the statement after restart reads the same fee and latest saved
-status.
+`getLessons()` returns a copy of the collection. Sorting the selected lessons into a new list leaves
+the stored order unchanged; the lesson ID breaks ties when dates and start times match.
+Money is formatted directly from `BigDecimal` to two decimal places. Dates use an English weekday
+formatter, keeping the output consistent across machine locales. After restart, the statement reads
+the same saved fees and payment amounts through the shared storage flow.
 
 #### Alternatives, limits and verification
 

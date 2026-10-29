@@ -24,6 +24,7 @@ class Student {
   +withDetails(...) : Student
 }
 class Lesson {
+  -studentId : String
   -fee : BigDecimal
   -durationMinutes : int
   +withDurationMinutes(minutes) : Lesson
@@ -36,9 +37,10 @@ StudentCommands --> TutorLedgerData : updates profiles
 LessonCommands --> TutorLedgerData : schedules lessons
 TutorLedgerData "1" *--> "0..*" Student : stores
 TutorLedgerData "1" *--> "0..*" Lesson : stores
-Lesson "0..*" --> "1" Student : studentId
 Storage ..> TutorLedgerData : saves / rebuilds
 note bottom of Lesson
+  studentId identifies the student by ID;
+  it is not a stored Student object reference.
   The fee is a saved total.
   It is not a live reference to the rate.
 end note
