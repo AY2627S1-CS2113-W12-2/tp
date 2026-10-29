@@ -31,10 +31,10 @@ your own tutoring work.
 ## Quick start
 
 1. Ensure that you have Java 25 or above installed. To check, run `java -version` in a terminal.
-1. Download the latest `tutorledger.jar` from the project's
+1. Download the latest `TutorLedger.jar` from the project's
    [Releases page](https://github.com/AY2627S1-CS2113-W12-2/tp/releases).
 1. Put the file in the folder you want TutorLedger to keep its data in.
-1. Open a terminal in that folder and run `java -jar tutorledger.jar`.
+1. Open a terminal in that folder and run `java -jar TutorLedger.jar`.
 1. Type a command and press Enter. Some commands to try:
    * `add n/Amirah Binte Rahman l/Sec 3 p/91234567` adds a student, who is given the ID `S1`.
    * `subject S1 s/E Math s/A Math` gives that student two subjects.
@@ -104,8 +104,6 @@ particular current date so that past and upcoming lessons are easy to distinguis
 
 #### Adding a student: `add`
 
-Feature F1.1 · Story US2
-
 Adds a student to TutorLedger and gives them a student ID.
 
 Format: `add n/NAME l/LEVEL p/PHONE_NUMBER [s/SUBJECT]… [r/RATE]`
@@ -145,8 +143,6 @@ You now have 5 students.
 
 #### Adding subjects to a student: `subject`
 
-Feature F1.2 · Story US3
-
 Adds one or more subjects to a student's record.
 
 Format: `subject STUDENT_ID s/SUBJECT [s/SUBJECT]…`
@@ -168,8 +164,6 @@ Added 2 subjects to S1 Amirah Binte Rahman. Subjects: E Math, A Math
 ```
 
 #### Viewing a student: `view`
-
-Feature F1.3 · Stories US9, US10, US11, US25
 
 Shows everything about one student on one screen: their details and subjects, every lesson with its attendance,
 payment status and notes, their outstanding homework, and how much they owe. Use it in the minutes before a
@@ -205,8 +199,6 @@ Amount owed: $120.00 (2 lessons)
 
 #### Listing and finding students: `list`
 
-Feature F1.4 · Stories US36, US45
-
 Lists active students, or only the active students whose name contains what you type.
 
 Format: `list [NAME] [status/STATUS]`
@@ -233,8 +225,6 @@ Example output:
 ```
 
 #### Editing a student: `edit`
-
-Feature F1.5 · Story US30
 
 Changes the details of an existing student.
 
@@ -264,8 +254,6 @@ Subjects: E Math, A Math
 
 #### Setting a default hourly rate: `r/`
 
-v2.0 · Story US5
-
 Set a rate once so scheduling does not require typing the fee for every lesson. Rates apply per student,
 not per subject. They accept non-negative dollar amounts with at most two decimal places; `r/0` means
 free lessons. New students have no rate unless one is supplied.
@@ -294,8 +282,6 @@ including when older lessons are still in the future. Editing a lesson's duratio
 Use `edit L1 f/AMOUNT` to deliberately change an existing charge.
 
 #### Archiving and restoring a student: `archive`, `restore`
-
-Story US45 · [Issue #51](https://github.com/AY2627S1-CS2113-W12-2/tp/issues/51)
 
 Archive students who have stopped lessons so the active list stays uncluttered while their history is kept.
 
@@ -328,8 +314,6 @@ Archiving and restoration are saved automatically. A completed deletion still re
 its linked records permanently; archive when you want to keep them.
 
 #### Deleting a student: `delete`
-
-Feature F1.6 · Stories US31, US34
 
 Deletes a student, together with all of their lessons, homework, scores and follow-up tasks. Scores and
 follow-up tasks are only mentioned in the output if the student had any. Follow-up tasks that are not linked
@@ -367,8 +351,6 @@ Also deleted 1 lesson and 0 homework items.
 ### Lessons
 
 #### Scheduling a lesson: `schedule`
-
-Feature F2.1 · Stories US4, US6
 
 Schedules a lesson for a student and gives it a lesson ID. With `w/`, schedules the same weekly slot for
 several weeks at once.
@@ -413,8 +395,6 @@ Scheduled 10 weekly lessons for S1 Amirah Binte Rahman: L11 to L20
 
 #### Logging a past lesson: `log`
 
-Feature F2.6 · Story US21
-
 Adds a lesson that has already happened, with its attendance and notes, in one step. Use it when you forgot to
 schedule a lesson beforehand.
 
@@ -439,8 +419,6 @@ Logged L21 for S1 Amirah Binte Rahman
 ```
 
 #### Listing lessons: `lessons`
-
-Feature F2.2 · Story US8
 
 Shows today's lessons, or this week's, in the order they happen.
 
@@ -473,8 +451,6 @@ This week, Mon 12-10-2026 to Sun 18-10-2026: 5 lessons
 
 #### Filtering lessons: `filter`
 
-Story US37
-
 Lists every lesson that matches all the filters you give, earliest first, with the total of their fees. Use it
 to look at one slice of your records, such as one student's unpaid lessons this month.
 
@@ -506,8 +482,6 @@ Total fees: $120.00
 
 #### Listing topics already covered: `topics`
 
-Story US12 · [Issue #18](https://github.com/AY2627S1-CS2113-W12-2/tp/issues/18)
-
 Review lesson notes to see what you have already covered with a student.
 
 Format: `topics STUDENT_ID [s/SUBJECT]`
@@ -538,8 +512,6 @@ Missing or unknown student IDs, blank subjects, repeated `s/` prefixes and extra
 produce errors.
 
 #### Preparing for the next lesson: `next`
-
-Feature F2.7 · Story US13
 
 Shows everything you need for your next lesson in one place: who it is with, when, where you left off last
 time, and what the student still owes you.
@@ -577,8 +549,6 @@ Next lesson: L9, Wed 14-10-2026 1700
 
 #### Recording a lesson: `record`
 
-Feature F2.3 · Stories US15, US16, US10
-
 Records whether the student came to a lesson, and what you covered.
 
 Format: `record LESSON_ID a/ATTENDANCE [note/NOTES]`
@@ -604,8 +574,6 @@ Recorded L3 for S1 Amirah Binte Rahman (Tue 13-10-2026 1600)
 ```
 
 #### Rescheduling a lesson: `reschedule`
-
-Feature F2.8 · Story US32
 
 Moves a lesson that has not happened yet to a new date, time, or both.
 
@@ -634,8 +602,6 @@ Rescheduled L6 for S4 Daniel Lim
 ```
 
 #### Cancelling a lesson: `cancel`
-
-Feature F2.9 · Story US33
 
 Marks a lesson as called off and records why. A cancelled lesson is kept, so you can tell it apart from a
 lesson the student missed.
@@ -666,8 +632,6 @@ Cancelled L8 for S2 Tan Wei Ming (Sat 17-10-2026 0900)
 ```
 
 #### Editing a lesson: `edit`
-
-Feature F2.4 · Story US30
 
 Changes the details of an existing lesson, such as moving it to another day.
 
@@ -700,8 +664,6 @@ Edited L6 for S4 Daniel Lim
 
 #### Deleting a lesson: `delete`
 
-Feature F2.5 · Story US31
-
 Deletes a lesson.
 
 Format: `delete LESSON_ID`
@@ -724,8 +686,6 @@ Deleted L10 for S3 Tan Wei Ling: Sat 17-10-2026 1030, Science
 ### Homework
 
 #### Assigning homework: `assign`
-
-Feature F3.1 · Story US17
 
 Gives a student a piece of homework with a due date, and gives the homework an ID.
 
@@ -751,8 +711,6 @@ Assigned H4 to S1 Amirah Binte Rahman
 
 #### Marking homework as submitted: `submit`
 
-Feature F3.2 · Story US18
-
 Marks a piece of homework as handed in, so it no longer shows as outstanding.
 
 Format: `submit HOMEWORK_ID`
@@ -769,8 +727,6 @@ Marked H1 as submitted: Worksheet 3B (S1 Amirah Binte Rahman)
 ```
 
 #### Listing outstanding homework: `homework`
-
-Feature F3.3 · Story US11
 
 Lists homework that has not been submitted yet, for all students or for one.
 
@@ -797,8 +753,6 @@ Example output (today is Wed 14-10-2026):
 ### Payments
 
 #### Marking a lesson paid or unpaid: `mark`
-
-Feature F4.1 · Story US23
 
 Records that a lesson has been paid for. Marking it unpaid undoes a mistake.
 
@@ -843,8 +797,6 @@ are saved and included in income totals.
 
 #### Listing unpaid lessons: `unpaid`
 
-Feature F4.2 · Story US24
-
 Lists lessons that have taken place but have not been paid for, for all students or for one.
 
 Format: `unpaid [STUDENT_ID]`
@@ -869,8 +821,6 @@ L3  Tue 13-10-2026  S1 Amirah Binte Rahman  A Math  $60.00
 ```
 
 #### Showing what each student owes: `owed`
-
-Feature F4.3 · Story US25
 
 Totals the unpaid lessons for each student, so you know how much to ask each family for.
 
@@ -943,8 +893,6 @@ Income for September 2026: $62.50
 
 #### Recording a test score: `score`
 
-Feature F7.1 · Story US19
-
 Records a student's result for a test or assessment, and shows how it compares with their previous test.
 
 Format: `score STUDENT_ID TEST_NAME m/MARKS/TOTAL [d/DATE]`
@@ -972,8 +920,6 @@ Recorded A2 for S1 Amirah Binte Rahman
 
 #### Listing a student's scores: `scores`
 
-Feature F7.2 · Story US19
-
 Lists every score for one student, oldest first, so you can see whether they are improving.
 
 Format: `scores STUDENT_ID`
@@ -995,8 +941,6 @@ Trend: improving, up 12.5 points from the first test to the latest
 ```
 
 #### Summarising a student's progress: `progress`
-
-Feature F7.3 · Story US44
 
 Summarises a student's attendance and scores over a period, such as a term, for an end-of-term review.
 
@@ -1043,8 +987,6 @@ required.
 
 #### Logging a follow-up task: `task`
 
-Feature F8.1 · Story US20
-
 Adds a reminder and gives it an ID.
 
 Format: `task [STUDENT_ID] DESCRIPTION [d/DUE_DATE]`
@@ -1073,8 +1015,6 @@ Added T2: Print term calendar
 
 #### Listing follow-up tasks: `tasks`
 
-Feature F8.2 · Story US20
-
 Lists the follow-up tasks you have not done yet, for everyone or for one student.
 
 Format: `tasks [STUDENT_ID]`
@@ -1099,8 +1039,6 @@ Example output (today is Wed 14-10-2026):
 ```
 
 #### Marking a follow-up task as done: `done`
-
-Feature F8.3 · Story US20
 
 Ticks off a follow-up task, so it no longer appears in `tasks` or `next`.
 
@@ -1134,8 +1072,6 @@ If a change cannot be written to the file (for example, because the folder is re
 later save succeeds.
 
 #### Saving the data: `save`
-
-Feature F5.1 · Story US42
 
 TutorLedger saves your data to `data/tutorledger.txt` automatically after every command that changes it,
 so you never need to save manually. Use `save` when you want to confirm that your data is saved and see
@@ -1171,8 +1107,6 @@ TutorLedger will keep saving to data/tutorledger.txt.
 > you want to keep.
 
 #### Reloading the data file: `reload`
-
-Feature F5.2 · Story US43
 
 All your data is kept in a plain-text file at `data/tutorledger.txt`, inside the folder you run TutorLedger
 from. Advanced users can open this file in any text editor to fix or bulk-edit records. Use `reload` to read
@@ -1266,8 +1200,6 @@ T | T2 | done |  |  | Print term calendar
 ### Help and exiting
 
 #### Viewing help: `help`
-
-Feature F6.1 · Story US1
 
 Shows every command TutorLedger accepts, with its format and one example, plus the supported school-level
 ranges and input examples.
@@ -1398,8 +1330,6 @@ SHORTCUTS (type the short form instead of the command word)
 ```
 
 #### Shortcuts for common commands
-
-Story US39
 
 The commands you use most have a short form. Type the short form in place of the command word; everything
 after it stays the same. For example, `ls week` is the same as `lessons week`, and
