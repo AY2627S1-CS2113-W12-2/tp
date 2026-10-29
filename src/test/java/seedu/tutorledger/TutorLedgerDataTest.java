@@ -165,4 +165,47 @@ class TutorLedgerDataTest {
         assertEquals("L2", second.getLessonId());
         assertEquals(2, data.getLessons().size());
     }
+
+    @Test
+    void addLesson_overlappingLesson_throwsEvenForAnotherStudent() {
+        data.addLesson("S1", "A Math", "22-09-2026", "1600", "60", 90);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> data.addLesson("S2", "Pure Chemistry", "22-09-2026", "1700", "62.50"));
+
+        assertEquals("That time overlaps L1 (22-09-2026 1600, 90 min).", exception.getMessage());
+        assertEquals(1, data.getLessons().size());
+        assertEquals(2, data.getNextLessonNumber());
+    }
+
+    @Test
+    void addLesson_overlappingCancelledLesson_allowed() {
+        Lesson first = data.addLesson("S1", "A Math", "22-09-2026", "1600", "60");
+        data.replaceLesson(first.withCancellation("Student sick"));
+
+        Lesson second = data.addLesson("S2", "Pure Chemistry", "22-09-2026", "1630", "62.50");
+
+        assertEquals("L2", second.getLessonId());
+    }
+
+    @Test
+    void importLesson_overlapButDifferentStart_stillLoadsSoOldFilesKeepEveryLesson() {
+        data.addLesson("S1", "A Math", "22-09-2026", "1600", "60");
+
+        data.importLesson(new Lesson("L2", "S2", "Pure Chemistry", "22-09-2026", "1630", "not recorded",
+                "62.50", ""));
+
+        assertEquals(2, data.getLessons().size());
+    }
+
+    @Test
+    void replaceLesson_longerLessonIntoNextOne_throws() {
+        data.addLesson("S1", "A Math", "22-09-2026", "1600", "60");
+        data.addLesson("S2", "Pure Chemistry", "22-09-2026", "1700", "62.50");
+
+        Lesson longer = data.getLesson("L1").withDurationMinutes(90);
+        assertThrows(IllegalArgumentException.class, () -> data.replaceLesson(longer));
+
+        assertEquals(60, data.getLesson("L1").getDurationMinutes());
+    }
 }

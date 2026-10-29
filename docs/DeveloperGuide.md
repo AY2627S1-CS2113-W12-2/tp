@@ -371,7 +371,8 @@ example, `edit L3 t/1700` is routed here, while `edit S1 p/91234567` is left for
 *Figure 9. `LessonCommands` changes lessons only through `TutorLedgerData`, which owns every `Lesson`.*
 
 * **`TutorLedgerData`** is the only class that stores lessons. It gives each new lesson the next ID (`L1`,
-  `L2`, ...) and checks that no two lessons start at the same date and time (`ensureSlotFree`). It never
+  `L2`, ...) and checks that no two lessons are taught at the same time (`ensureSlotFree`). Two lessons
+  clash if their intervals, from start time to start time plus duration, share a minute. It never
   reuses an ID, even after a lesson is deleted, so an ID in an old note or message never points at a
   different lesson.
 * **`Lesson`** is immutable: a change produces a new copy through `withDetails` or `withCancellation`, and
@@ -404,7 +405,8 @@ splitting its arguments in the same way, so that step is drawn once, in Figure 1
 2. `TutorLedgerData.addWeeklyLessons` builds one `Lesson` per week, numbering them from the next lesson ID,
    and checks each slot as it goes.
 3. Only after every slot passes does it store the lessons. If week 3 clashes with an existing lesson, the
-   tutor sees `Error: <ID> already starts at that date and time.` and no lesson is added. The counter only
+   tutor sees `Error: <ID> already starts at that date and time.` (or, for a partial overlap,
+   `Error: That time overlaps <ID> (...)`) and no lesson is added. The counter only
    moves when lessons are stored, so a rejected command never skips an ID.
 
 Figure 12 shows the objects after this command and a later `cancel L2 r/Student sick`. Each week is an
@@ -423,8 +425,9 @@ These four commands share one pattern: get the lesson, make a changed copy, chec
 
 *Figure 13. The original lesson stays in the store until its validated replacement is stored.*
 
-* `replaceLesson` checks the slot only when the date or time has changed, so recording attendance on a busy
-  day is never blocked by a clash check.
+* `replaceLesson` checks the slot only when the time the lesson takes up has changed: a new date or time, or a
+  new duration. Recording attendance on a busy day is never blocked by a clash
+  check.
 * If any check fails, nothing has been replaced, so a rejected command never leaves a half-changed lesson.
   The store replaces its reference only after validation. The handler may still read the original
   object when displaying the old slot; map replacement does not explicitly destroy a Java object.
@@ -600,9 +603,10 @@ displayed was also considered. Saving the chosen total instead keeps historical 
 Per-subject rates, effective-date rate histories and automatic recalculation are possible future
 extensions; they would need explicit rules for existing and paid lessons.
 
-Duration currently supports billing and display. Conflict checking retains the existing identical-start
-rule; it does not detect overlapping lesson intervals. Adding interval scheduling would be a separate
-enhancement requiring corresponding tests and documentation.
+Duration supports billing and display, and is also used by conflict checking: a new or changed lesson may not
+overlap another lesson's interval. Data files are an exception. `importLesson` still rejects only an
+identical start, because files saved before overlap checking may hold overlapping lessons, and rejecting
+those lines would drop them from the tutor's records.
 
 `DefaultHourlyRateTest` exercises command validation, decimal rounding, overrides, rate clearing,
 immutable copies, payment totals, legacy files, malformed records and save/restart behaviour. The manual
@@ -824,6 +828,9 @@ Use an empty working directory and Java 25 with `-ea`. The steps assume today is
 6. Run `edit L1 t/1530`, `delete L5` and `lessons week`. Expected: L1 now starts at 1530 and L5 is gone.
    `lessons` lists only lessons in the current week, so it may show none.
 7. Exit, restart and run `next S1`. Expected: the same summary as in step 5, showing L1 at 1530.
+8. Run `schedule S1 d/01-12-2026 t/1600 s/A Math f/60`. Expected:
+   `Error: That time overlaps L1 (01-12-2026 1530, 60 min).` The same command with `t/1630` succeeds,
+   because L1 ends at 1630.
 
 ### Student deletion warnings
 

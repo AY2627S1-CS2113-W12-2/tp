@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 
 import org.junit.jupiter.api.Test;
@@ -155,5 +156,30 @@ class LessonTest {
         assertEquals(LocalDate.of(2027, 1, 5), Lesson.parseDate("05-01-2027"));
         assertEquals("05-01-2027", Lesson.formatDate(LocalDate.of(2027, 1, 5)));
         assertThrows(IllegalArgumentException.class, () -> Lesson.parseDate("29-02-2027"));
+    }
+
+    @Test
+    void overlaps_lessonsSharingTime_trueOnlyWhenTheyShareAMinute() {
+        Lesson first = new Lesson("L1", "S1", "Math", "22-09-2026", "1600", "not recorded", "60", "", 90);
+        Lesson inside = new Lesson("L2", "S1", "Math", "22-09-2026", "1700", "not recorded", "60", "");
+        Lesson touching = new Lesson("L3", "S1", "Math", "22-09-2026", "1730", "not recorded", "60", "");
+        Lesson nextDay = new Lesson("L4", "S1", "Math", "23-09-2026", "1600", "not recorded", "60", "");
+
+        assertEquals(LocalDateTime.of(2026, 9, 22, 17, 30), first.getEnd());
+        assertTrue(first.overlaps(inside));
+        assertTrue(inside.overlaps(first));
+        // A lesson that starts exactly when another ends can follow it.
+        assertFalse(first.overlaps(touching));
+        assertFalse(touching.overlaps(first));
+        assertFalse(first.overlaps(nextDay));
+    }
+
+    @Test
+    void overlaps_lessonPastMidnight_overlapsTheNextMorning() {
+        Lesson late = new Lesson("L1", "S1", "Math", "22-09-2026", "2300", "not recorded", "60", "", 120);
+        Lesson early = new Lesson("L2", "S1", "Math", "23-09-2026", "0030", "not recorded", "60", "");
+
+        assertEquals(LocalDateTime.of(2026, 9, 23, 1, 0), late.getEnd());
+        assertTrue(late.overlaps(early));
     }
 }

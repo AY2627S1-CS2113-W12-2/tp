@@ -367,12 +367,14 @@ A rejected schedule creates no lessons and consumes no IDs.
   using half-up rounding. At $60/hour, `dur/90` costs $90.00.
 * `dur/MINUTES` is optional, defaults to 60, and accepts whole minutes from 1 to 1440.
   Durations other than 60 minutes are shown in scheduling confirmations, lesson lists and student views.
-* Duration is used for billing; TutorLedger still checks conflicts by identical start time, not overlap.
-* Two lessons cannot start at the same date and time, even for different students.
+* Two lessons cannot be taught at the same time, even for different students. A lesson clashes with another if
+  they share even one minute, so with a 90-minute lesson at 1600, the next lesson can start at 1730 at the
+  earliest. The duration counts, including a lesson that runs past midnight. Cancelled lessons do not count.
 * A new lesson starts as not recorded. Lessons with a positive fee start unpaid; $0 lessons are already paid.
 * `w/WEEKS` adds one lesson a week, on the same day and at the same time, starting on `DATE`. Each lesson gets
   its own ID, so you can record, reschedule or cancel one week without affecting the others.
-* If any week's slot is already taken, no lessons are added, and the error names the lesson in the way.
+* If any week's slot clashes with another lesson, no lessons are added, and the error names the lesson in the
+  way.
 
 Examples:
 
@@ -580,7 +582,7 @@ Moves a lesson that has not happened yet to a new date, time, or both.
 Format: `reschedule LESSON_ID [d/DATE] [t/TIME]`
 
 * Give a new date, a new time, or both. The part you leave out stays the same.
-* The new slot must not have passed yet, must be different from the current one, and must not be taken by
+* The new slot must not have passed yet, must be different from the current one, and must not clash with
   another lesson.
 * A lesson that already has attendance or notes has taken place, so it cannot be rescheduled. To correct its
   date or time, use [`edit`](#editing-a-lesson-edit).
@@ -638,8 +640,8 @@ Changes the details of an existing lesson, such as moving it to another day.
 Format: `edit LESSON_ID [d/DATE] [t/TIME] [s/SUBJECT] [f/FEE] [dur/MINUTES] [a/ATTENDANCE] [note/NOTES]`
 
 * Give at least one value to change. Values you leave out stay the same.
-* The same rules as `schedule` and `record` apply to the new values. For example, a lesson cannot be moved to a
-  slot another lesson already has, and a lesson dated after today cannot have attendance or notes.
+* The same rules as `schedule` and `record` apply to the new values. For example, a lesson cannot be moved or
+  lengthened so that it clashes with another lesson, and a lesson dated after today cannot have attendance or notes.
 * Type `note/` with nothing after it to clear the lesson's notes.
 * `dur/MINUTES` changes duration but keeps the saved fee. Give `f/FEE` explicitly to change the charge.
 * Changing the fee keeps the amount already paid and does not change income. Raising a paid lesson's fee
@@ -1392,6 +1394,9 @@ as absent; if you also do not want to charge for it, delete the lesson with `del
    `data/tutorledger.txt` and run `reload` if you need to.
 1. **A cancellation cannot be undone from inside TutorLedger.** Remove the reason at the end of the lesson's
    line in `data/tutorledger.txt` and run `reload`.
+1. **Data files from older versions may hold overlapping lessons.** Earlier versions only stopped two lessons
+   from starting at the same time. Such lessons still load, so nothing is lost, but moving or lengthening
+   one of them is checked against the others. Reschedule one of the pair to clear the overlap.
 
 ## Command summary
 

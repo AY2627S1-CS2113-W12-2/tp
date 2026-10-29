@@ -759,4 +759,49 @@ class LessonCommandsTest {
         assertEquals("Error: No student found with ID S9.", commands.execute("next S9"));
         assertEquals("Error: Use: next [STUDENT_ID]", commands.execute("next S1 S2"));
     }
+
+    @Test
+    void schedule_overlappingLesson_rejectedEvenForAnotherStudent() {
+        commands.execute("schedule S1 d/22-09-2026 t/1600 s/A Math f/60 dur/90");
+
+        assertEquals("Error: That time overlaps L1 (22-09-2026 1600, 90 min).",
+                commands.execute("schedule S2 d/22-09-2026 t/1700 s/Pure Chemistry f/62.50"));
+        assertEquals("Error: That time overlaps L1 (22-09-2026 1600, 90 min).",
+                commands.execute("schedule S2 d/22-09-2026 t/1530 s/Pure Chemistry f/62.50"));
+        // A lesson that starts as another ends does not overlap it.
+        assertTrue(commands.execute("schedule S2 d/22-09-2026 t/1730 s/Pure Chemistry f/62.50")
+                .startsWith("Scheduled L2"));
+        assertEquals(2, data.getLessons().size());
+    }
+
+    @Test
+    void schedule_lessonPastMidnight_clashesWithTheNextMorning() {
+        commands.execute("schedule S1 d/22-09-2026 t/2300 s/A Math f/60 dur/120");
+
+        assertEquals("Error: That time overlaps L1 (22-09-2026 2300, 120 min).",
+                commands.execute("schedule S2 d/23-09-2026 t/0030 s/Pure Chemistry f/62.50"));
+    }
+
+    @Test
+    void scheduleWeekly_laterWeekOverlaps_addsNoLessons() {
+        commands.execute("schedule S2 d/06-10-2026 t/1630 s/Pure Chemistry f/62.50");
+
+        assertEquals("Error: That time overlaps L1 (06-10-2026 1630, 60 min).",
+                commands.execute("schedule S1 d/22-09-2026 t/1600 s/A Math f/60 w/4"));
+        assertEquals(1, data.getLessons().size());
+    }
+
+    @Test
+    void editAndReschedule_intoOverlap_rejectedAndLessonUnchanged() {
+        commands.execute("schedule S1 d/22-09-2026 t/1600 s/A Math f/60");
+        commands.execute("schedule S2 d/22-09-2026 t/1700 s/Pure Chemistry f/62.50");
+
+        assertEquals("Error: That time overlaps L2 (22-09-2026 1700, 60 min).", commands.execute("edit L1 dur/90"));
+        assertEquals("Error: That time overlaps L1 (22-09-2026 1600, 60 min).",
+                commands.execute("reschedule L2 t/1630"));
+        assertEquals(60, data.getLesson("L1").getDurationMinutes());
+        assertEquals(LocalTime.of(17, 0), data.getLesson("L2").getTime());
+        // Edits that do not change when a lesson is taught are never blocked by the check.
+        assertTrue(commands.execute("edit L1 f/65").startsWith("Edited L1"));
+    }
 }
