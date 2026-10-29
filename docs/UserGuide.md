@@ -88,7 +88,7 @@ An ID is never reused, even after its item is deleted.
 | `FEE`            | `f/`    | Dollars without the `$`, up to 2 decimal places. Zero or more.                  | `f/62.50`            |
 | `RATE`           | `r/`    | Default dollars per hour, up to 2 decimal places. Zero or more.                | `r/60`               |
 | `MINUTES`        | `dur/`  | Whole minutes from 1 to 1440; defaults to 60 when scheduling.                 | `dur/90`             |
-| `ATTENDANCE`     | `a/`    | `present`, `absent` or `late`.                                                  | `a/late`             |
+| `ATTENDANCE`     | `a/`    | `present`, `absent` or `late`. In `edit` only, `none` clears it.                | `a/late`             |
 | `NOTES`          | `note/` | Any text: what was covered and anything to remember. May contain words like `and/or`. | `note/Started vectors` |
 | `WEEKS`          | `w/`    | A whole number of weeks from 2 to 52.                                           | `w/10`               |
 | `DESCRIPTION` (homework edit) | `desc/` | Any text describing the homework. Same rules as `NOTES`.            | `desc/Worksheet 4B`  |
@@ -648,6 +648,8 @@ Format: `edit LESSON_ID [d/DATE] [t/TIME] [s/SUBJECT] [f/FEE] [dur/MINUTES] [a/A
 * The same rules as `schedule` and `record` apply to the new values. For example, a lesson cannot be moved or
   lengthened so that it clashes with another lesson, and a lesson dated after today cannot have attendance or notes.
 * Type `note/` with nothing after it to clear the lesson's notes.
+* Type `a/none` to set a lesson recorded by mistake back to "not recorded". For example, a lesson recorded as
+  `absent` that was actually called off can then be cancelled with `cancel`.
 * `dur/MINUTES` changes duration but keeps the saved fee. Give `f/FEE` explicitly to change the charge.
 * Changing the fee keeps the amount already paid and does not change income. Raising a paid lesson's fee
   creates an outstanding balance; reducing it to the amount already paid settles it. A fee below the amount
@@ -1392,8 +1394,6 @@ as absent; if you also do not want to charge for it, delete the lesson with `del
 
 1. **Homework cannot be edited or deleted from inside TutorLedger.** To fix a mistake, edit its line in
    `data/tutorledger.txt` and run `reload`. Deleting a student also deletes their homework.
-1. **A lesson's attendance cannot be set back to "not recorded"** once it has been recorded. Edit its line in
-   `data/tutorledger.txt` and run `reload` if you need to.
 1. **A cancellation cannot be undone from inside TutorLedger.** Remove the reason at the end of the lesson's
    line in `data/tutorledger.txt` and run `reload`.
 1. **A command's own prefixes cannot appear inside notes.** Words such as `and/or` are kept in notes (see

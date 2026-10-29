@@ -400,7 +400,7 @@ class LessonCommandsTest {
         assertEquals(
                 "Error: Pure Chemistry is not one of S1 Amirah Binte Rahman's subjects (E Math, A Math).",
                 commands.execute("edit L1 s/Pure Chemistry"));
-        assertEquals("Error: Attendance must be present, absent, or late.",
+        assertEquals("Error: Attendance must be present, absent, late, or none.",
                 commands.execute("edit L1 a/excused"));
         // Payment status is changed with mark, and student prefixes do not apply to a lesson.
         assertEquals("Error: Unexpected prefix n/.", commands.execute("edit L1 n/Tan Wei Ming"));
@@ -788,6 +788,30 @@ class LessonCommandsTest {
 
         // Outside notes, a mistyped prefix is still reported instead of being absorbed.
         assertEquals("Error: Unexpected prefix tt/.", commands.execute("edit L2 tt/1700"));
+    }
+
+    @Test
+    void edit_attendanceNone_setsLessonBackToNotRecorded() {
+        commands.execute("schedule S1 d/21-09-2026 t/0900 s/A Math f/60");
+        commands.execute("record L1 a/present");
+
+        assertEquals("Edited L1 for S1 Amirah Binte Rahman" + NEW_LINE
+                + "  Mon 21-09-2026 0900, A Math, $60.00, not recorded, unpaid",
+                commands.execute("edit L1 a/NONE"));
+        assertFalse(data.getLesson("L1").isRecorded());
+        // With its attendance cleared, a lesson recorded by mistake can now be cancelled.
+        assertTrue(commands.execute("cancel L1 r/Student sick").startsWith("Cancelled L1"));
+    }
+
+    @Test
+    void recordAndLog_attendanceNone_rejected() {
+        commands.execute("schedule S1 d/21-09-2026 t/0900 s/A Math f/60");
+
+        assertEquals("Error: Attendance must be present, absent, or late.", commands.execute("record L1 a/none"));
+        assertEquals("Error: Attendance must be present, absent, or late.",
+                commands.execute("log S1 d/15-09-2026 t/1600 s/A Math f/60 a/none"));
+        assertFalse(data.getLesson("L1").isRecorded());
+        assertEquals(1, data.getLessons().size());
     }
 
     @Test

@@ -41,6 +41,9 @@ public class LessonCommands {
     /** Attendance values a tutor can type; "not recorded" is only the state a new lesson starts in. */
     private static final Set<String> ATTENDANCE_WORDS = Set.of("present", "absent", "late");
 
+    /** Attendance word that only {@code edit} accepts, to set a lesson back to "not recorded". */
+    private static final String NO_ATTENDANCE = "none";
+
     /**
      * Prefixes whose values are free text: notes and a cancellation reason. Inside them, a word such as
      * "and/or" is kept as text rather than rejected as an unknown prefix.
@@ -189,7 +192,7 @@ public class LessonCommands {
         String time = fields.single("t", true);
         String subject = findSubjectTakenBy(student, fields.single("s", true));
         String fee = fields.single("f", true);
-        String attendance = parseAttendance(fields.single("a", true));
+        String attendance = parseAttendance(fields.single("a", true), false);
         String notes = parseNotes(fields);
         // The same rule as record: a lesson that has not happened yet has no outcome to log.
         if (isAfterToday(Lesson.parseDate(date))) {
@@ -363,10 +366,10 @@ public class LessonCommands {
     private String record(String arguments) {
         IdAndFields input = splitIdAndFields(arguments, List.of("a", "note"));
         Lesson lesson = data.getLesson(input.id());
-        String attendance = parseAttendance(input.fields().single("a", true));
+        String attendance = parseAttendance(input.fields().single("a", true), false);
         // Recording again replaces the attendance, and the notes only if note/ was typed.
         Lesson recorded = lesson.withDetails(null, null, null, attendance, null, parseNotes(input.fields()));
-        // parseAttendance only allows present, absent or late, so the copy must count as recorded.
+        // Without allowing none, parseAttendance only gives present, absent or late, so the copy counts as recorded.
         assert recorded.isRecorded() : "Recording a lesson should leave it with attendance";
         ensureNoAttendanceIfCancelled(recorded);
         // A lesson that has not happened yet has no outcome to record.
@@ -392,7 +395,8 @@ public class LessonCommands {
         Student student = data.getStudent(lesson.getStudentId());
         // A value that was not typed stays null, which withDetails reads as "keep the current value".
         String subject = fields.has("s") ? findSubjectTakenBy(student, fields.single("s", true)) : null;
-        String attendance = fields.has("a") ? parseAttendance(fields.single("a", true)) : null;
+        // a/none is accepted here only, so a lesson recorded by mistake can be set back to "not recorded".
+        String attendance = fields.has("a") ? parseAttendance(fields.single("a", true), true) : null;
         Lesson edited = lesson.withDetails(subject, fields.singleOr("d", null), fields.singleOr("t", null),
                 attendance, fields.singleOr("f", null), parseNotes(fields));
         if (fields.has("dur")) {
@@ -403,6 +407,8 @@ public class LessonCommands {
         if (hasOutcome(edited) && isAfterToday(edited.getDate())) {
             throw new IllegalArgumentException("A lesson dated after today cannot have attendance or notes.");
         }
+        assert !Lesson.Attendance.NOT_RECORDED.name().equals(attendance) || !edited.isRecorded()
+                : "a/none should clear the attendance";
         data.replaceLesson(edited);
         LOGGER.log(Level.FINE, "Edited {0} using prefixes {1}",
                 new Object[]{edited.getLessonId(), fields.fields().keySet()});
@@ -547,14 +553,22 @@ public class LessonCommands {
     /**
      * Returns the attendance in lower case after checking it is one a tutor may type.
      *
-     * @throws IllegalArgumentException If the value is not present, absent or late.
+     * @param value The attendance as typed.
+     * @param isNoneAllowed Whether {@value #NO_ATTENDANCE} may be typed to clear the attendance.
+     * @return The attendance, with {@value #NO_ATTENDANCE} turned into "not recorded".
+     * @throws IllegalArgumentException If the value is not present, absent or late (or none, when allowed).
      */
-    private static String parseAttendance(String value) {
+    private static String parseAttendance(String value, boolean isNoneAllowed) {
         // Callers pass a required a/ value, which the parser has already checked is present.
         assert value != null : "Attendance should have been checked as required before parsing";
         String word = value.toLowerCase(Locale.ROOT);
+        if (isNoneAllowed && word.equals(NO_ATTENDANCE)) {
+            return Lesson.Attendance.NOT_RECORDED.name();
+        }
         if (!ATTENDANCE_WORDS.contains(word)) {
-            throw new IllegalArgumentException("Attendance must be present, absent, or late.");
+            throw new IllegalArgumentException(isNoneAllowed
+                    ? "Attendance must be present, absent, late, or none."
+                    : "Attendance must be present, absent, or late.");
         }
         return word;
     }

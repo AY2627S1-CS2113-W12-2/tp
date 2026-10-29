@@ -444,6 +444,8 @@ These four commands share one pattern: get the lesson, make a changed copy, chec
   `unpaid`, and still appears in `lessons` marked `(cancelled: REASON)`. Any positive amount received,
   including a partial payment, triggers a reminder to refund or carry over that amount. No refund is
   recorded automatically.
+* `edit` accepts `a/none`, which sets the attendance back to `NOT_RECORDED`, so a lesson recorded by mistake
+  can be corrected or cancelled. `record` and `log` reject `none`, since they exist to record an outcome.
 
 #### Preparing for the next lesson
 
@@ -834,6 +836,8 @@ Use an empty working directory and Java 25 with `-ea`. The steps assume today is
 8. Run `schedule S1 d/01-12-2026 t/1600 s/A Math f/60`. Expected:
    `Error: That time overlaps L1 (01-12-2026 1530, 60 min).` The same command with `t/1630` succeeds,
    because L1 ends at 1630.
+9. Run `record L7 a/absent note/Speed in km/h and/or m/s`, then `edit L7 a/none`. Expected: the notes keep
+    `km/h` and `and/or`, and `view S1` shows L7 as not recorded.
 
 ### Student deletion warnings
 
