@@ -21,8 +21,8 @@ import org.junit.jupiter.api.io.TempDir;
 /** Checks that commands typed into the application reach their feature handlers. */
 class TutorLedgerCommandRoutingTest {
     @Test
-    void main_routesCommandsToEveryFeatureHandler() {
-        String output = runCommands(
+    void run_routesCommandsToEveryFeatureHandler(@TempDir Path tempDir) {
+        String output = runCommands(tempDir.resolve("tutorledger.txt"),
                 "help",
                 "list",
                 "view S99999",
@@ -45,20 +45,23 @@ class TutorLedgerCommandRoutingTest {
     }
 
     @Test
-    void main_routesStorageCommandsWithoutChangingTheDefaultDataFile(@TempDir Path tempDir) throws Exception {
-        Path defaultDataFile = Path.of(Storage.DEFAULT_FILE_PATH);
-        byte[] originalData = Files.readAllBytes(defaultDataFile);
+    void run_reloadAndSaveCopy_dataFileUnchanged(@TempDir Path tempDir) throws Exception {
+        // Each test gets its own data file, so the tests pass on a fresh clone with no data/ folder.
+        Path dataFile = tempDir.resolve("tutorledger.txt");
+        new Storage(dataFile.toString()).save(new TutorLedgerData());
+        byte[] originalData = Files.readAllBytes(dataFile);
         Path backup = tempDir.resolve("backup.txt");
 
-        String output = runCommands("reload", "save " + backup, "exit");
+        String output = runCommands(dataFile, "reload", "save " + backup, "exit");
 
-        assertTrue(output.contains("Reloaded " + Storage.DEFAULT_FILE_PATH));
+        assertTrue(output.contains("Reloaded " + dataFile));
         assertTrue(output.contains("Saved a copy to " + backup));
         assertTrue(Files.exists(backup));
-        assertArrayEquals(originalData, Files.readAllBytes(defaultDataFile));
+        assertArrayEquals(originalData, Files.readAllBytes(dataFile));
     }
 
-    private static String runCommands(String... commands) {
+    /** Feeds the commands to the command loop, using the given data file, and returns what it printed. */
+    private static String runCommands(Path dataFile, String... commands) {
         InputStream originalInput = System.in;
         PrintStream originalOutput = System.out;
         Logger rootLogger = Logger.getLogger("");
@@ -73,7 +76,7 @@ class TutorLedgerCommandRoutingTest {
             String input = String.join(System.lineSeparator(), commands) + System.lineSeparator();
             System.setIn(new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8)));
             System.setOut(capturedOutput);
-            TutorLedger.main(new String[0]);
+            TutorLedger.run(new Storage(dataFile.toString()));
             capturedOutput.flush();
             return output.toString(StandardCharsets.UTF_8);
         } finally {
