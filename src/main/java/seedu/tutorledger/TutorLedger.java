@@ -29,11 +29,24 @@ public class TutorLedger {
             handler.setLevel(Level.WARNING);
         }
     }
+
     /**
      * Loads the saved data, then reads commands until the user exits or standard input closes.
      * Any command that changes data is saved straight away, so nothing needs saving on exit.
      */
     public static void main(String[] args) {
+        run(new Storage(Storage.DEFAULT_FILE_PATH));
+    }
+
+    /**
+     * Runs the command loop against the given data file.
+     * {@link #main} always uses the default file; tests pass a temporary one instead, so running the
+     * tests never reads or overwrites the records a developer keeps in {@code data/}.
+     *
+     * @param storage The data file to load at start-up and save to after each change.
+     */
+    static void run(Storage storage) {
+        assert storage != null : "The command loop needs a data file to load and save";
         configureLogging(Logger.getLogger(""));
         TutorLedgerData data = new TutorLedgerData();
         Clock clock = Clock.systemDefaultZone();
@@ -45,7 +58,7 @@ public class TutorLedger {
         ScoreCommands scoreCommands = new ScoreCommands(data, clock);
         TaskCommands taskCommands = new TaskCommands(data, clock);
         LessonFilterCommand filterCommand = new LessonFilterCommand(data);
-        StorageCommands storageCommands = new StorageCommands(data, new Storage(Storage.DEFAULT_FILE_PATH));
+        StorageCommands storageCommands = new StorageCommands(data, storage);
         System.out.println("TutorLedger student book. Type exit to close.");
         System.out.println(storageCommands.loadOnStartup());
         Scanner input = new Scanner(System.in);
