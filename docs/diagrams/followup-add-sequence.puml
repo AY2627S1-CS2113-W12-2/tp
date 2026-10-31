@@ -12,10 +12,12 @@ activate Commands
 
 Commands -> Commands : split off final d/ and parse\nthe due date
 activate Commands
+Commands --> Commands : due date, remaining text
 deactivate Commands
 
 Commands -> Commands : first word "S1" is a student ID,\nso the description is the rest
 activate Commands
+Commands --> Commands : "S1", description
 deactivate Commands
 
 alt description is blank or starts with d/
@@ -25,6 +27,7 @@ else valid input
   activate Data
   Data -> Data : getStudent("S1")
   activate Data
+  Data --> Data : student
   deactivate Data
   create "task:FollowUpTask" as Task
   Data -> Task : FollowUpTask("T1", ..., "pending")
@@ -33,6 +36,7 @@ else valid input
   deactivate Task
   Data -> Data : putTask(task)\nnextTaskNumber becomes 2
   activate Data
+  Data --> Data
   deactivate Data
   Data --> Commands : task
   deactivate Data

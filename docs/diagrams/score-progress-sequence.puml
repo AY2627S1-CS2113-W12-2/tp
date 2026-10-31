@@ -26,6 +26,7 @@ Data --> Commands : all lessons
 deactivate Data
 Commands -> Commands : attendanceSummary(S1's lessons in period)
 activate Commands
+Commands --> Commands : attendance summary
 deactivate Commands
 
 Commands -> Data : getScores()
@@ -34,6 +35,7 @@ Data --> Commands : all scores
 deactivate Data
 Commands -> Commands : scoreTable(...), trend(...)
 activate Commands
+Commands --> Commands : score table, trend
 deactivate Commands
 
 Commands -->[ : attendance, scores, average and trend

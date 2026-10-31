@@ -15,16 +15,34 @@ activate Commands
 Commands -> Data : getStudent("S1")
 Data --> Commands : student
 Commands -> Commands : parse and validate input
+activate Commands
+Commands --> Commands
+deactivate Commands
 Commands -> Data : addLesson(..., null, 90)
 activate Data
 Data -> Data : validateDuration(90)
+activate Data
+Data --> Data
+deactivate Data
 Data -> Student : getDefaultHourlyRate()
 Student --> Data : 60
 Data -> Data : fee = 60 x 90 / 60\ntotal: 90.00
+activate Data
+Data --> Data : fee
+deactivate Data
 create Lesson
 Data -> Lesson : new Lesson(..., fee, ..., 90)
+activate Lesson
+Lesson --> Data : lesson
+deactivate Lesson
 Data -> Data : ensureSlotFree(lesson)
+activate Data
+Data --> Data
+deactivate Data
 Data -> Data : putLesson(lesson)
+activate Data
+Data --> Data
+deactivate Data
 Data --> Commands : lesson
 deactivate Data
 Commands -->[ : Scheduled L1 ... $90.00

@@ -34,6 +34,7 @@ Score --> Data : score
 deactivate Score
 Data -> Data : putScore(score)
 activate Data
+Data --> Data
 deactivate Data
 Data --> Commands : score
 deactivate Data

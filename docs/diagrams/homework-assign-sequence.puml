@@ -17,12 +17,14 @@ note right of Commands
 end note
 Commands -> Commands : parseDate("20-10-2026")
 activate Commands
+Commands --> Commands : due date
 deactivate Commands
 
 Commands -> Data : addHomework("S1", "Worksheet 4A", 20-10-2026)
 activate Data
 Data -> Data : getStudent("S1")
 activate Data
+Data --> Data : student
 deactivate Data
 create Item
 Data -> Item : new Homework(next ID, ..., "outstanding")
@@ -31,6 +33,7 @@ Item --> Data : item
 deactivate Item
 Data -> Data : putHomework(item)
 activate Data
+Data --> Data
 deactivate Data
 Data --> Commands : item
 deactivate Data

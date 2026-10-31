@@ -16,6 +16,7 @@ Data --> Commands : student
 deactivate Data
 Commands -> Commands : parsePaymentAmount("90")
 activate Commands
+Commands --> Commands : 90.00
 deactivate Commands
 Commands -> Commands : validateLessonsForPayment(...)
 activate Commands
@@ -24,6 +25,7 @@ note right of Commands
   and be neither cancelled nor already paid.
   The amount must not exceed what they owe.
 end note
+Commands --> Commands
 deactivate Commands
 
 loop for each lesson, in the order typed, while money remains
