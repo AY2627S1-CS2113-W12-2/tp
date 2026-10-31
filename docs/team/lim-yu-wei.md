@@ -76,6 +76,25 @@ one-line student entry.
   ([PR #5](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/5)).
 * Designed storage so that teammates' later features (scores, follow-up tasks, hourly rates, archiving)
   could add their own record types to the same file and be saved automatically.
+* Brought every sequence diagram in the Developer Guide in line with UML notation by adding dashed return
+  arrows to all 28 self-calls across 11 diagrams written by different teammates, after the team agreed on
+  the fix.
 
-<!-- Before final submission: once the DG and filter-cancelled-lessons PRs are merged, add their links and
-move them out of "awaiting merge". Add any PR reviews you give. Export to PDF and check the page limit. -->
+### Review and mentoring
+
+* Reviewed [PR #79](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/79) (lesson logging, rescheduling,
+  cancellation and weekly slots): built it merged with my own PR #80, confirmed that tests and checkstyle
+  passed, and found that `fee_statement` listed cancelled lessons as unpaid, with a suggested fix.
+
+### Contributions beyond the project team
+
+* Reviewed the Developer Guide of team CS2113-W10-2 (ClubFlow)
+  ([comments](https://github.com/NUS-CS2113-AY2627-S1/tp/pull/3)): pointed out empty sections, source-code
+  links that return 404 on the published site, and a sequence diagram that disagreed with the text.
+* Gave code-quality reviews on other students' iP pull requests
+  ([#31](https://github.com/NUS-CS2113-AY2627-S1/ip/pull/31), [#1](https://github.com/NUS-CS2113-AY2627-S1/ip/pull/1)),
+  covering missing Javadoc, magic strings, vague names and an overlong method.
+
+<!-- Before final submission: once the DG, filter-cancelled-lessons and return-arrow PRs are merged, add
+their links and move the first two out of "awaiting merge". Add any further PR reviews you give. Export to
+PDF and check the page limit. -->
