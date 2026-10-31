@@ -35,15 +35,18 @@ else lesson has not taken place
 
   Commands -> Commands : check the new start is different\nand has not passed
   activate Commands
+  Commands --> Commands
   deactivate Commands
 
   Commands -> Data : replaceLesson(moved)
   activate Data
   Data -> Data : ensureSlotFree(moved)
   activate Data
+  Data --> Data
   deactivate Data
   Data -> Data : store moved under "L3"
   activate Data
+  Data --> Data
   deactivate Data
   Data --> Commands
   deactivate Data

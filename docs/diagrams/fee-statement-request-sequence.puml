@@ -13,6 +13,7 @@ participant ":TutorLedgerData" as Data
 activate Commands
 Commands -> Commands : validate exactly one student ID
 activate Commands
+Commands --> Commands : student ID, or usage error
 deactivate Commands
 
 alt missing or extra argument

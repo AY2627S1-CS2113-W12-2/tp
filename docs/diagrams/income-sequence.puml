@@ -29,6 +29,7 @@ note right of Commands
 end note
 Commands --> Commands : total and lesson rows
 deactivate Commands
+Commands --> Commands : income report
 deactivate Commands
 Commands -->[ : "Income for October 2026: $..."
 deactivate Commands

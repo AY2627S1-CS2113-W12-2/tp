@@ -30,6 +30,7 @@ opt an upcoming lesson exists
     Each helper reads its own records
     (lessons, homework, tasks) from the store.
   end note
+  Commands --> Commands : summary lines
   deactivate Commands
 end
 Commands -->[ : summary, or "No upcoming lessons."
