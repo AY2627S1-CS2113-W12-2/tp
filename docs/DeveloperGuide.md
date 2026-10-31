@@ -680,6 +680,13 @@ remaining balance, including partial payments, and report the amount still owed.
 lessons. A cancellation therefore remains visible in the history, even though it is excluded from the
 amounts due.
 
+`pay STUDENT_ID AMOUNT LESSON_ID [LESSON_ID...]` separates amount parsing, lesson validation, allocation and
+confirmation formatting into focused steps. Before changing any lesson, it checks that the amount is positive
+and has at most two decimal places, that every selected lesson belongs to the student and is neither cancelled
+nor already paid, that no lesson ID is repeated, and that the amount does not exceed the combined outstanding
+balance. It then applies the payment to lessons in the order supplied, allowing a partial payment on the last
+lesson reached. Invalid requests therefore do not update any of the selected lessons.
+
 #### Stable output
 
 `getLessons()` returns a copy of the collection. Sorting the selected lessons into a new list leaves
