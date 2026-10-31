@@ -17,6 +17,9 @@ Data --> Commands : original
 Commands -> Original : withDetails(...)
 create Edited
 Original -> Edited : new Student(...)
+activate Edited
+Edited --> Original : edited
+deactivate Edited
 Original --> Commands : edited copy
 Commands -> Edited : withDefaultHourlyRate("60")
 Edited --> Commands : updated copy

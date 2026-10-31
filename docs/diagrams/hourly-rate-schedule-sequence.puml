@@ -32,6 +32,9 @@ Data --> Data : fee
 deactivate Data
 create Lesson
 Data -> Lesson : new Lesson(..., fee, ..., 90)
+activate Lesson
+Lesson --> Data : lesson
+deactivate Lesson
 Data -> Data : ensureSlotFree(lesson)
 activate Data
 Data --> Data
