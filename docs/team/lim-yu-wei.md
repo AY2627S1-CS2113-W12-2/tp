@@ -78,7 +78,7 @@ one-line student entry.
   could add their own record types to the same file and be saved automatically.
 * Brought every sequence diagram in the Developer Guide in line with UML notation by adding dashed return
   arrows to all 28 self-calls across 11 diagrams written by different teammates, after the team agreed on
-  the fix.
+  the fix ([PR #112](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/112)).
 
 ### Review and mentoring
 
@@ -95,6 +95,6 @@ one-line student entry.
   ([#31](https://github.com/NUS-CS2113-AY2627-S1/ip/pull/31), [#1](https://github.com/NUS-CS2113-AY2627-S1/ip/pull/1)),
   covering missing Javadoc, magic strings, vague names and an overlong method.
 
-<!-- Before final submission: once the DG, filter-cancelled-lessons and return-arrow PRs are merged, add
-their links and move the first two out of "awaiting merge". Add any further PR reviews you give. Export to
+<!-- Before final submission: once the DG and filter-cancelled-lessons PRs are merged, add their links and
+move them out of "awaiting merge". Add any further PR reviews you give. Export to
 PDF and check the page limit. -->
