@@ -1,0 +1,37 @@
+@startuml
+skinparam backgroundColor white
+skinparam defaultFontSize 14
+skinparam shadowing false
+hide footbox
+title Preparing for the next lesson
+
+participant ":LessonCommands" as Commands
+participant ":TutorLedgerData" as Data
+
+[-> Commands : execute("next")
+activate Commands
+Commands -> Data : getLessons()
+activate Data
+Data --> Commands : all lessons
+deactivate Data
+note right of Commands
+  Choose the earliest lesson that has not
+  started, is not cancelled and is not recorded.
+end note
+
+opt an upcoming lesson exists
+  Commands -> Data : getStudent(lesson's student ID)
+  activate Data
+  Data --> Commands : student
+  deactivate Data
+  Commands -> Commands : describeLastTopic, describeOutstandingHomework,\ndescribeUnpaid, describeFollowUps
+  activate Commands
+  note right of Commands
+    Each helper reads its own records
+    (lessons, homework, tasks) from the store.
+  end note
+  deactivate Commands
+end
+Commands -->[ : summary, or "No upcoming lessons."
+deactivate Commands
+@enduml

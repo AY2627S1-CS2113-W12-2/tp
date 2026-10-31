@@ -1,0 +1,43 @@
+@startuml
+skinparam backgroundColor white
+skinparam defaultFontSize 14
+skinparam shadowing false
+hide footbox
+title Assigning homework
+
+participant ":HomeworkCommands" as Commands
+participant ":TutorLedgerData" as Data
+participant "item:Homework" as Item
+
+[-> Commands : execute("assign S1 Worksheet 4A d/20-10-2026")
+activate Commands
+note right of Commands
+  ASSIGN_FORMAT splits off the student ID and the
+  last d/ value; everything between is the description.
+end note
+Commands -> Commands : parseDate("20-10-2026")
+activate Commands
+deactivate Commands
+
+Commands -> Data : addHomework("S1", "Worksheet 4A", 20-10-2026)
+activate Data
+Data -> Data : getStudent("S1")
+activate Data
+deactivate Data
+create Item
+Data -> Item : new Homework(next ID, ..., "outstanding")
+activate Item
+Item --> Data : item
+deactivate Item
+Data -> Data : putHomework(item)
+activate Data
+deactivate Data
+Data --> Commands : item
+deactivate Data
+
+Commands -->[ : "Assigned H4 to S1 ..."
+deactivate Commands
+note over Commands, Item
+  submit works the same way: it stores item.asSubmitted() under the same ID.
+end note
+@enduml

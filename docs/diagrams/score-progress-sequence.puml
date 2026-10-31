@@ -1,0 +1,44 @@
+@startuml
+skinparam backgroundColor white
+skinparam defaultFontSize 14
+skinparam shadowing false
+hide footbox
+title Summarising a student's progress
+
+participant ":ScoreCommands" as Commands
+participant "ArgumentParser" as Parser <<class>>
+participant ":TutorLedgerData" as Data
+
+[-> Commands : execute("progress S1 from/01-09-2026")
+activate Commands
+Commands -> Data : getStudent("S1")
+activate Data
+Data --> Commands : student
+deactivate Data
+Commands -> Parser : parseFields("from/01-09-2026", [from, to])
+activate Parser
+Parser --> Commands : fields
+deactivate Parser
+
+Commands -> Data : getLessons()
+activate Data
+Data --> Commands : all lessons
+deactivate Data
+Commands -> Commands : attendanceSummary(S1's lessons in period)
+activate Commands
+deactivate Commands
+
+Commands -> Data : getScores()
+activate Data
+Data --> Commands : all scores
+deactivate Data
+Commands -> Commands : scoreTable(...), trend(...)
+activate Commands
+deactivate Commands
+
+Commands -->[ : attendance, scores, average and trend
+deactivate Commands
+note over Commands, Data
+  The activity diagram below shows which lessons attendanceSummary counts.
+end note
+@enduml

@@ -6,6 +6,8 @@ top to bottom direction
 skinparam backgroundColor white
 skinparam componentStyle rectangle
 skinparam shadowing false
+hide circle
+hide empty members
 skinparam defaultFontName SansSerif
 skinparam defaultFontSize 16
 skinparam defaultTextAlignment center

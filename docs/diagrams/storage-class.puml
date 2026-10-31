@@ -3,6 +3,7 @@
 skinparam backgroundColor white
 skinparam defaultFontSize 14
 skinparam shadowing false
+hide circle
 skinparam classAttributeIconSize 0
 hide empty members
 title Storage: responsibilities and relationships
