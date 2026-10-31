@@ -5,7 +5,7 @@ skinparam shadowing false
 hide footbox
 title Automatic saving after an ordinary feature command
 
-participant "TutorLedger" as Main
+participant "TutorLedger" as Main <<class>>
 participant ":StorageCommands" as Persistence
 participant ":StudentCommands" as Commands
 participant ":TutorLedgerData" as Data

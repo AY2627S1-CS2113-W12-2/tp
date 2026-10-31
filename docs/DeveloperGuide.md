@@ -185,11 +185,34 @@ lessons with a positive `amountPaid`, group them by lesson date, and sum `Lesson
 Yearly summaries apply the same rule to each of the twelve months, including months with a zero total.
 Partial payments contribute the amount actually received; an unpaid lesson contributes nothing.
 A free lesson is settled but contributes no income. The reporting period uses the lesson date, not a
-separate payment timestamp, because no transaction-date ledger is stored.
+separate payment timestamp, because no transaction-date ledger is stored. Figure 4 shows
+`income 10-2026`.
+
+![Income sequence showing period parsing, lesson selection and summing of amounts paid](diagrams/income-sequence.svg)
+
+*Figure 4. Income is calculated from the stored lessons each time; nothing is changed or saved.*
 
 The output is calculated from the current lesson collection without changing any records. Cancelled
 lessons remain in the history but are excluded from income. Editing a fee preserves the amount already
 received; the fee-edit rules below prevent an edit from manufacturing or discarding a payment.
+
+### Homework
+
+`HomeworkCommands` handles `assign`, `submit`, `homework`, and the homework forms of `edit` and `delete`.
+Each homework item is an immutable `Homework` record owned by `TutorLedgerData`, linked to its student by
+ID and given a permanent `H` ID. Figure 5 shows `assign S1 Worksheet 4A d/20-10-2026`.
+
+![Homework assignment sequence showing date parsing, student lookup and creation of the homework item](diagrams/homework-assign-sequence.svg)
+
+*Figure 5. The student is looked up before the homework item is created and stored.*
+
+* The description is everything between the student ID and the last `d/`, so it may contain spaces, commas
+  and even `d/`. Only the final `d/` value is read as the due date.
+* `submit` stores `item.asSubmitted()` under the same ID rather than changing the stored object, in the same
+  way as other record updates. `homework` lists items that are still outstanding, soonest due first, and
+  marks those past their due date as overdue.
+* *Alternative considered:* a mutable `setSubmitted()` method would avoid creating a copy, but every other
+  record type is replaced rather than changed in place, and copies keep the automatic-save snapshot simple.
 
 ### Scores and progress
 
@@ -198,7 +221,7 @@ student at the end of a term.
 
 ![Scores and progress class diagram showing commands, shared records and score values](diagrams/score-class.svg)
 
-*Figure 4. ScoreCommands reads and updates scores through the shared data store.*
+*Figure 6. ScoreCommands reads and updates scores through the shared data store.*
 
 * **`Score`** is an immutable record of one test result, like `Lesson` and `Homework`. Its constructor
   checks every value, for example that the marks are not more than the total. A score therefore cannot
@@ -217,7 +240,7 @@ The sequence diagram below shows `score S1 WA2 m/33/40`.
 
 ![Score-recording sequence showing validation, insertion and comparison with the previous result](diagrams/score-record-sequence.svg)
 
-*Figure 5. A score is created and validated before insertion, then compared with previous results.*
+*Figure 7. A score is created and validated before insertion, then compared with previous results.*
 
 1. The test name is everything before the first `m/` or `d/`, so it can contain spaces, like an `assign`
    description. The rest goes to the shared `ArgumentParser`, so `m/` and `d/` can be typed in any order.
@@ -241,11 +264,16 @@ A rejected score is neither stored nor assigned a permanent ID.
 #### Summarising progress
 
 `progress STUDENT_ID [from/DATE] [to/DATE]` gathers the student's lessons and scores in the period and
-summarises them. The activity diagram shows how each lesson is counted.
+summarises them. Figure 8 shows the calls that `progress` makes, and Figure 9 shows how each lesson
+is counted.
+
+![Progress sequence showing student lookup, field parsing and reading of lessons and scores](diagrams/score-progress-sequence.svg)
+
+*Figure 8. Attendance and scores are read from the store; the summary is not saved.*
 
 ![Progress activity diagram showing lesson eligibility, attendance counts and the recorded-lesson denominator](diagrams/score-progress-activity.svg)
 
-*Figure 6. Only recorded, non-cancelled lessons up to today contribute to the attendance rate.*
+*Figure 9. Only recorded, non-cancelled lessons up to today contribute to the attendance rate.*
 
 * Cancelled lessons are excluded before attendance is counted.
 * Lessons after today are skipped because they cannot have attendance yet. Counting them as "not
@@ -284,7 +312,7 @@ the lesson.
 
 ![Class diagram of TaskCommands, TutorLedgerData, FollowUpTask and their links](diagrams/followup-class.svg)
 
-*Figure 7. The store owns follow-up tasks; each task may identify a student by ID.*
+*Figure 10. The store owns follow-up tasks; each task may identify a student by ID.*
 
 * **`FollowUpTask`** is an immutable record, like `Homework`. Its student and due date are optional, because
   some reminders (such as "Print term calendar") are not about one student or day. The getters return
@@ -303,7 +331,7 @@ The sequence diagram below shows `task S1 Bring Worksheet 4B d/16-10-2026`.
 
 ![Sequence diagram of logging a follow-up task for a student](diagrams/followup-add-sequence.svg)
 
-*Figure 8. A linked task resolves its student before the new reminder is stored.*
+*Figure 11. A linked task resolves its student before the new reminder is stored.*
 
 1. A regular expression splits off a final `d/DUE_DATE`. As with `assign`, the date must come last, so the
    description may contain spaces and commas.
@@ -369,7 +397,7 @@ example, `edit L3 t/1700` is routed here, while `edit S1 p/91234567` is left for
 
 ![Class diagram of the lesson commands, the shared data store, Lesson and Attendance](diagrams/lesson-class.svg)
 
-*Figure 9. `LessonCommands` changes lessons only through `TutorLedgerData`, which owns every `Lesson`.*
+*Figure 12. `LessonCommands` changes lessons only through `TutorLedgerData`, which owns every `Lesson`.*
 
 * **`TutorLedgerData`** is the only class that stores lessons. It gives each new lesson the next ID (`L1`,
   `L2`, ...) and checks that no two lessons are taught at the same time (`ensureSlotFree`). Two lessons
@@ -386,23 +414,23 @@ example, `edit L3 t/1700` is routed here, while `edit S1 p/91234567` is left for
   unknown word ending in `/`, such as `and/or`, is kept as text, while the command's own prefixes still
   start new values.
 
-Fees and durations are omitted from Figure 9; see [Default hourly rates](#default-hourly-rates)
+Fees and durations are omitted from Figure 12; see [Default hourly rates](#default-hourly-rates)
 for how a lesson's fee is chosen.
 
 #### Scheduling a weekly slot
 
 Most students have one regular weekly slot, so `schedule ... w/WEEKS` adds that many lessons in one
-command. Figure 10 shows `schedule S1 d/01-12-2026 t/1600 s/A Math f/60 w/3`. Every lesson command begins by
-splitting its arguments in the same way, so that step is drawn once, in Figure 11, and referred to with a
+command. Figure 13 shows `schedule S1 d/01-12-2026 t/1600 s/A Math f/60 w/3`. Every lesson command begins by
+splitting its arguments in the same way, so that step is drawn once, in Figure 14, and referred to with a
 `ref` frame.
 
 ![Sequence diagram of scheduling three weekly lessons](diagrams/lesson-weekly-sequence.svg)
 
-*Figure 10. Every week is checked before any lesson is stored.*
+*Figure 13. Every week is checked before any lesson is stored.*
 
 ![Sequence diagram fragment for parsing the ID and prefixed fields](diagrams/lesson-parse-sd.svg)
 
-*Figure 11. The `parse ID and fields` fragment used by Figures 10 and 13.*
+*Figure 14. The `parse ID and fields` fragment used by Figures 13 and 16.*
 
 1. `LessonCommands` looks up the student and checks that they take the subject. It uses the student's own
    spelling of the subject, so `a math` and `A Math` are not stored as two subjects.
@@ -413,21 +441,21 @@ splitting its arguments in the same way, so that step is drawn once, in Figure 1
    `Error: That time overlaps <ID> (...)`) and no lesson is added. The counter only
    moves when lessons are stored, so a rejected command never skips an ID.
 
-Figure 12 shows the objects after this command and a later `cancel L2 r/Student sick`. Each week is an
+Figure 15 shows the objects after this command and a later `cancel L2 r/Student sick`. Each week is an
 ordinary, separate lesson, so `L2` could be cancelled without affecting `L1` or `L3`.
 
 ![Object diagram of the data store holding three weekly lessons, one cancelled](diagrams/lesson-weekly-object.svg)
 
-*Figure 12. After `schedule ... w/3` and `cancel L2 r/Student sick`. The counter has moved past `L3`.*
+*Figure 15. After `schedule ... w/3` and `cancel L2 r/Student sick`. The counter has moved past `L3`.*
 
 #### Changing a lesson: record, edit, reschedule and cancel
 
 These four commands share one pattern: get the lesson, make a changed copy, check it, then call
-`replaceLesson`. Figure 13 shows `reschedule L3 d/16-12-2026`.
+`replaceLesson`. Figure 16 shows `reschedule L3 d/16-12-2026`.
 
 ![Sequence diagram of rescheduling a lesson by replacing it with a changed copy](diagrams/lesson-reschedule-sequence.svg)
 
-*Figure 13. The original lesson stays in the store until its validated replacement is stored.*
+*Figure 16. The original lesson stays in the store until its validated replacement is stored.*
 
 * `replaceLesson` checks the slot only when the time the lesson takes up has changed: a new date or time, a
   new duration, or an undone cancellation. Recording attendance on a busy day is never blocked by a clash
@@ -451,12 +479,16 @@ These four commands share one pattern: get the lesson, make a changed copy, chec
 
 #### Preparing for the next lesson
 
-`next [STUDENT_ID]` gathers everything a tutor checks just before a lesson. Figure 14 shows how the lesson is
-chosen and summarised.
+`next [STUDENT_ID]` gathers everything a tutor checks just before a lesson. Figure 17 shows the calls it
+makes, and Figure 18 shows how the lesson is chosen.
+
+![Next-lesson sequence showing lesson selection, student lookup and the summary helpers](diagrams/lesson-next-sequence.svg)
+
+*Figure 17. The summary is assembled from existing records each time `next` runs.*
 
 ![Activity diagram of choosing and summarising the next lesson](diagrams/lesson-next-activity.svg)
 
-*Figure 14. Only lessons that can still take place are considered.*
+*Figure 18. Only lessons that can still take place are considered.*
 
 The summary is built from existing records each time; nothing extra is stored. "Unpaid" totals the
 remaining balances of non-cancelled lessons up to today, including partially paid lessons, using the same
@@ -522,7 +554,7 @@ shared data boundary rather than only in a particular command handler.
 
 ![Class diagram showing command handlers, shared data, immutable records and storage](diagrams/hourly-rate-class.svg)
 
-*Figure 15. The store owns student and lesson records; a lesson identifies its student by permanent ID.*
+*Figure 19. The store owns student and lesson records; a lesson identifies its student by permanent ID.*
 
 `Student` stores an optional `BigDecimal` rate. Its getter returns `Optional<BigDecimal>` so callers
 must distinguish an unset rate from a valid rate of zero. A missing rate means that scheduling needs an
@@ -543,7 +575,7 @@ The original profile remains available until all validation succeeds.
 
 ![Sequence diagram for setting a student's default hourly rate and automatically saving](diagrams/hourly-rate-edit-sequence.svg)
 
-*Figure 16. A rate edit replaces a validated student and uses the existing automatic-save path.*
+*Figure 20. A rate edit replaces a validated student and uses the existing automatic-save path.*
 
 Omitting `r/` during an edit preserves the current rate. A bare `edit S1 r/` deliberately clears it,
 matching the existing convention for clearing subjects with `s/`. A bare `r/` on `add` is rejected:
@@ -564,7 +596,7 @@ inserting any lessons. A conflict in a later week therefore leaves records and I
 
 ![Sequence diagram showing a 90-minute lesson calculated from a student's default rate](diagrams/hourly-rate-schedule-sequence.svg)
 
-*Figure 17. Calculation happens before insertion; the result is stored as the lesson's fixed charge.*
+*Figure 21. Calculation happens before insertion; the result is stored as the lesson's fixed charge.*
 
 The calculation is `hourly rate × duration in minutes ÷ 60`. All money uses `BigDecimal`; conversion to
 `double` would introduce binary floating-point approximation. Division rounds once to two decimal
@@ -574,7 +606,7 @@ to a per-minute rate too early.
 
 ![Activity diagram explaining fee precedence, missing rates, validation and insertion](diagrams/hourly-rate-fee-activity.svg)
 
-*Figure 18. Invalid explicit values are rejected; they do not trigger a fallback to the default rate.*
+*Figure 22. Invalid explicit values are rejected; they do not trigger a fallback to the default rate.*
 
 Changing the student's rate affects newly scheduled lessons only. Previously scheduled lessons,
 including future appointments, keep their saved fee. Editing a lesson's duration also keeps its fee;
@@ -632,7 +664,7 @@ student produce an error; a valid student with no lessons gets an explicit empty
 
 ![Fee-statement class diagram showing read-only access to student and lesson records](diagrams/fee-statement-class.svg)
 
-*Figure 19. The statement is assembled from the selected student and their stored lessons; it does not
+*Figure 23. The statement is assembled from the selected student and their stored lessons; it does not
 introduce a new domain object.*
 
 The command validates that exactly one student ID was supplied before looking up the student. It then
@@ -645,7 +677,7 @@ change payment state.
 
 ![Fee-statement overview showing console input, command routing, snapshots and the read-only save check](diagrams/fee-statement-overview-sequence.svg)
 
-*Figure 20. The command handler is selected before execution. A snapshot is taken before the
+*Figure 24. The command handler is selected before execution. A snapshot is taken before the
 request, and the usual save check runs after its result is displayed. The matching snapshots prevent a
 file write. The `ref` frame expands into the request-validation fragment below.*
 
@@ -653,14 +685,14 @@ file write. The `ref` frame expands into the request-validation fragment below.*
 
 ![Fee-statement request sequence showing argument checks, student lookup and a reference to row formatting](diagrams/fee-statement-request-sequence.svg)
 
-*Figure 21. The `ref` frame delegates the row-building detail to the fragment below, keeping
+*Figure 25. The `ref` frame delegates the row-building detail to the fragment below, keeping
 argument errors and student lookup separate from formatting.*
 
 #### Collecting and formatting rows
 
 ![Fee-statement row-building sequence fragment showing selection, ordering and formatting of saved lessons](diagrams/fee-statement-rows-sequence.svg)
 
-*Figure 22. Referenced fragment: collect and format statement rows. The request diagram resumes after these rows
+*Figure 26. Referenced fragment: collect and format statement rows. The request diagram resumes after these rows
 have been assembled; this fragment reads existing records without changing them.*
 
 #### Interaction with payment and lesson features
@@ -685,7 +717,12 @@ confirmation formatting into focused steps. Before changing any lesson, it check
 and has at most two decimal places, that every selected lesson belongs to the student and is neither cancelled
 nor already paid, that no lesson ID is repeated, and that the amount does not exceed the combined outstanding
 balance. It then applies the payment to lessons in the order supplied, allowing a partial payment on the last
-lesson reached. Invalid requests therefore do not update any of the selected lessons.
+lesson reached. Invalid requests therefore do not update any of the selected lessons. Figure 27 shows
+`pay S1 90 L1 L2`.
+
+![Payment sequence showing validation of every lesson before amounts are allocated in order](diagrams/pay-sequence.svg)
+
+*Figure 27. All checks finish before the first lesson is updated.*
 
 #### Stable output
 
@@ -730,6 +767,12 @@ does not process money, deliver online lessons, or send messages to students and
 |v1.0|independent tutor|list today's and this week's lessons in chronological order|know who I am teaching next and when|
 |v1.0|independent tutor|record attendance and notes for a lesson|track who has been coming and what we covered|
 |v1.0|independent tutor|edit or delete a lesson|correct mistakes without re-entering the record|
+|v1.0|independent tutor|assign homework to a student with a due date|keep track of what each student has to hand in|
+|v1.0|independent tutor|mark homework as submitted|see at a glance what is still outstanding|
+|v1.0|independent tutor|list outstanding homework, soonest due first|chase overdue work before the next lesson|
+|v1.0|independent tutor|mark a lesson as paid or unpaid|know which lessons have been paid for|
+|v1.0|independent tutor|see which lessons are unpaid and how much each student owes|know whom to ask for payment|
+|v1.0|independent tutor|have my records saved automatically and reloaded on start-up|never lose my records when I close the app|
 |v2.0|independent tutor|add a recurring weekly slot for a student|avoid entering the same lesson week after week|
 |v2.0|busy tutor|see one summary of my next lesson|prepare in a single glance between lessons|
 |v2.0|forgetful tutor|add a lesson record for a past date after the fact|keep my records accurate even when I forget on the day|
@@ -738,8 +781,16 @@ does not process money, deliver online lessons, or send messages to students and
 |v2.0|independent tutor|set a default hourly rate for each student|avoid re-entering the fee for every lesson|
 |v2.0|independent tutor|add and edit primary-school, secondary-school and junior-college students|keep all my students in one place|
 |v2.0|careless tutor|be warned before deleting a student who has lesson history|avoid losing months of records by accident|
+|v2.0|independent tutor|record a score for a test or assessment|see whether the student is improving|
+|v2.0|independent tutor|log a follow-up task for myself, such as bringing a worksheet|not forget it between lessons|
+|v2.0|independent tutor|record a payment that covers several lessons|settle a family's bill in one step|
+|v2.0|independent tutor|see a fee statement for one student|answer a parent's questions about past charges|
+|v2.0|independent tutor|see my income for a month or a year|keep track of my earnings|
+|v2.0|independent tutor|filter lessons by student, date range and payment status|find the lessons I am looking for quickly|
+|v2.0|expert user|type short aliases for common commands|enter commands faster|
 |v2.0b|independent tutor|archive a student who has stopped lessons|keep my active list uncluttered while preserving history|
 |v2.0b|independent tutor|list the topics already covered with a student|avoid repeating material we have finished|
+|v2.0b|independent tutor|see a summary of a student's attendance and scores over the term|review their progress at the end of the term|
 
 ## Appendix C: Non-functional requirements
 

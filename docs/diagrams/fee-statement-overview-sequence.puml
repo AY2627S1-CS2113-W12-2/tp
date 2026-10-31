@@ -7,7 +7,7 @@ hide footbox
 title Fee statement: command routing and automatic-save checks
 
 actor Tutor
-participant "TutorLedger" as Main
+participant "TutorLedger" as Main <<class>>
 participant ":StorageCommands" as Persistence
 participant ":PaymentCommands" as Commands
 

@@ -1,0 +1,41 @@
+@startuml
+skinparam backgroundColor white
+skinparam defaultFontSize 14
+skinparam shadowing false
+hide footbox
+title Recording a payment across two lessons
+
+participant ":PaymentCommands" as Commands
+participant ":TutorLedgerData" as Data
+
+[-> Commands : execute("pay S1 90 L1 L2")
+activate Commands
+Commands -> Data : getStudent("S1")
+activate Data
+Data --> Commands : student
+deactivate Data
+Commands -> Commands : parsePaymentAmount("90")
+activate Commands
+deactivate Commands
+Commands -> Commands : validateLessonsForPayment(...)
+activate Commands
+note right of Commands
+  Each lesson must belong to S1, be listed once,
+  and be neither cancelled nor already paid.
+  The amount must not exceed what they owe.
+end note
+deactivate Commands
+
+loop for each lesson, in the order typed, while money remains
+  Commands -> Data : updateLessonAmountPaid(id, paid + allocation)
+  activate Data
+  Data --> Commands : updated lesson
+  deactivate Data
+end
+Commands -->[ : "Recorded payment of $90.00 for 2 lessons: L1, L2."
+deactivate Commands
+note over Commands, Data
+  Every check runs before the first update,
+  so a rejected payment changes nothing.
+end note
+@enduml
