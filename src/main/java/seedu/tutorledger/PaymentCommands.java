@@ -71,14 +71,14 @@ public class PaymentCommands {
                 new Object[]{command, arguments});
         try {
             return switch (command) {
-                case "unpaid" -> listUnpaid(arguments);
-                case "owed" -> listOwed(arguments);
-                case "fee_statement" -> feeStatement(arguments);
-                case "income" -> income(arguments);
-                case "pay" -> pay(arguments);
-                case "mark" -> mark(arguments);
-                // handles() lets only payment command words through, so reaching here means a word was missed above.
-                default -> throw new AssertionError("Unexpected payment command: " + command);
+            case "unpaid" -> listUnpaid(arguments);
+            case "owed" -> listOwed(arguments);
+            case "fee_statement" -> feeStatement(arguments);
+            case "income" -> income(arguments);
+            case "pay" -> pay(arguments);
+            case "mark" -> mark(arguments);
+            // handles() lets only payment command words through, so reaching here means a word was missed above.
+            default -> throw new AssertionError("Unexpected payment command: " + command);
             };
         } catch (IllegalArgumentException exception) {
             LOGGER.log(Level.FINE, "Payment command {0} rejected: {1}",
