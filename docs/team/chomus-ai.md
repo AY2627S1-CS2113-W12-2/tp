@@ -5,9 +5,8 @@
 TutorLedger is a Java command-line application that helps independent tutors manage student profiles,
 lessons, homework and payments in a local data file.
 
-My contributions focus on payment tracking and reporting: recording payments, seeing what students owe,
-reviewing payment histories and summarising income. I also contributed to the application's core data
-model, diagnostics and project documentation.
+My contributions span the payment workflow, its supporting data model and tests, and project documentation.
+I also worked on command routing, diagnostics and build reliability.
 
 ## Summary of contributions
 
@@ -17,44 +16,44 @@ model, diagnostics and project documentation.
 ### Enhancements implemented
 
 * **Foundational data model** ([PR #59](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/59)):
-  established the `Student`, `Lesson` and `Homework` classes and their initial tests, giving the application
-  separate models for its main records.
-* **Payment status and outstanding balances**
+  established the initial `Student`, `Lesson` and `Homework` classes and their tests.
+* **Payment tracking and balances**
   ([PR #63](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/63),
   [PR #68](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/68)):
-  added commands to mark lessons paid or unpaid, list past and due unpaid lessons, and total outstanding
-  balances by student. The unpaid list can be filtered by student and is ordered from oldest to newest.
+  added commands to mark lessons paid or unpaid, list outstanding lessons, and summarise amounts owed
+  by student. The unpaid list supports student filtering and chronological ordering.
 * **Fee statements** ([PR #77](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/77)):
-  added a per-student payment history showing lesson dates, fees and payment status, so tutors can check
-  what has been paid.
+  added a per-student history of lesson dates, fees and payment status.
 * **Income summaries** ([PR #86](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/86)):
-  added monthly and yearly income reports with lesson-level payment details. Reports account for amounts
-  paid and exclude cancelled lessons.
-* **Debug logging** ([PR #72](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/72)):
-  added diagnostic messages across argument parsing, student, lesson and homework operations, and shared
-  data handling to make application behaviour easier to trace during development.
-
-### Enhancement awaiting merge
-
-* **Multi-session payments** ([PR #90](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/90), open):
-  implemented a `pay` command that allocates one payment across selected lessons, including partial
-  balances. The change also updates lesson data, storage and filtering to support those balances. This
-  enhancement is still awaiting merge.
+  added monthly and yearly income reports with lesson-level payment details, accounting for amounts
+  received and excluding cancelled lessons.
+* **Multi-session payments** ([PR #90](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/90)):
+  implemented `pay` to allocate one payment across selected lessons, supporting partial payment and
+  updating lesson, storage, filtering and command-help behavior.
+* **Diagnostics** ([PR #72](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/72)):
+  added debug messages across argument parsing, student, lesson and homework operations, and shared
+  data handling.
+* **Command routing and payment error handling**
+  ([PR #108](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/108)):
+  added CLI integration tests that exercise representative commands through `TutorLedger.main`, including
+  aliases and storage behavior, and centralized payment argument-error handling.
+* **Build reliability** ([PR #109](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/109)):
+  fixed a Checkstyle issue in payment-command handling that caused the Gradle build to fail, with related
+  command-routing updates and tests.
 
 ### Testing and documentation
 
-* Added and extended payment tests for status changes, unpaid-list filtering and ordering, owed totals,
-  fee statements, monthly and yearly income, and invalid command arguments. The multi-session payment
-  tests cover partial allocations, overpayments and lessons that cannot be paid; rejected payments leave
-  lesson records unchanged.
+* Added and extended tests for payment status changes, unpaid-list filtering and ordering, owed totals,
+  fee statements, income reports, payment allocation and invalid payment requests.
 * Updated the [User Guide](../UserGuide.md) and command help with payment command formats, examples and
-  behaviour.
-* Expanded the [Developer Guide](../DeveloperGuide.md) with the fee-statement design and manual test
-  instructions for income summaries.
+  behavior.
+* Expanded the [Developer Guide](../DeveloperGuide.md) with the fee-statement design
+  ([PR #83](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/83)), income-summary test instructions
+  ([PR #86](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/86)), and project-specific appendices.
 
-### Team contributions
+### Current branch work (not yet merged)
 
-* Integrated partial-payment support across lesson, storage, filtering, student-command and help surfaces
-  so it works with the team's existing lesson and student features.
-* Followed up on review feedback for the open multi-session payment PR with a corrective commit; the PR
-  remains open while the enhancement is reviewed.
+* Refactored `PaymentCommands` so payment parsing, validation, allocation and confirmation formatting are
+  handled in focused steps. The validation occurs before lesson records are updated.
+* Updated the Developer Guide to describe `pay` validation and ordered allocation, and refined Appendices C
+  and D.

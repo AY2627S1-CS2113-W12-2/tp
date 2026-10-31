@@ -29,7 +29,7 @@ public class PaymentCommands {
     private static final Set<String> COMMAND_WORDS = Set.of("mark", "pay", "unpaid", "owed", "fee_statement",
             "income");
     private static final Pattern MARK_FORMAT = Pattern.compile("(?i)(\\S+)\\s+(\\S+)");
-    private static final Pattern INCOME_FORMAT = Pattern.compile("(?:([0-9]{2})-([0-9]{4})|([0-9]{4}))");
+    private static final Pattern INCOME_FORMAT = Pattern.compile("([0-9]{2})-([0-9]{4})|([0-9]{4})");
     private static final DateTimeFormatter DISPLAY_DATE =
             DateTimeFormatter.ofPattern("EEE dd-MM-uuuu", Locale.ENGLISH);
     private static final DateTimeFormatter DISPLAY_MONTH =
@@ -95,43 +95,58 @@ public class PaymentCommands {
         }
 
         Student student = data.getStudent(words[0]);
-        if (!words[1].matches("\\d+(?:\\.\\d{1,2})?")) {
-            return "Error: AMOUNT must be a non-negative dollar amount with at most 2 decimals.";
-        }
-        BigDecimal amount = new BigDecimal(words[1]);
-        if (amount.signum() <= 0) {
-            return "Error: AMOUNT must be greater than $0.00.";
+        BigDecimal amount = parsePaymentAmount(words[1]);
+        List<Lesson> lessons = validateLessonsForPayment(student, words);
+        BigDecimal totalOwed = lessons.stream().map(Lesson::getAmountOwed).reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        if (amount.compareTo(totalOwed) > 0) {
+            throw new IllegalArgumentException("Payment exceeds the selected lessons' outstanding balance ($"
+                    + formatMoney(totalOwed) + ").");
         }
 
+        List<String> paidLessonIds = applyPayment(lessons, amount);
+        return paymentConfirmation(amount, paidLessonIds);
+    }
+
+    /** Parses a positive dollar amount with at most two decimal places. */
+    private static BigDecimal parsePaymentAmount(String amountText) {
+        if (!amountText.matches("\\d+(?:\\.\\d{1,2})?")) {
+            throw new IllegalArgumentException("AMOUNT must be a non-negative dollar amount with at most 2 decimals.");
+        }
+        BigDecimal amount = new BigDecimal(amountText);
+        if (amount.signum() <= 0) {
+            throw new IllegalArgumentException("AMOUNT must be greater than $0.00.");
+        }
+        return amount;
+    }
+
+    /** Resolves and validates every lesson before any payment records are updated. */
+    private List<Lesson> validateLessonsForPayment(Student student, String[] words) {
         Set<String> lessonIds = new HashSet<>();
         List<Lesson> lessons = new ArrayList<>();
-        BigDecimal totalOwed = BigDecimal.ZERO;
         for (int index = 2; index < words.length; index++) {
             Lesson lesson = data.getLesson(words[index]);
             String lessonId = lesson.getLessonId().toUpperCase(Locale.ROOT);
             if (!lessonIds.add(lessonId)) {
-                return "Error: Lesson " + lesson.getLessonId() + " was listed more than once.";
+                throw new IllegalArgumentException("Lesson " + lesson.getLessonId() + " was listed more than once.");
             }
             if (!student.getStudentId().equalsIgnoreCase(lesson.getStudentId())) {
-                return "Error: Lesson " + lesson.getLessonId() + " does not belong to "
-                        + student.getStudentId() + ".";
+                throw new IllegalArgumentException("Lesson " + lesson.getLessonId() + " does not belong to "
+                        + student.getStudentId() + ".");
             }
             if (lesson.isCancelled()) {
-                return "Error: Cancelled lesson " + lesson.getLessonId() + " cannot be paid.";
+                throw new IllegalArgumentException("Cancelled lesson " + lesson.getLessonId() + " cannot be paid.");
             }
             if (Lesson.PAYMENT_PAID.equalsIgnoreCase(lesson.getPaymentStatus())) {
-                return "Error: Lesson " + lesson.getLessonId() + " is already paid.";
+                throw new IllegalArgumentException("Lesson " + lesson.getLessonId() + " is already paid.");
             }
             lessons.add(lesson);
-            totalOwed = totalOwed.add(lesson.getAmountOwed());
         }
+        return lessons;
+    }
 
-        if (amount.compareTo(totalOwed) > 0) {
-            return "Error: Payment exceeds the selected lessons' outstanding balance ($"
-                    + formatMoney(totalOwed) + ").";
-        }
-
-        // Validation is complete before updates begin; the amount is then consumed in command order.
+    /** Allocates the payment in command order and returns the IDs that received money. */
+    private List<String> applyPayment(List<Lesson> lessons, BigDecimal amount) {
         BigDecimal remaining = amount;
         List<String> paidLessonIds = new ArrayList<>();
         for (Lesson lesson : lessons) {
@@ -145,6 +160,11 @@ public class PaymentCommands {
                 break;
             }
         }
+        return paidLessonIds;
+    }
+
+    /** Formats a confirmation for the lessons that received the payment. */
+    private static String paymentConfirmation(BigDecimal amount, List<String> paidLessonIds) {
         return "Recorded payment of $" + formatMoney(amount) + " for "
                 + paidLessonIds.size() + (paidLessonIds.size() == 1 ? " lesson: " : " lessons: ")
                 + String.join(", ", paidLessonIds) + ".";
@@ -186,6 +206,9 @@ public class PaymentCommands {
                 .map(lesson -> lesson.getSubject().length())
                 .max(Integer::compareTo)
                 .orElse(0);
+        String rowFormat = "%s  %s  %-"
+                + studentWidth + "s  %-"
+                + subjectWidth + "s  $%s";
 
         StringBuilder output = new StringBuilder("        ").append(SEPARATOR)
                 .append(System.lineSeparator())
@@ -194,9 +217,7 @@ public class PaymentCommands {
         for (Lesson lesson : unpaidLessons) {
             Student student = data.getStudent(lesson.getStudentId());
             output.append(System.lineSeparator())
-                    .append(String.format(Locale.ROOT, "%s  %s  %-"
-                                    + studentWidth + "s  %-"
-                                    + subjectWidth + "s  $%s",
+                    .append(String.format(Locale.ROOT, rowFormat,
                             lesson.getLessonId(), DISPLAY_DATE.format(lesson.getDate()),
                             studentLabel(student), lesson.getSubject(),
                             lesson.getAmountOwed().setScale(2, RoundingMode.UNNECESSARY).toPlainString()));

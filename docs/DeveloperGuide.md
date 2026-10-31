@@ -680,6 +680,13 @@ remaining balance, including partial payments, and report the amount still owed.
 lessons. A cancellation therefore remains visible in the history, even though it is excluded from the
 amounts due.
 
+`pay STUDENT_ID AMOUNT LESSON_ID [LESSON_ID...]` separates amount parsing, lesson validation, allocation and
+confirmation formatting into focused steps. Before changing any lesson, it checks that the amount is positive
+and has at most two decimal places, that every selected lesson belongs to the student and is neither cancelled
+nor already paid, that no lesson ID is repeated, and that the amount does not exceed the combined outstanding
+balance. It then applies the payment to lessons in the order supplied, allowing a partial payment on the last
+lesson reached. Invalid requests therefore do not update any of the selected lessons.
+
 #### Stable output
 
 `getLessons()` returns a copy of the collection. Sorting the selected lessons into a new list leaves
@@ -736,23 +743,46 @@ does not process money, deliver online lessons, or send messages to students and
 
 ## Appendix C: Non-functional requirements
 
-* **Runtime:** the application is built for Java 25 and is operated through a terminal.
-* **Offline operation:** the product's commands use local data and do not require a network service.
-* **Persistence:** records are kept in a human-editable local file and restored across restarts.
-  The working directory must permit file writes; failed saves are reported to the user.
-* **Monetary precision:** money uses decimal arithmetic with explicit rounding for calculated charges.
-* **Input errors:** rejected commands report a useful message without applying a partial update.
+* **Runtime and interaction:** the application is built for Java 25 and is operated through a terminal.
+  Its commands do not depend on a graphical interface or a network service.
+* **Offline operation:** commands use the locally stored student, lesson, homework, score and task
+  records. Managing records does not require an internet connection.
+* **Persistence and portability:** records are stored in the human-readable
+  `data/tutorledger.txt` file and restored when the application starts. A working directory must permit
+  file writes for automatic saves and backups; save failures are reported rather than silently ignored.
+* **Data recoverability:** the file can be inspected or edited with a text editor, and `reload` can read
+  those edits. Invalid lines are reported with their line numbers while valid records continue to load.
+  Users should back up data before manual edits or destructive operations.
+* **Data integrity:** input and model constraints are checked before a record is inserted or replaced.
+  A rejected command must not leave a partial update or consume an ID. Weekly scheduling validates every
+  lesson slot before adding any of them, and IDs are not reused after deletion.
+* **Financial accuracy:** money is represented with decimal arithmetic rather than binary floating point.
+  Calculated lesson charges are rounded to two decimal places using `HALF_UP`; once saved, a lesson's fee
+  does not change just because its student's default rate changes.
+* **Reliable validation:** user-input validation remains active even when Java assertions are disabled.
+  Rejected input is reported clearly and is not accepted as a record.
+* **Repeatable verification:** automated tests cover command validation, persistence and date-sensitive
+  behaviour. Tests that depend on the current date use a fixed clock so their results are reproducible.
 
 ## Appendix D: Glossary
 
 | Term | Meaning |
 | --- | --- |
-| Default hourly rate | An optional per-student rate used to choose a new lesson's fee when no explicit fee is supplied. |
-| Archived student | A retained profile hidden from the default active list; restore it before scheduling new lessons. |
-| Amount paid | The amount received and allocated to a lesson, rather than its total charge. |
-| Outstanding balance | The saved fee minus the amount paid; summaries apply their documented date and cancellation filters. |
-| Follow-up task | A pending or completed reminder, optionally linked to a student and a due date. |
-| Snapshot | The encoded records used to detect whether a command changed data and needs an automatic save. |
+| Active student | A student profile that has not been archived and appears in the default active-student list. |
+| Archived student | A retained profile hidden from the default active list. Restore it before scheduling new lessons; its historical records remain available. |
+| Attendance | The recorded outcome of a lesson, such as present, late or absent. `none` clears the outcome and returns it to not recorded. |
+| Amount paid | The money received and allocated to a lesson. It can be less than the saved fee when a lesson is partially paid. |
+| Cancelled lesson | A lesson retained with a cancellation reason. It frees its time slot and is excluded from `owed`, `unpaid` and income totals; any amount already received is not automatically refunded. |
+| Default hourly rate | An optional per-student rate used to calculate the charge for a new lesson when no explicit total fee is supplied. Changing the rate does not recalculate existing lessons. |
+| Fee statement | A read-only view of one student's saved lessons, fees and payment statuses, including past and future lessons. It is assembled from lesson records rather than stored separately. |
+| Follow-up task | A pending or completed reminder, optionally linked to a student and a due date. Completing it keeps the task in the records but removes it from pending-task lists. |
+| Homework item | A student's assignment with a description, due date and outstanding or submitted status. Submitting it changes its status rather than deleting it. |
+| Lesson fee | The saved total charge for one lesson. An explicit fee applies to the whole lesson; otherwise, the default hourly rate is multiplied by the duration and rounded to two decimal places. |
+| Outstanding balance | The saved lesson fee minus the amount paid. The `owed` and `unpaid` summaries apply their documented date and cancellation filters to this balance. |
+| Progress summary | A per-student view that combines recorded lesson attendance and assessment scores, optionally limited to a date range. |
+| Score | A student's assessment result, recorded as marks earned, total possible marks, a title and an optional date. The percentage is derived from the marks. |
+| Snapshot | The encoded records used before and after a command to detect whether stored data changed and an automatic save is needed. |
+| Weekly schedule | A command that creates separate lesson records for successive weeks. Each lesson can later be edited or cancelled independently; the set is not a recurring record. |
 
 ## Appendix E: Instructions for manual testing
 
