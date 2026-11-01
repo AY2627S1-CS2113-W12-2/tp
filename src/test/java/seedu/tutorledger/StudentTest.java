@@ -1,8 +1,12 @@
 package seedu.tutorledger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.math.BigDecimal;
+import java.util.List;
 import java.util.Locale;
 
 import org.junit.jupiter.api.Test;
@@ -66,5 +70,77 @@ class StudentTest {
     void rejectsInvalidPhoneNumber() {
         assertThrows(IllegalArgumentException.class,
                 () -> new Student("S123", "Tan Wei Ming", "Sec 3", "1234567"));
+    }
+
+    @Test
+    void newStudent_isNotFlagged() {
+        Student student = new Student("S1", "Alice Tan", "Pri 5", "91234567");
+
+        assertFalse(student.isFlagged());
+        assertTrue(student.getAttentionReason().isEmpty());
+    }
+
+    @Test
+    void withAttentionReason_trimsTheReasonAndAllowsAnEmptyOne() {
+        Student student = new Student("S1", "Alice Tan", "Pri 5", "91234567");
+
+        assertEquals("Weak at fractions", student.withAttentionReason("  Weak at fractions  ")
+                .getAttentionReason().orElseThrow());
+        // Empty and blank both mean "flagged, but no reason given", which is different from not flagged.
+        Student blank = student.withAttentionReason("   ");
+        assertTrue(blank.isFlagged());
+        assertEquals("", blank.getAttentionReason().orElseThrow());
+    }
+
+    @Test
+    void withAttentionReason_nullUnflags() {
+        Student flagged = new Student("S1", "Alice Tan", "Pri 5", "91234567").withAttentionReason("Exam");
+
+        Student unflagged = flagged.withAttentionReason(null);
+
+        assertFalse(unflagged.isFlagged());
+        assertTrue(unflagged.getAttentionReason().isEmpty());
+    }
+
+    @Test
+    void withAttentionReason_lineBreak_isRejectedBecauseItWouldSplitTheSavedLine() {
+        Student student = new Student("S1", "Alice Tan", "Pri 5", "91234567");
+
+        for (String reason : new String[] {"Weak\nat fractions", "Weak\rat fractions", "Weak\r\nat fractions"}) {
+            IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                    () -> student.withAttentionReason(reason));
+            assertEquals("A flag reason must fit on one line.", error.getMessage());
+        }
+        // A line break at either end is just trimmed away, so it is accepted.
+        assertEquals("Exam", student.withAttentionReason("Exam\n").getAttentionReason().orElseThrow());
+    }
+
+    @Test
+    void withAttentionReason_keepsEveryOtherDetailAndLeavesTheOriginalUnchanged() {
+        Student original = new Student("S7", "Alice Tan", "Pri 5", "91234567", List.of("Math", "Science"), "42.50")
+                .withArchived(true);
+
+        Student flagged = original.withAttentionReason("Exam");
+
+        assertEquals("S7", flagged.getStudentId());
+        assertEquals("Alice Tan", flagged.getName());
+        assertEquals("Pri 5", flagged.getLevel());
+        assertEquals("91234567", flagged.getPhoneNumber());
+        assertEquals(List.of("Math", "Science"), flagged.getSubjects());
+        assertEquals(new BigDecimal("42.50"), flagged.getDefaultHourlyRate().orElseThrow());
+        assertTrue(flagged.isArchived());
+        // Students are immutable: flagging returns a copy and never changes the original.
+        assertFalse(original.isFlagged());
+    }
+
+    @Test
+    void otherCopyMethods_keepTheFlag() {
+        Student flagged = new Student("S1", "Alice Tan", "Pri 5", "91234567").withAttentionReason("Exam");
+
+        assertEquals("Exam", flagged.withArchived(true).getAttentionReason().orElseThrow());
+        assertEquals("Exam", flagged.withDefaultHourlyRate("60").getAttentionReason().orElseThrow());
+        assertEquals("Exam", flagged.withDefaultHourlyRate(null).getAttentionReason().orElseThrow());
+        assertEquals("Exam", flagged.withDetails("Alicia Tan", "Pri 6", "81234567", List.of("Math"))
+                .getAttentionReason().orElseThrow());
     }
 }

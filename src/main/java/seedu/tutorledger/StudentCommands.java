@@ -55,6 +55,9 @@ public class StudentCommands {
             case "delete" -> delete(arguments);
             case "archive" -> setArchived(arguments, true);
             case "restore" -> setArchived(arguments, false);
+            case "flag" -> flag(arguments);
+            case "unflag" -> unflag(arguments);
+            case "flagged" -> listFlagged(arguments);
             case "help" -> HelpCommand.getHelpText();
             default -> "Unknown command: " + words[0] + ".";
             };
@@ -166,7 +169,8 @@ public class StudentCommands {
         for (Student student : matches) {
             result.append(System.lineSeparator()).append("  ").append(student.getStudentId()).append("  ")
                     .append(student.getName()).append(" (").append(student.getLevel()).append(")  ")
-                    .append(subjectText(student)).append(student.isArchived() ? "  [archived]" : "");
+                    .append(subjectText(student)).append(student.isArchived() ? "  [archived]" : "")
+                    .append(student.isFlagged() ? "  [flagged]" : "");
             if (SORT_OWED.equals(sort)) {
                 BigDecimal amount = owed.getOrDefault(student.getStudentId(), BigDecimal.ZERO);
                 result.append("  owes $").append(amount.setScale(2, RoundingMode.HALF_UP).toPlainString());
@@ -223,6 +227,67 @@ public class StudentCommands {
                 + " (" + student.getLevel() + ")." + System.lineSeparator()
                 + (archived ? "History is kept. Existing lessons are unchanged; restore before scheduling new ones."
                         : "The student is active again. History and existing lessons are unchanged.");
+    }
+
+    /**
+     * Handles {@code flag STUDENT_ID [REASON]} (US14): marks the student as needing extra attention, so the
+     * tutor can see where to spend prep time. Flagging an already-flagged student replaces the reason.
+     */
+    private String flag(String arguments) {
+        String[] words = arguments.split("\\s+", 2);
+        if (arguments.isBlank()) {
+            throw new IllegalArgumentException("Use: flag STUDENT_ID [REASON]");
+        }
+        Student student = data.getStudent(singleId(words[0]));
+        String reason = words.length == 2 ? words[1].strip() : "";
+        boolean wasFlagged = student.isFlagged();
+        Student updated = student.withAttentionReason(reason);
+        data.replaceStudent(updated);
+        LOGGER.log(Level.FINE, "Student {0} flagged; replaced an earlier flag: {1}",
+                new Object[]{student.getStudentId(), wasFlagged});
+        return (wasFlagged ? "Updated flag on " : "Flagged ") + student.getStudentId() + ": " + student.getName()
+                + " (" + student.getLevel() + ") as needing extra attention." + System.lineSeparator()
+                + "Reason: " + reasonText(updated);
+    }
+
+    /** Handles {@code unflag STUDENT_ID}, which removes the attention flag and its reason. */
+    private String unflag(String arguments) {
+        Student student = data.getStudent(singleId(arguments));
+        if (!student.isFlagged()) {
+            return student.getStudentId() + " " + student.getName() + " is not flagged.";
+        }
+        data.replaceStudent(student.withAttentionReason(null));
+        return "Removed the flag on " + student.getStudentId() + ": " + student.getName()
+                + " (" + student.getLevel() + ").";
+    }
+
+    /** Handles {@code flagged}: every flagged student with their reason, active students first. */
+    private String listFlagged(String arguments) {
+        if (!arguments.isEmpty()) {
+            throw new IllegalArgumentException("Use: flagged");
+        }
+        // findStudents returns numeric ID order (S2 before S10), so the list does not depend on the order of
+        // the data file. Archived students are rarely being prepared for, so they go last instead of being
+        // hidden; the sort is stable, so each group stays in ID order.
+        List<Student> flagged = data.findStudents("").stream()
+                .filter(Student::isFlagged)
+                .sorted(Comparator.comparing(Student::isArchived))
+                .toList();
+        StringBuilder result = new StringBuilder(count(flagged.size(), "student")
+                + " flagged as needing extra attention" + (flagged.isEmpty() ? "." : ":"));
+        for (Student student : flagged) {
+            result.append(System.lineSeparator()).append("  ").append(student.getStudentId()).append("  ")
+                    .append(student.getName()).append(" (").append(student.getLevel()).append(")  ")
+                    .append(reasonText(student)).append(student.isArchived() ? "  [archived]" : "");
+        }
+        return result.toString();
+    }
+
+    /** Shows a flag's reason, or says that none was given, so the line is never left blank. */
+    static String reasonText(Student student) {
+        assert student.isFlagged() : "Only a flagged student has a reason to show";
+        String reason = student.getAttentionReason().orElse("");
+        return reason.isEmpty() ? "(no reason given)" : reason;
     }
 
     private String edit(String arguments) {
@@ -334,6 +399,9 @@ public class StudentCommands {
                 + ")  " + student.getPhoneNumber());
         if (student.isArchived()) {
             output.append(System.lineSeparator()).append("Status: archived");
+        }
+        if (student.isFlagged()) {
+            output.append(System.lineSeparator()).append("Flagged: ").append(reasonText(student));
         }
         output.append(System.lineSeparator()).append("Subjects: ").append(subjectText(student));
         output.append(System.lineSeparator()).append(rateText(student));

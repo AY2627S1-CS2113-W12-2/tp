@@ -23,6 +23,11 @@ public class Student {
     private final BigDecimal defaultHourlyRate;
     /** Archived profiles stay available by ID but are hidden from the default student list. */
     private final boolean archived;
+    /**
+     * Why the tutor flagged this student as needing extra attention (US14). Null means not flagged;
+     * an empty string means flagged without a reason.
+     */
+    private final String attentionReason;
 
     /**
      * Creates a student profile after validating the supplied values.
@@ -44,12 +49,12 @@ public class Student {
     /** Creates a complete profile; a null rate means that no default has been set. */
     public Student(String studentId, String name, String level, String phoneNumber, List<String> subjects,
             String hourlyRate) {
-        this(studentId, name, level, phoneNumber, subjects, hourlyRate, false);
+        this(studentId, name, level, phoneNumber, subjects, hourlyRate, false, null);
     }
 
-    /** Creates a validated immutable copy, retaining archive state alongside profile details. */
+    /** Creates a validated immutable copy, retaining archive and attention state alongside profile details. */
     private Student(String studentId, String name, String level, String phoneNumber, List<String> subjects,
-            String hourlyRate, boolean archived) {
+            String hourlyRate, boolean archived, String attentionReason) {
         LOGGER.log(Level.INFO, "Constructing student with ID={0}, name={1}, subjects={2}",
                 new Object[]{studentId, name, subjects});
         this.studentId = validateId(studentId);
@@ -59,6 +64,7 @@ public class Student {
         this.subjects = validateSubjects(subjects);
         this.defaultHourlyRate = hourlyRate == null ? null : parseHourlyRate(hourlyRate);
         this.archived = archived;
+        this.attentionReason = attentionReason == null ? null : validateReason(attentionReason);
         LOGGER.log(Level.INFO, "Student constructed: {0}", this.studentId);
     }
 
@@ -97,10 +103,32 @@ public class Student {
         return archived;
     }
 
+    /** Returns whether the tutor has flagged this student as needing extra attention. */
+    public boolean isFlagged() {
+        return attentionReason != null;
+    }
+
+    /** Returns the flag's reason, which may be empty, or nothing when the student is not flagged. */
+    public Optional<String> getAttentionReason() {
+        return Optional.ofNullable(attentionReason);
+    }
+
+    /**
+     * Returns a profile flagged with the given reason (empty for none), or unflagged when reason is null.
+     * All other details are kept.
+     */
+    public Student withAttentionReason(String reason) {
+        Student updated = new Student(studentId, name, level, phoneNumber, subjects, rateText(), archived, reason);
+        assert updated.studentId.equals(studentId) : "Flagging must preserve the student ID";
+        assert updated.isFlagged() == (reason != null) : "Flag state was not copied";
+        LOGGER.log(Level.FINE, "Student {0} flagged: {1}", new Object[]{studentId, updated.isFlagged()});
+        return updated;
+    }
+
     /** Returns a profile with the requested archive state while keeping all other details. */
     public Student withArchived(boolean archived) {
-        Student updated = new Student(studentId, name, level, phoneNumber, subjects,
-                defaultHourlyRate == null ? null : defaultHourlyRate.toPlainString(), archived);
+        Student updated = new Student(studentId, name, level, phoneNumber, subjects, rateText(), archived,
+                attentionReason);
         assert updated.studentId.equals(studentId) : "Archiving must preserve the student ID";
         assert updated.archived == archived : "Archive state was not copied";
         LOGGER.log(Level.FINE, "Student {0} archive state set to {1}", new Object[]{studentId, archived});
@@ -109,7 +137,7 @@ public class Student {
 
     /** Returns a replacement profile with a validated rate, or clears it when rate is null. */
     public Student withDefaultHourlyRate(String rate) {
-        Student updated = new Student(studentId, name, level, phoneNumber, subjects, rate, archived);
+        Student updated = new Student(studentId, name, level, phoneNumber, subjects, rate, archived, attentionReason);
         assert updated.studentId.equals(studentId) : "Changing a rate must preserve the student ID";
         LOGGER.log(Level.FINE, "Default hourly rate updated for {0}", studentId);
         return updated;
@@ -119,10 +147,24 @@ public class Student {
     public Student withDetails(String newName, String newLevel, String newPhoneNumber, List<String> newSubjects) {
         LOGGER.log(Level.INFO, "Updating student {0} details: name={1}, level={2}, phone={3}, subjects={4}",
                 new Object[]{studentId, newName, newLevel, newPhoneNumber, newSubjects});
-        Student updated = new Student(studentId, newName, newLevel, newPhoneNumber, newSubjects,
-                defaultHourlyRate == null ? null : defaultHourlyRate.toPlainString(), archived);
+        Student updated = new Student(studentId, newName, newLevel, newPhoneNumber, newSubjects, rateText(),
+                archived, attentionReason);
         LOGGER.log(Level.INFO, "Updated student record: {0}", updated.studentId);
         return updated;
+    }
+
+    /** Returns the rate in the text form the constructor accepts, or null when no rate is set. */
+    private String rateText() {
+        return defaultHourlyRate == null ? null : defaultHourlyRate.toPlainString();
+    }
+
+    /** Trims the reason; a line break would split the student's record in the data file. */
+    private static String validateReason(String reason) {
+        String trimmed = reason.strip();
+        if (trimmed.contains("\n") || trimmed.contains("\r")) {
+            throw new IllegalArgumentException("A flag reason must fit on one line.");
+        }
+        return trimmed;
     }
 
     /** Validates user and storage input even when Java assertions are disabled. */

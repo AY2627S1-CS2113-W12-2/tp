@@ -26,6 +26,7 @@ import java.util.logging.Logger;
  * <pre>
  * NEXT | S3 | L2 | H2 | A2 | T2
  * S | S1 | Amirah Binte Rahman | Sec 3 | 91234567 | E Math | A Math
+ * FLAG | S1 | Struggling with vectors
  * L | L1 | S1 | 22-09-2026 | 1600 | A Math | 60 | present | unpaid | Quadratic equations
  * H | H1 | S1 | 29-09-2026 | outstanding | Worksheet 4A
  * A | A1 | S1 | 21-09-2026 | 28 | 40 | WA1
@@ -55,6 +56,7 @@ public class Storage {
             "#   S | STUDENT_ID | NAME | LEVEL | PHONE_NUMBER | SUBJECT | SUBJECT ...",
             "#   R | STUDENT_ID | DEFAULT_HOURLY_RATE (omit the line if no rate is set)",
             "#   ARCHIVED | STUDENT_ID (omit the line for active students)",
+            "#   FLAG | STUDENT_ID | REASON (omit the line for unflagged students; REASON may be blank)",
             "#   L | LESSON_ID | STUDENT_ID | DATE | TIME | SUBJECT | FEE | ATTENDANCE | PAYMENT | NOTES"
                     + " | CANCELLATION_REASON | MINUTES | AMOUNT_PAID",
             "#   PAYMENT is unpaid, partial or paid; AMOUNT_PAID records the amount allocated. "
@@ -145,6 +147,8 @@ public class Storage {
             if (student.isArchived()) {
                 lines.add(join("ARCHIVED", student.getStudentId()));
             }
+            student.getAttentionReason().ifPresent(reason ->
+                    lines.add(join("FLAG", student.getStudentId(), reason)));
         }
         for (Lesson lesson : data.getLessons()) {
             List<String> fields = new ArrayList<>(List.of("L", lesson.getLessonId(), lesson.getStudentId(),
@@ -171,10 +175,11 @@ public class Storage {
         long rateCount = data.getStudents().stream()
                 .filter(student -> student.getDefaultHourlyRate().isPresent()).count();
         long archivedCount = data.getStudents().stream().filter(Student::isArchived).count();
+        long flaggedCount = data.getStudents().stream().filter(Student::isFlagged).count();
         // Student rates have their own lines so legacy subjects remain unambiguous.
         assert lines.size() == HEADER.size() + 1 + data.getStudents().size() + data.getLessons().size()
                 + data.getHomework().size() + data.getScores().size() + data.getTasks().size()
-                + rateCount + archivedCount
+                + rateCount + archivedCount + flaggedCount
                 : "Some records were not encoded";
         return String.join(System.lineSeparator(), lines) + System.lineSeparator();
     }
@@ -182,7 +187,7 @@ public class Storage {
     /**
      * Rebuilds the records from the lines of a data file.
      *
-     * <p>Students are read first, then rates, archive markers, lessons, homework, scores and tasks, which
+     * <p>Students are read first, then rates, archive markers, flags, lessons, homework, scores and tasks, which
      * may belong to a student that must already exist. This means the lines may appear in any order in the file.
      */
     public static LoadResult decode(List<String> lines) {
@@ -200,7 +205,7 @@ public class Storage {
             String type = fields.getFirst().toUpperCase(Locale.ROOT);
             try {
                 switch (type) {
-                case "", "L", "H", "A", "T", "R", "ARCHIVED" -> {
+                case "", "L", "H", "A", "T", "R", "ARCHIVED", "FLAG" -> {
                     // Linked records and rates wait for the second pass; blank and comment lines are ignored.
                 }
                 case "NEXT" -> {
@@ -211,7 +216,7 @@ public class Storage {
                 }
                 case "S" -> data.importStudent(parseStudent(fields));
                 default -> throw new IllegalArgumentException("Unknown record type \"" + fields.getFirst()
-                        + "\". A line must start with S, R, ARCHIVED, L, H, A, T or NEXT.");
+                        + "\". A line must start with S, R, ARCHIVED, FLAG, L, H, A, T or NEXT.");
                 }
             } catch (IllegalArgumentException exception) {
                 problems.put(i + 1, exception.getMessage());
@@ -220,6 +225,7 @@ public class Storage {
 
         Set<String> ratedStudents = new HashSet<>();
         Set<String> archivedStudents = new HashSet<>();
+        Set<String> flaggedStudents = new HashSet<>();
         for (int i = 0; i < lines.size(); i++) {
             List<String> fields = splitFields(lines.get(i));
             String type = fields.getFirst().toUpperCase(Locale.ROOT);
@@ -228,6 +234,8 @@ public class Storage {
                     importRate(fields, data, ratedStudents);
                 } else if (type.equals("ARCHIVED")) {
                     importArchived(fields, data, archivedStudents);
+                } else if (type.equals("FLAG")) {
+                    importFlag(fields, data, flaggedStudents);
                 } else if (type.equals("L")) {
                     data.importLesson(parseLesson(fields, data, legacyDurationFormat));
                 } else if (type.equals("H")) {
@@ -347,6 +355,20 @@ public class Storage {
         }
         data.replaceStudent(student.withDefaultHourlyRate(fields.get(2)));
         ratedStudents.add(id);
+    }
+
+    /** Applies the first valid attention flag; {@code FLAG | S1} without a reason is also accepted. */
+    private static void importFlag(List<String> fields, TutorLedgerData data, Set<String> flaggedStudents) {
+        if (fields.size() != 2 && fields.size() != 3) {
+            throw new IllegalArgumentException("A flag line needs 2 or 3 fields but has " + fields.size() + ".");
+        }
+        Student student = data.getStudent(fields.get(1));
+        String id = student.getStudentId();
+        if (flaggedStudents.contains(id)) {
+            throw new IllegalArgumentException("Duplicate flag for student " + id + ".");
+        }
+        data.replaceStudent(student.withAttentionReason(fields.size() == 3 ? fields.get(2) : ""));
+        flaggedStudents.add(id);
     }
 
     /** Applies the first valid archive marker; metadata can precede the profile or rate in the file. */

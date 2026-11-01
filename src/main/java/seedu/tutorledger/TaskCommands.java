@@ -165,7 +165,9 @@ public class TaskCommands {
             descriptionWidth = Math.max(descriptionWidth, task.getDescription().length());
             studentWidth = Math.max(studentWidth, studentText(task).length());
         }
-        String rowFormat = "  %-" + idWidth + "s  %-" + descriptionWidth + "s  %-" + studentWidth + "s  %s";
+        // A width of 0 is not a valid format, so the student column is left out when no task has a student.
+        String studentColumn = studentWidth == 0 ? "%s" : "%-" + studentWidth + "s  ";
+        String rowFormat = "  %-" + idWidth + "s  %-" + descriptionWidth + "s  " + studentColumn + "%s";
 
         LocalDate today = LocalDate.now(clock);
         StringBuilder output = new StringBuilder(heading);

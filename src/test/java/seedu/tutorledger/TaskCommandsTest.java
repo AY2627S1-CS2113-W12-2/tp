@@ -77,6 +77,32 @@ class TaskCommandsTest {
     }
 
     @Test
+    void tasks_noPendingTaskHasAStudent_listsThemWithoutAStudentColumn() {
+        // Regression test: an empty student column once gave a format width of 0 and printed "Error: %-0s".
+        commands.execute("task Call parents");
+        commands.execute("task S1 Bring Worksheet 4B");
+        commands.execute("task Print calendar d/16-10-2026");
+        commands.execute("done T2");
+
+        assertEquals("2 follow-up tasks pending" + NL
+                        + "  T3  Print calendar  by Fri 16-10-2026" + NL
+                        + "  T1  Call parents    no date",
+                commands.execute("tasks"));
+    }
+
+    @Test
+    void tasks_onlyOverdueTasks_marksEachOne() {
+        commands.execute("task Mark scripts d/13-10-2026");
+        commands.execute("task S2 Return test d/14-10-2026");
+
+        String[] lines = commands.execute("tasks").split(NL);
+
+        // Boundary: due yesterday is overdue; due today is not overdue yet.
+        assertTrue(lines[1].startsWith("  T1") && lines[1].endsWith("by Tue 13-10-2026  OVERDUE"), lines[1]);
+        assertTrue(lines[2].startsWith("  T2") && lines[2].endsWith("by Wed 14-10-2026"), lines[2]);
+    }
+
+    @Test
     void tasks_forOneStudent_showsOnlyTheirPendingTasks() {
         commands.execute("task S1 Bring Worksheet 4B");
         commands.execute("task S2 Return graded test");

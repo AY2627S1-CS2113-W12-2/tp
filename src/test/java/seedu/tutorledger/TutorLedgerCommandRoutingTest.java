@@ -60,8 +60,11 @@ class TutorLedgerCommandRoutingTest {
         assertArrayEquals(originalData, Files.readAllBytes(dataFile));
     }
 
-    /** Feeds the commands to the command loop, using the given data file, and returns what it printed. */
-    private static String runCommands(Path dataFile, String... commands) {
+    /**
+     * Feeds the commands to the command loop, using the given data file, and returns what it printed.
+     * Package-private so that {@link EndToEndTest} can run whole sessions the same way.
+     */
+    static String runCommands(Path dataFile, String... commands) {
         InputStream originalInput = System.in;
         PrintStream originalOutput = System.out;
         Logger rootLogger = Logger.getLogger("");
