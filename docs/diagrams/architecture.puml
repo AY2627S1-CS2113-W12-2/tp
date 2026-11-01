@@ -18,14 +18,14 @@ actor "Independent tutor" as Tutor
 
 component "Application entry point\n\nTutorLedger" as App #FFF2CC
 component "Feature commands\n\nStudentCommands, LessonCommands,\nPaymentCommands and other handlers" as Commands #DAE8FC
-component "Shared helpers\n\nArgumentParser\nCommandAliases, HelpCommand" as Helpers #E1D5E7
+component "Shared helpers\n\nArgumentParser, CommandAliases\nCommandHistory, HelpCommand" as Helpers #E1D5E7
 component "Data and models\n\nTutorLedgerData\nStudent, Lesson, Homework,\nScore, FollowUpTask" as Model #D5E8D4
 component "Persistence\n\nStorageCommands, Storage" as Persistence #F8CECC
 artifact "data/tutorledger.txt" as File #F5F5F5
 
 Tutor --> App : uses the console
 App --> Commands : routes input
-App --> Helpers : expands aliases
+App --> Helpers : resolves history; expands aliases
 App --> Model : creates the shared store
 App --> Persistence : loads, saves and reloads
 Commands --> Helpers : parses fields; obtains help

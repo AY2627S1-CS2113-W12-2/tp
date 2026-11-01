@@ -1,0 +1,37 @@
+@startuml
+skinparam backgroundColor white
+skinparam defaultFontSize 14
+skinparam shadowing false
+hide footbox
+title Confirmed replay of a saved query
+
+actor "Independent tutor" as Tutor
+participant "TutorLedger" as App <<class>>
+participant ":CommandHistory" as History
+
+Tutor -> App : repeat 1
+activate App
+App -> History : recall("1")
+activate History
+History --> App : "filter S1 pay/unpaid"
+deactivate History
+App --> Tutor : Selected command: filter S1 pay/unpaid
+loop until yes/no or end-of-input
+  App --> Tutor : Run this command? (yes/no):
+  Tutor -> App : reply, or end-of-input
+end
+alt no, n or end-of-input
+  App --> Tutor : Repeat cancelled.
+else yes or y
+  App -> History : record("filter S1 pay/unpaid")
+  activate History
+  History --> App
+  deactivate History
+  ref over App
+    Ordinary command dispatch and save check.
+    The query reads the current tutoring records.
+  end ref
+  App --> Tutor : updated query results
+end
+deactivate App
+@enduml

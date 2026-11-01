@@ -62,13 +62,16 @@ separate Java packages. All application classes belong to `seedu.tutorledger`.
 | --- | --- | --- |
 | Application entry point | `TutorLedger` | Creates the shared store and handlers, reads console input, routes commands and coordinates automatic saving. |
 | Feature commands | `StudentCommands`, `LessonCommands`, `PaymentCommands`, `HomeworkCommands`, `ScoreCommands`, `TaskCommands`, `TopicCommands`, `LessonFilterCommand` | Validate feature-specific input, read or update records, and return display text. |
-| Shared helpers | `ArgumentParser`, `CommandAliases`, `HelpCommand` | Parse prefixed fields, expand command shortcuts, and provide help text. |
+| Shared helpers | `ArgumentParser`, `CommandAliases`, `CommandHistory`, `HelpCommand` | Parse fields, expand shortcuts, retain session commands for confirmed replay, and provide help. |
 | Data and models | `TutorLedgerData`, `Student`, `Lesson`, `Homework`, `Score`, `FollowUpTask` | Own record collections and permanent ID counters; validate values and represent records as immutable objects. |
 | Persistence | `StorageCommands`, `Storage` | Load and reload the shared store, compare snapshots, and encode or decode `data/tutorledger.txt`. |
 
 At startup, `TutorLedger` creates one `TutorLedgerData` and passes it to the handlers and persistence
 coordinator. `StorageCommands.loadOnStartup()` restores that store before the input loop starts.
-Each line is expanded through `CommandAliases`; `handles` checks route it to the appropriate handler.
+History requests are handled before alias expansion. A recalled command requires confirmation before
+it enters ordinary dispatch; cancellation never reaches a handler. The loop expands aliases through
+`CommandAliases` and retains the original command text in session history; `handles` checks route it
+to the appropriate handler.
 Unclaimed input reaches `StudentCommands`, which also handles help and unknown commands.
 
 Before an ordinary feature command, the entry point records a storage snapshot. After the handler
@@ -867,6 +870,51 @@ The sequence diagram below shows `topics k/vectors`.
 *Possible improvements:* allow several keywords, such as `k/vectors k/forces`, and show how many lessons
 each student had on the topic.
 
+### Command history and confirmed replay
+
+History lets a tutor re-run a query after updating records, without retyping a long student/date/filter
+combination. It retains command text, not results: replay reads the current records. `history` lists
+stable one-based numbers, and `repeat NUMBER` selects one and requests confirmation.
+
+`CommandHistory` owns a session-local list of ordinary command strings. It validates selection numbers
+and formats the list, but has no reference to `TutorLedgerData` or `Storage`. `TutorLedger.selectCommand`
+handles history controls and uses `confirmRepeat` to read replies. Only a confirmed selection returns
+to the existing command loop. Rejected requests and cancellations return without dispatch or saving.
+
+![Sequence diagram of selecting a query, confirming or cancelling, and reusing normal dispatch](diagrams/command-history-sequence.svg)
+
+*Figure 30. A valid history selection is displayed before confirmation; only yes reaches ordinary execution.*
+
+#### Recording and execution rules
+
+* Ordinary commands retain their original text with surrounding whitespace removed, even when an alias
+  is expanded for execution. They are recorded before dispatch. Failed commands remain visible too,
+  so history reflects what the user attempted.
+* History controls, blank input, `exit` and confirmation replies are excluded. A repeated command is
+  recorded as the underlying ordinary command, not `repeat NUMBER`, so repeated selections cannot recurse.
+* Confirmation accepts yes/y and no/n without regard to case. Invalid replies only repeat the prompt;
+  they are never dispatched. End-of-input cancels rather than throwing from `Scanner.nextLine`.
+* A confirmed selection uses the same current-state validation, explicit storage-command path and
+  snapshot-based automatic save as freshly typed input. It does not bypass deletion confirmation,
+  scheduling conflicts or payment limits, and execution is not duplicated in a second dispatcher.
+* History survives `reload` but is recreated for each invocation of the application loop. Since history
+  is outside the saved model, listing or selecting it cannot make a storage snapshot dirty.
+
+#### Design considerations and verification
+
+* *Session history instead of persistent history:* no new data format, migration or history file is needed.
+  The cost is losing command recall after a restart; tutoring records still persist normally.
+* *Confirmation instead of immediate replay:* queries are convenient to repeat, but an update may have
+  different effects on current records. Showing the complete command lets the tutor cancel before any
+  handler runs. Input is not prefilled or editable; terminal editing would require a separate UI change.
+* *One replay path:* both a fresh command and a confirmed selection enter the original command loop, so
+  future commands receive the same validation and saving behaviour automatically.
+
+`CommandHistoryTest` covers numbering, retained text, excluded controls and selection errors including
+integer overflow. `CommandHistoryIntegrationTest` runs real sessions against temporary files: a query
+after a payment, aliases, both confirmation outcomes, invalid replies, end-of-input, current-state
+rejections, explicit save/reload, read-only preservation of hand edits, and history clearing on restart.
+
 ## Appendix A: Product scope
 
 ### Target user profile
@@ -916,6 +964,7 @@ does not process money, deliver online lessons, or send messages to students and
 |v2.1|independent tutor|tag a lesson with the topic taught|later find every lesson that covered that topic|
 |v2.0b|independent tutor|see a summary of a student's attendance and scores over the term|review their progress at the end of the term|
 |v2.1|independent tutor|flag a student as needing extra attention|decide where to spend my limited prep time|
+|v2.1|expert user|recall and re-run a previous command|repeat a query after updating records without retyping its filters|
 
 ## Appendix C: Non-functional requirements
 
@@ -949,6 +998,7 @@ does not process money, deliver online lessons, or send messages to students and
 | Attendance | The recorded outcome of a lesson, such as present, late or absent. `none` clears the outcome and returns it to not recorded. |
 | Amount paid | The money received and allocated to a lesson. It can be less than the saved fee when a lesson is partially paid. |
 | Cancelled lesson | A lesson retained with a cancellation reason. It frees its time slot and is excluded from `owed`, `unpaid` and income totals; any amount already received is not automatically refunded. |
+| Command history | The session-local numbered list of ordinary commands. A selection executes only after confirmation and is revalidated against current records. |
 | Covered topic | The notes of a lesson that was taught: dated today or earlier, attended, not cancelled and with notes. `topics` lists them for one student or searches them by keyword across all students. |
 | Default hourly rate | An optional per-student rate used to calculate the charge for a new lesson when no explicit total fee is supplied. Changing the rate does not recalculate existing lessons. |
 | Fee statement | A read-only view of one student's saved lessons, fees and payment statuses, including past and future lessons. It is assembled from lesson records rather than stored separately. |
@@ -1233,3 +1283,20 @@ Use an empty working directory and run the packaged application with Java 25 and
 5. Restart TutorLedger and run `flagged`. Expected: the same two students and reasons.
 6. Run `unflag S2` twice. Expected: the flag is removed, then `S2 Bob Tan is not flagged.`
 7. Try `flag`, `flag Alice`, `flag S9` and `flagged S1`. Expected: an error for each, with no changes.
+
+### Command history and confirmation
+
+1. In an empty working directory, add `add n/Alice Tan l/Pri5 p/91234567 s/Math`, then
+   `log S1 d/06-10-2020 t/1600 s/Math f/40 a/present`. Exit and restart, leaving saved S1 and L1.
+   `history` now reports `No commands in history.`
+2. Run `filter S1 from/01-01-2020 to/31-12-2020 pay/unpaid`, then `mark L1 paid`.
+   `history` lists the query as 1 and the payment update as 2.
+3. Run `repeat 1`. Expected: the full query and confirmation prompt, with no query results yet.
+   Enter `no`. Expected: `Repeat cancelled.` and history still has two entries.
+4. Select `repeat 1` again. Enter `maybe`, then `YES`. Expected: the invalid reply asks for yes or no;
+   the confirmed query runs once, now listing zero unpaid lessons. History entry 3 contains the query.
+5. Try `repeat`, `repeat 0`, `repeat 999999999999999999999`, `repeat 99` and `history extra`.
+   Expected: errors with no record or history changes. Run `delete S1`, then repeat that warning command
+   and confirm yes. Expected: the ordinary deletion warning again; the student has not been deleted.
+6. Run `reload`, then `history`. Expected: this session's entries remain. Exit and restart: history is
+   empty, while S1 and its paid lesson remain. Closing input at a replay confirmation cancels safely.

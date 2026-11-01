@@ -59,15 +59,21 @@ public class TutorLedger {
         TaskCommands taskCommands = new TaskCommands(data, clock);
         LessonFilterCommand filterCommand = new LessonFilterCommand(data);
         StorageCommands storageCommands = new StorageCommands(data, storage);
+        CommandHistory history = new CommandHistory();
         System.out.println("TutorLedger student book. Type exit to close.");
         System.out.println(storageCommands.loadOnStartup());
         Scanner input = new Scanner(System.in);
         while (input.hasNextLine()) {
-            // Short aliases such as "ls" are turned into full command words before anything else sees them.
-            String line = CommandAliases.expand(input.nextLine());
+            String selected = selectCommand(input.nextLine(), history, input);
+            if (selected == null) {
+                continue;
+            }
+            // Recalled commands use the same alias expansion and validation as freshly typed commands.
+            String line = CommandAliases.expand(selected);
             if (line.strip().equalsIgnoreCase("exit")) {
                 break;
             }
+            history.record(selected);
             // save and reload manage the file themselves, so they are not followed by an automatic save.
             // In particular, reload must not save, or lines it skipped would be erased before they are fixed.
             if (StorageCommands.handles(line)) {
@@ -97,6 +103,49 @@ public class TutorLedger {
             if (!saveWarning.isEmpty()) {
                 System.out.println(saveWarning);
             }
+        }
+    }
+
+    /** Returns ordinary input or a confirmed command; null means a history request was handled or cancelled. */
+    private static String selectCommand(String line, CommandHistory history, Scanner input) {
+        if (!CommandHistory.handles(line)) {
+            return line;
+        }
+        String[] words = line.strip().split("\\s+", 2);
+        String arguments = words.length == 2 ? words[1] : "";
+        try {
+            if (words[0].equalsIgnoreCase("history")) {
+                System.out.println(history.describe(arguments));
+                return null;
+            }
+            String selected = history.recall(arguments);
+            System.out.println("Selected command: " + selected);
+            if (!confirmRepeat(input)) {
+                System.out.println("Repeat cancelled.");
+                return null;
+            }
+            return selected;
+        } catch (IllegalArgumentException exception) {
+            System.out.println("Error: " + exception.getMessage());
+            return null;
+        }
+    }
+
+    /** Reads confirmation only; replies never enter command dispatch or history. End-of-input cancels. */
+    private static boolean confirmRepeat(Scanner input) {
+        while (true) {
+            System.out.println("Run this command? (yes/no):");
+            if (!input.hasNextLine()) {
+                return false;
+            }
+            String answer = input.nextLine().strip();
+            if (answer.equalsIgnoreCase("yes") || answer.equalsIgnoreCase("y")) {
+                return true;
+            }
+            if (answer.equalsIgnoreCase("no") || answer.equalsIgnoreCase("n")) {
+                return false;
+            }
+            System.out.println("Please enter yes or no.");
         }
     }
 }

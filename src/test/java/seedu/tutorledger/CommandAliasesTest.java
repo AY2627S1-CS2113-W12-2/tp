@@ -44,6 +44,7 @@ class CommandAliasesTest {
             assertFalse(HomeworkCommands.handles(word), word);
             assertFalse(ScoreCommands.handles(word), word);
             assertFalse(StorageCommands.handles(word), word);
+            assertFalse(CommandHistory.handles(word), word);
             assertFalse(LessonFilterCommand.handles(word), word);
             assertTrue(studentCommands.execute(word).startsWith("Unknown command"), word);
         }
