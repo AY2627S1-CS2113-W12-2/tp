@@ -654,6 +654,8 @@ Format: `record LESSON_ID a/ATTENDANCE [note/NOTES]`
 * Recording a lesson again replaces its attendance, and its notes if `note/` is given. Leave out `note/` to keep
   the notes the lesson already has.
 * The notes are shown under the lesson in `view`, ready for the next lesson.
+* The notes are also the lesson's topic tag. Name the topic taught, such as `Vectors`, and
+  [`topics k/vectors`](#listing-and-finding-topics-already-covered-topics) finds the lesson later.
 
 Examples:
 
@@ -1561,6 +1563,12 @@ An unconfirmed student-deletion warning has not removed anything; just continue 
 **A**: If the lesson was called off beforehand, cancel it with `cancel LESSON_ID r/REASON`. It is then not
 charged, and you keep a record of why it did not happen. If the student simply did not turn up, record them
 as absent; if you also do not want to charge for it, delete the lesson with `delete LESSON_ID`.
+
+**Q**: How do I find every lesson where I taught a topic, such as vectors?
+
+**A**: Write the topic in the lesson's notes when you `record` or `log` it, for example `note/Vectors`. Then
+run `topics k/vectors` to list every attended lesson whose notes mention vectors, with any student. Add a
+student ID, as in `topics S1 k/vectors`, to see only that student's lessons.
 
 **Q**: Does TutorLedger need an internet connection?
 

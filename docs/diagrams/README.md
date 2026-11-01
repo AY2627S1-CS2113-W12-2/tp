@@ -14,6 +14,7 @@ the full document and enlarge any diagram.
 | Default hourly rates | [Class diagram](hourly-rate-class.puml), [rate edit](hourly-rate-edit-sequence.puml), [scheduling](hourly-rate-schedule-sequence.puml), [fee selection](hourly-rate-fee-activity.puml) |
 | Fee statements | [Class diagram](fee-statement-class.puml), [routing and persistence](fee-statement-overview-sequence.puml), [request validation](fee-statement-request-sequence.puml), [row-building fragment](fee-statement-rows-sequence.puml) |
 | Attention flags | [Flagging sequence](student-flag-sequence.puml) |
+| Covered topics | [Topic search sequence](topic-search-sequence.puml) |
 
 Edit the `.puml` source before regenerating an image. Use Java 25 and
 [PlantUML 1.2026.9](https://github.com/plantuml/plantuml/releases/tag/v1.2026.9).
