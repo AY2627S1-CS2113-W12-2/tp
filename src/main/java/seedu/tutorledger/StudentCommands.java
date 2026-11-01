@@ -171,7 +171,6 @@ public class StudentCommands {
                     .append(student.getName()).append(" (").append(student.getLevel()).append(")  ")
                     .append(subjectText(student)).append(student.isArchived() ? "  [archived]" : "")
                     .append(student.isFlagged() ? "  [flagged]" : "");
-                    .append(subjectText(student)).append(student.isArchived() ? "  [archived]" : "");
             if (SORT_OWED.equals(sort)) {
                 BigDecimal amount = owed.getOrDefault(student.getStudentId(), BigDecimal.ZERO);
                 result.append("  owes $").append(amount.setScale(2, RoundingMode.HALF_UP).toPlainString());
