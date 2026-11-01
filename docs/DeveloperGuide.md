@@ -850,6 +850,7 @@ does not process money, deliver online lessons, or send messages to students and
 |v2.0|expert user|type short aliases for common commands|enter commands faster|
 |v2.0b|independent tutor|archive a student who has stopped lessons|keep my active list uncluttered while preserving history|
 |v2.0b|independent tutor|list the topics already covered with a student|avoid repeating material we have finished|
+|v2.1|independent tutor|tag a lesson with the topic taught|later find every lesson that covered that topic|
 |v2.0b|independent tutor|see a summary of a student's attendance and scores over the term|review their progress at the end of the term|
 |v2.1|independent tutor|flag a student as needing extra attention|decide where to spend my limited prep time|
 
@@ -1048,7 +1049,13 @@ Use an empty working directory and Java 25 with `-ea`.
    being removed from the profile. `edit L1 note/` removes L1 from the topics list.
 5. Try `topics`, `topics S99`, `topics S1 s/` and `topics S1 s/Math s/Physics`.
    Expected: errors without changing any records or consuming IDs. `help` lists the new command.
-6. Exit and restart; `topics S1` should still show Forces. Run with `-da` and repeat the invalid-input
+6. Run `edit L1 note/Vectors` to restore L1's notes and
+   `log S2 d/18-09-2026 t/1600 s/Math f/70 a/present note/Vectors revision`, then `topics k/VECTORS`.
+   Expected: L4 (S2 Bob Tan) and L1 (S1 Alice Tan), newest first, each showing its student.
+   `topics S1 k/vectors` lists only L1, `topics k/vectors s/Physics` reports no topics recorded, and
+   `topics k/forces` finds L2.
+7. Try `topics k/`, `topics k/a k/b` and `topics s/Math`. Expected: errors without changing any records.
+8. Exit and restart; `topics S1` should still show Forces. Run with `-da` and repeat the invalid-input
    checks; validation must remain active without assertions.
 
 ### School levels
