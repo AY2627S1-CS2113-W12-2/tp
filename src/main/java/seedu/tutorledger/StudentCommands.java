@@ -195,8 +195,10 @@ public class StudentCommands {
         if (!arguments.isEmpty()) {
             throw new IllegalArgumentException("Use: flagged");
         }
-        // Archived students are rarely being prepared for, so they go last instead of being hidden.
-        List<Student> flagged = data.getStudents().stream()
+        // findStudents returns numeric ID order (S2 before S10), so the list does not depend on the order of
+        // the data file. Archived students are rarely being prepared for, so they go last instead of being
+        // hidden; the sort is stable, so each group stays in ID order.
+        List<Student> flagged = data.findStudents("").stream()
                 .filter(Student::isFlagged)
                 .sorted(Comparator.comparing(Student::isArchived))
                 .toList();

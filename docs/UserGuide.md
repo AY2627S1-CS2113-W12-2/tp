@@ -333,8 +333,8 @@ Formats: `flag STUDENT_ID [REASON]`, `unflag STUDENT_ID` and `flagged`
   `(no reason given)`.
 * Flagging a student who is already flagged replaces the old reason with the new one.
 * `unflag` removes the flag and its reason. Unflagging a student who is not flagged changes nothing.
-* `flagged` lists every flagged student with their reason. Archived students are listed last and marked
-  `[archived]`, so you can unflag them.
+* `flagged` lists every flagged student with their reason, in ID order. Archived students are listed last
+  and marked `[archived]`, so you can unflag them.
 * The flag also appears in [`list`](#listing-and-finding-students-list) as `[flagged]`, in
   [`view`](#viewing-a-student-view) as a `Flagged:` line, and in [`next`](#preparing-for-the-next-lesson-next),
   so you see the reason just before the lesson.

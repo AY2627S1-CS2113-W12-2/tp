@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -87,6 +88,30 @@ class StudentFlagTest {
         assertEquals("  S1  Amirah Binte Rahman (Sec 3)  Weak at algebra  [archived]", lines[2]);
         assertEquals(3, lines.length);
         assertEquals("Error: Use: flagged", commands.execute("flagged S1"));
+    }
+
+    @Test
+    void flagged_handEditedFileOutOfOrder_listsEachGroupInNumericIdOrder() {
+        // A hand-edited file may list students in any order. S10 also checks that IDs are compared as
+        // numbers: compared as text, "S10" would come before "S2".
+        TutorLedgerData loaded = Storage.decode(List.of(
+                "S | S10 | Tan Wei Ming | Sec 4 | 81234567",
+                "S | S3 | Ryan Koh | Sec 1 | 87654321",
+                "S | S2 | Amirah Binte Rahman | Sec 3 | 91234567",
+                "S | S1 | Daniel Lim | Sec 2 | 98765432",
+                "FLAG | S10 | Exam soon",
+                "FLAG | S3",
+                "FLAG | S2 | Weak at algebra",
+                "FLAG | S1",
+                "ARCHIVED | S3",
+                "ARCHIVED | S1")).data();
+
+        String[] lines = new StudentCommands(loaded, clock).execute("flagged").split(NL);
+
+        assertEquals("  S2  Amirah Binte Rahman (Sec 3)  Weak at algebra", lines[1]);
+        assertEquals("  S10  Tan Wei Ming (Sec 4)  Exam soon", lines[2]);
+        assertEquals("  S1  Daniel Lim (Sec 2)  (no reason given)  [archived]", lines[3]);
+        assertEquals("  S3  Ryan Koh (Sec 1)  (no reason given)  [archived]", lines[4]);
     }
 
     @Test

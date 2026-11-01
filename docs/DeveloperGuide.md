@@ -753,7 +753,7 @@ students who need more of it, with a short reason, such as a weak test or an exa
 |---|---|
 | `flag STUDENT_ID [REASON]` | Flag a student, or replace the reason of an existing flag |
 | `unflag STUDENT_ID` | Remove the flag |
-| `flagged` | List flagged students and their reasons, active students first |
+| `flagged` | List flagged students and their reasons, active students first, each group in ID order |
 
 The flag is then shown wherever the tutor already looks at the student: a `[flagged]` marker in `list`, a
 `Flagged:` line in `view`, and a `Flagged:` line in `next`, which `LessonCommands.describeFlag` adds just
