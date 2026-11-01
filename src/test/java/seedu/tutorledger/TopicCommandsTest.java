@@ -16,7 +16,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-/** Checks US12's derived topic history, date/attendance rules and read-only command behaviour. */
+/** Checks US12's topic history, US22's topic search, date/attendance rules and read-only behaviour. */
 class TopicCommandsTest {
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-10-23T10:00:00Z"), ZoneOffset.UTC);
     private static final String NL = System.lineSeparator();
@@ -157,7 +157,8 @@ class TopicCommandsTest {
         String handEdited = Files.readString(file) + "# Keep this comment\n";
         Files.writeString(file, handEdited);
         StorageCommands persistence = new StorageCommands(data, storage);
-        for (String input : List.of("topics S1", "topics S2", "topics S1 s/Math", "topics S1 extra")) {
+        for (String input : List.of("topics S1", "topics S2", "topics S1 s/Math", "topics S1 extra",
+                "topics k/Vectors", "topics S1 k/vectors s/Math", "topics k/", "topics k/none")) {
             String before = persistence.snapshot();
             commands.execute(input);
             assertEquals("", persistence.saveIfChanged(before));
@@ -180,6 +181,23 @@ class TopicCommandsTest {
     }
 
     @Test
+    void keyword_afterSaveAndRestart_findsTheSameLessonsIncludingEscapedCharacters() throws IOException {
+        add("L1", "S1", "Math", "15-09-2026", "1600", "present", "Vectors | recap \\ examples");
+        add("L2", "S2", "Math", "16-09-2026", "1600", "present", "Vectors");
+        String before = commands.execute("topics k/vectors");
+        Path file = tempDir.resolve("data.txt");
+        Storage storage = new Storage(file.toString());
+        storage.save(data);
+
+        Storage.LoadResult loaded = storage.load();
+        TopicCommands reloaded = new TopicCommands(loaded.data(), CLOCK);
+
+        assertTrue(loaded.problems().isEmpty());
+        assertEquals(before, reloaded.execute("topics k/vectors"));
+        assertTrue(reloaded.execute("topics k/| recap \\").contains("L1"));
+    }
+
+    @Test
     void reloadAndDeletion_changeTheQueryImmediatelyWithoutCachedResults() throws IOException {
         add("L1", "S1", "Math", "15-09-2026", "1600", "present", "Vectors");
         Path file = tempDir.resolve("data.txt");
@@ -197,9 +215,141 @@ class TopicCommandsTest {
     }
 
     @Test
-    void help_listsTopicsAndItsSubjectFilter() {
-        assertTrue(HelpCommand.getHelpText().contains("topics STUDENT_ID [s/SUBJECT]"));
+    void keyword_acrossStudents_listsEveryLessonThatCoveredTheTopicNewestFirst() {
+        add("L1", "S1", "Math", "15-09-2026", "1600", "present", "Vectors; worked examples");
+        add("L2", "S2", "Math", "20-10-2026", "1700", "late", "Revision of vectors");
+        add("L3", "S1", "Physics", "21-10-2026", "1600", "present", "Forces");
+        String before = Storage.encode(data);
+
+        String output = commands.execute("topics k/vectors");
+
+        assertEquals("Topics covered with any student (topic: vectors): 2 lessons" + NL
+                + "  L2  Tue 20-10-2026 1700  S2 Bob Tan  Math" + NL + "    Revision of vectors" + NL
+                + "  L1  Tue 15-09-2026 1600  S1 Alice Tan  Math" + NL + "    Vectors; worked examples", output);
+        assertEquals(before, Storage.encode(data));
+    }
+
+    @Test
+    void keyword_ignoresCaseAndSkipsLessonsThatDidNotCoverTheTopic() {
+        add("L1", "S1", "Math", "15-09-2026", "1600", "present", "Completing the SQUARE");
+        add("L2", "S1", "Math", "15-09-2026", "1700", "absent", "Completing the square, skipped absent");
+        add("L3", "S2", "Math", "24-10-2026", "1600", "present", "Completing the square, skipped future");
+        add("L4", "S2", "Math", "15-09-2026", "1800", "present", "Completing the square, skipped cancelled");
+        data.replaceLesson(data.getLesson("L4").withCancellation("Teacher sick"));
+        add("L5", "S2", "Math", "15-09-2026", "1900", "present", "Simultaneous equations");
+
+        String output = commands.execute("TOPICS K/completing the square");
+
+        assertTrue(output.startsWith("Topics covered with any student (topic: completing the square): 1 lesson"
+                + NL), output);
+        assertTrue(output.contains("L1") && output.contains("Completing the SQUARE"), output);
+        assertFalse(output.contains("skipped") || output.contains("Simultaneous"), output);
+    }
+
+    @Test
+    void keyword_withStudentAndSubject_narrowsTheSearchAndKeepsTheStudentLayout() {
+        add("L1", "S1", "Math", "15-09-2026", "1600", "present", "Vectors");
+        add("L2", "S1", "Physics", "16-09-2026", "1600", "present", "Vectors and forces");
+        add("L3", "S2", "Math", "17-09-2026", "1600", "present", "Vectors");
+
+        assertEquals("Topics covered with S1 Alice Tan (topic: vectors): 2 lessons" + NL
+                + "  L2  Wed 16-09-2026 1600  Physics" + NL + "    Vectors and forces" + NL
+                + "  L1  Tue 15-09-2026 1600  Math" + NL + "    Vectors", commands.execute("topics S1 k/vectors"));
+        assertEquals("Topics covered with any student (subject: physics, topic: vectors): 1 lesson" + NL
+                + "  L2  Wed 16-09-2026 1600  S1 Alice Tan  Physics" + NL + "    Vectors and forces",
+                commands.execute("topics k/vectors s/physics"));
+        assertEquals("No topics recorded for S2 Bob Tan (subject: Math, topic: forces).",
+                commands.execute("topics S2 s/Math k/forces"));
+    }
+
+    @Test
+    void keyword_noMatchOrSlashWords_reportsTheTopicAsTyped() {
+        add("L1", "S1", "Math", "15-09-2026", "1600", "present", "Truth tables and/or logic gates");
+        String before = Storage.encode(data);
+
+        assertEquals("No topics recorded for any student (topic: integration).",
+                commands.execute("topics k/integration"));
+        assertTrue(commands.execute("topics k/and/or logic").startsWith(
+                "Topics covered with any student (topic: and/or logic): 1 lesson"));
+        assertEquals(before, Storage.encode(data));
+    }
+
+    @Test
+    void keyword_includesTodayLateAndArchivedStudentsButNotUnrecordedLessons() {
+        add("L1", "S1", "Math", "23-10-2026", "0900", "late", "Vectors today");
+        add("L2", "S2", "Math", "15-09-2026", "1600", "present", "Vectors with an archived student");
+        add("L3", "S1", "Math", "15-09-2026", "1700", "not recorded", "Vectors, skipped unrecorded");
+        data.replaceStudent(data.getStudent("S2").withArchived(true));
+
+        String output = commands.execute("topics k/vectors");
+
+        assertEquals("Topics covered with any student (topic: vectors): 2 lessons" + NL
+                + "  L1  Fri 23-10-2026 0900  S1 Alice Tan  Math" + NL + "    Vectors today" + NL
+                + "  L2  Tue 15-09-2026 1600  S2 Bob Tan  Math" + NL + "    Vectors with an archived student",
+                output);
+    }
+
+    @Test
+    void keyword_lessonsAtTheSameTime_keepAStableLessonIdOrder() {
+        add("L1", "S1", "Math", "15-09-2026", "1600", "present", "Vectors");
+        add("L2", "S2", "Math", "15-09-2026", "1600", "present", "Vectors");
+        add("L3", "S1", "Math", "15-09-2026", "1600", "present", "Vectors");
+
+        List<String> lessonRows = commands.execute("topics k/vectors").lines()
+                .filter(line -> line.startsWith("  L")).toList();
+
+        assertEquals(List.of("  L3  Tue 15-09-2026 1600  S1 Alice Tan  Math",
+                "  L2  Tue 15-09-2026 1600  S2 Bob Tan  Math",
+                "  L1  Tue 15-09-2026 1600  S1 Alice Tan  Math"), lessonRows);
+    }
+
+    @Test
+    void keyword_partOfAWordSpacesAndSymbols_matchTheNotesLiterally() {
+        add("L1", "S1", "Math", "15-09-2026", "1600", "present", "Expanding (a+b)^2 | squares");
+        add("L2", "S2", "Math", "16-09-2026", "1600", "present", "Vectors");
+
+        assertTrue(commands.execute("topics s1 k/(A+B)^2").contains("L1"));
+        assertTrue(commands.execute("topics k/^2 | sq").contains("L1"));
+        assertTrue(commands.execute("topics k/   VECT   ").startsWith(
+                "Topics covered with any student (topic: VECT): 1 lesson"));
+        // Regular-expression symbols are plain text, so ".*" only matches notes that contain ".*".
+        assertEquals("No topics recorded for any student (topic: .*).", commands.execute("topics k/.*"));
+    }
+
+    @Test
+    void keyword_followsNotesWrittenByLessonCommands() {
+        LessonCommands lessons = new LessonCommands(data, CLOCK);
+        lessons.execute("log S1 d/15-09-2026 t/1600 s/Math f/60 a/present note/Vectors");
+        lessons.execute("log S2 d/16-09-2026 t/1600 s/Math f/60 a/present note/Quadratics");
+        assertTrue(commands.execute("topics k/vectors").contains("S1 Alice Tan"));
+
+        lessons.execute("edit L2 note/Vectors recap");
+        assertTrue(commands.execute("topics k/vectors").startsWith(
+                "Topics covered with any student (topic: vectors): 2 lessons"));
+        lessons.execute("edit L1 note/Matrices");
+        assertFalse(commands.execute("topics k/vectors").contains("L1"));
+    }
+
+    @Test
+    void keyword_invalidArguments_reportErrorsAndPreserveRecords() {
+        add("L1", "S1", "Math", "15-09-2026", "1600", "present", "Vectors");
+        String before = Storage.encode(data);
+        for (String input : List.of("topics k/", "topics k/  ", "topics S1 k/", "topics k/a k/b",
+                "topics s/Math", "topics vectors", "topics S99 k/vectors", "topics S1 S2 k/vectors",
+                "topics pay/paid k/vectors")) {
+            assertTrue(commands.execute(input).startsWith("Error:"), input);
+            assertEquals(before, Storage.encode(data), input);
+        }
+        assertEquals("Error: Use: topics STUDENT_ID [s/SUBJECT] [k/KEYWORD], or topics k/KEYWORD [s/SUBJECT]"
+                + " to search every student.", commands.execute("topics"));
+    }
+
+    @Test
+    void help_listsTopicsWithItsSubjectFilterAndTopicSearch() {
+        assertTrue(HelpCommand.getHelpText().contains("topics STUDENT_ID [s/SUBJECT] [k/KEYWORD]"));
         assertTrue(HelpCommand.getHelpText().contains("topics S1 s/A Math"));
+        assertTrue(HelpCommand.getHelpText().contains("topics k/KEYWORD [s/SUBJECT]"));
+        assertTrue(HelpCommand.getHelpText().contains("topics k/vectors"));
     }
 
     /** Imports a lesson fixture without hiding malformed historical combinations behind command validation. */

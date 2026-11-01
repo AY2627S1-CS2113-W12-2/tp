@@ -1,0 +1,52 @@
+@startuml
+skinparam backgroundColor white
+skinparam defaultFontSize 14
+skinparam shadowing false
+hide footbox
+
+participant ":TopicCommands" as Commands
+participant "<<class>>\nArgumentParser" as Parser
+participant ":TutorLedgerData" as Data
+participant "query:Query" as Query
+
+[-> Commands : execute("topics k/vectors")
+activate Commands
+Commands -> Commands : parseQuery("topics k/vectors")
+activate Commands
+Commands -> Parser : parseFields("k/vectors", [s, k], {k})
+activate Parser
+Parser --> Commands : fields
+deactivate Parser
+create Query
+Commands -> Query : new Query(null, null, "vectors")
+activate Query
+Query --> Commands : query
+deactivate Query
+Commands --> Commands : query
+deactivate Commands
+
+Commands -> Commands : listTopics(query)
+activate Commands
+Commands -> Data : getLessons()
+activate Data
+Data --> Commands : lessons
+deactivate Data
+
+loop each lesson that was taught and has notes
+    Commands -> Query : matches(lesson)
+    activate Query
+    Query --> Commands : true if the notes contain "vectors"
+    deactivate Query
+end
+
+loop each match, newest first
+    Commands -> Data : getStudent(lesson.getStudentId())
+    activate Data
+    Data --> Commands : student
+    deactivate Data
+end
+Commands --> Commands : "Topics covered with any student ..."
+deactivate Commands
+[<-- Commands : "Topics covered with any student (topic: vectors): ..."
+deactivate Commands
+@enduml

@@ -804,6 +804,69 @@ save (Figure 3) sees the changed snapshot and saves the file.
 *Possible improvements:* sort `flagged` by the date of each student's next lesson, so the most urgent
 preparation comes first, and let `list` show only flagged students.
 
+### Covered topics and topic search
+
+A tutor needs to know what was already taught, both to one student (US12) and across all students (US22),
+for example to reuse a worksheet with everyone who has done vectors. `TopicCommands` answers both from the
+lesson notes the tutor already writes with `log`, `record` and `edit`:
+
+| Command | Purpose |
+|---|---|
+| `topics STUDENT_ID [s/SUBJECT] [k/KEYWORD]` | List what was covered with one student, optionally narrowed by subject and topic |
+| `topics k/KEYWORD [s/SUBJECT]` | Find every lesson that covered a topic, with any student |
+
+The command only reads lessons. It stores nothing of its own, so the main loop's snapshot is unchanged and
+no automatic save happens.
+
+#### Searching by topic
+
+The sequence diagram below shows `topics k/vectors`.
+
+![Sequence diagram of searching covered topics by keyword](diagrams/topic-search-sequence.svg)
+
+*Figure 29. A topic search filters the stored lessons through one `Query`; nothing is changed or saved.*
+
+1. `parseQuery` reads an optional student ID, as `filter` does. A first word without a slash is the ID, and
+   `TutorLedgerData.getStudent` rejects an unknown one. The rest goes to `ArgumentParser.parseFields` with
+   `s` and `k` allowed and `k` marked as free text.
+2. If neither a student ID nor `k/` is given, `parseQuery` throws, and the usage message is shown.
+3. The prefixed values become a private `Query` record. A null field means that filter was not given.
+4. `listTopics` keeps the lessons that were actually taught: dated today or earlier, attendance `present`
+   or `late`, not cancelled, and with notes. It then asks `Query.matches` for each one and sorts the
+   matches newest first, with the lesson ID breaking ties.
+5. Without a student ID, each row also shows whose lesson it was, so the output reads on its own.
+   `Query.describe` builds the heading, such as `any student (topic: vectors)`.
+
+#### Design considerations
+
+* *Notes as the topic tag, rather than a separate tag field.* The notes already describe what was covered,
+  and `next` already shows them as the last topic. *Alternative considered:* a `tag/` field on `Lesson`.
+  It would give exact tags, but it needs a new column in the data file and changes to `log`, `record` and
+  `edit`, and the tutor would type the topic twice.
+* *Matching part of the notes, ignoring case.* `k/vectors` finds `Vectors`, `Revision of vectors` and
+  `Vectors and forces`. `String.contains` treats symbols as plain text, so `k/(a+b)^2` works.
+  *Alternative considered:* matching whole words only. It would skip `vector` inside `vectors`, which a
+  tutor would expect to match.
+* *`k/` is free text, like `note/`.* A topic such as `and/or logic` is searched for as typed. A prefix
+  that `topics` accepts, `s/`, still starts a new value.
+* *A student ID or `k/` must be given.* A bare `topics` would print every note ever written, which is
+  not a topic search. `filter` already lists every lesson.
+* *One command rather than a new `find` command.* Both stories ask what was covered, so they share the
+  same lesson rules, sorting and output.
+
+#### Verification
+
+* `TopicCommandsTest` covers the search across students and with a student and subject. It also covers
+  matching that ignores case and treats symbols as plain text, and which lessons count: dated today,
+  late, archived students. Ties keep lesson-ID order. It checks searches after a save and restart, that
+  a search never saves over a hand-edited file, and each invalid input.
+* `EndToEndTest` runs `topics k/...` through the real command loop. It checks that the search still works
+  after a restart without rewriting the data file, and that invalid `topics` input leaves the file
+  unchanged.
+
+*Possible improvements:* allow several keywords, such as `k/vectors k/forces`, and show how many lessons
+each student had on the topic.
+
 ## Appendix A: Product scope
 
 ### Target user profile
@@ -850,6 +913,7 @@ does not process money, deliver online lessons, or send messages to students and
 |v2.0|expert user|type short aliases for common commands|enter commands faster|
 |v2.0b|independent tutor|archive a student who has stopped lessons|keep my active list uncluttered while preserving history|
 |v2.0b|independent tutor|list the topics already covered with a student|avoid repeating material we have finished|
+|v2.1|independent tutor|tag a lesson with the topic taught|later find every lesson that covered that topic|
 |v2.0b|independent tutor|see a summary of a student's attendance and scores over the term|review their progress at the end of the term|
 |v2.1|independent tutor|flag a student as needing extra attention|decide where to spend my limited prep time|
 
@@ -885,6 +949,7 @@ does not process money, deliver online lessons, or send messages to students and
 | Attendance | The recorded outcome of a lesson, such as present, late or absent. `none` clears the outcome and returns it to not recorded. |
 | Amount paid | The money received and allocated to a lesson. It can be less than the saved fee when a lesson is partially paid. |
 | Cancelled lesson | A lesson retained with a cancellation reason. It frees its time slot and is excluded from `owed`, `unpaid` and income totals; any amount already received is not automatically refunded. |
+| Covered topic | The notes of a lesson that was taught: dated today or earlier, attended, not cancelled and with notes. `topics` lists them for one student or searches them by keyword across all students. |
 | Default hourly rate | An optional per-student rate used to calculate the charge for a new lesson when no explicit total fee is supplied. Changing the rate does not recalculate existing lessons. |
 | Fee statement | A read-only view of one student's saved lessons, fees and payment statuses, including past and future lessons. It is assembled from lesson records rather than stored separately. |
 | Follow-up task | A pending or completed reminder, optionally linked to a student and a due date. Completing it keeps the task in the records but removes it from pending-task lists. |
@@ -1048,7 +1113,13 @@ Use an empty working directory and Java 25 with `-ea`.
    being removed from the profile. `edit L1 note/` removes L1 from the topics list.
 5. Try `topics`, `topics S99`, `topics S1 s/` and `topics S1 s/Math s/Physics`.
    Expected: errors without changing any records or consuming IDs. `help` lists the new command.
-6. Exit and restart; `topics S1` should still show Forces. Run with `-da` and repeat the invalid-input
+6. Run `edit L1 note/Vectors` to restore L1's notes and
+   `log S2 d/18-09-2026 t/1600 s/Math f/70 a/present note/Vectors revision`, then `topics k/VECTORS`.
+   Expected: L4 (S2 Bob Tan) and L1 (S1 Alice Tan), newest first, each showing its student.
+   `topics S1 k/vectors` lists only L1, `topics k/vectors s/Physics` reports no topics recorded, and
+   `topics k/forces` finds L2.
+7. Try `topics k/`, `topics k/a k/b` and `topics s/Math`. Expected: errors without changing any records.
+8. Exit and restart; `topics S1` should still show Forces. Run with `-da` and repeat the invalid-input
    checks; validation must remain active without assertions.
 
 ### School levels

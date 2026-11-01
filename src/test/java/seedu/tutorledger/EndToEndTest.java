@@ -78,6 +78,7 @@ class EndToEndTest {
                 "filter S1",
                 "next",
                 "topics S1",
+                "topics k/fractions",
                 "assign S1 Worksheet 4A d/10-01-2099",
                 "assign S2 Essay d/11-01-2099",
                 "submit H2",
@@ -111,6 +112,8 @@ class EndToEndTest {
         // next skips the cancelled L5 and picks up the notes recorded for L2.
         assertTrue(first.contains("Next lesson: L3, Wed 07-01-2099 1630" + NL), first);
         assertTrue(first.contains("Last topic: Ratio (L2, Tue 13-10-2020)"), first);
+        assertTrue(first.contains("Topics covered with any student (topic: fractions): 1 lesson" + NL
+                + "  L1  Tue 06-10-2020 1600  S1 Alice Tan  Math" + NL + "    Fractions"), first);
         assertTrue(first.contains("1 homework item outstanding" + NL + "  H1  S1 Alice Tan  Worksheet 4B"), first);
         assertTrue(first.contains("L2  Tue 13-10-2020  S1 Alice Tan  Math  $25.00"), first);
         assertTrue(first.contains("S1 Alice Tan  $25.00  (1 lesson)"), first);
@@ -128,7 +131,7 @@ class EndToEndTest {
         // must not be rewritten (a tutor's hand edits would otherwise be lost).
         byte[] savedAfterFirst = Files.readAllBytes(dataFile);
         String second = session(dataFile, "flagged", "view S1", "next S1", "tasks S1", "scores S1",
-                "homework S1", "list status/archived", "fee_statement S1", "help");
+                "homework S1", "list status/archived", "fee_statement S1", "help", "topics k/RATIO");
 
         assertTrue(second.contains("Loaded 2 students, 4 lessons and 2 homework items"), second);
         assertTrue(second.contains("S1  Alice Tan (Pri 5)  Weak at fractions"), second);
@@ -136,6 +139,8 @@ class EndToEndTest {
         assertTrue(second.contains("L2  Tue 13-10-2020 1600  Math  $40.00  present  partial  $15.00 paid"), second);
         assertTrue(second.contains("Follow-ups: T1 Bring worksheet (by Fri 09-01-2099)"), second);
         assertTrue(second.contains("2 scores for S1 Alice Tan"), second);
+        assertTrue(second.contains("Topics covered with any student (topic: RATIO): 1 lesson" + NL
+                + "  L2  Tue 13-10-2020 1600  S1 Alice Tan  Math" + NL + "    Ratio"), second);
         assertTrue(second.contains("S2  Bob Lee (JC 2)  Chem  [archived]"), second);
         assertFalse(second.contains("Error"), second);
         assertArrayEquals(savedAfterFirst, Files.readAllBytes(dataFile));
@@ -210,6 +215,9 @@ class EndToEndTest {
                 "filter from/02-01-2020 to/01-01-2020",
                 "next S9",
                 "topics",
+                "topics k/",
+                "topics s/Math",
+                "topics S9 k/fractions",
                 "record L2 a/present",
                 "record L1 a/maybe",
                 "reschedule L1 d/01-02-2099",
