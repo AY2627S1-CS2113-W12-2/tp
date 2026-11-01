@@ -125,7 +125,7 @@ class StorageTest {
                 "Line 3: Date must be a real date in DD-MM-YYYY format.",
                 "Line 4: No student found with ID S9.",
                 "Line 5: Level must be Pri 1 to Pri 6, Sec 1 to Sec 5, or JC 1 to JC 2.",
-                "Line 6: Unknown record type \"X\". A line must start with S, R, ARCHIVED, L, H, A, T or NEXT.",
+                "Line 6: Unknown record type \"X\". A line must start with S, R, ARCHIVED, FLAG, L, H, A, T or NEXT.",
                 "Line 7: Homework status must be outstanding or submitted.",
                 "Line 8: A lesson line needs 10 to 13 fields but has 6."), result.problems());
         assertEquals(1, result.data().getStudents().size());
@@ -207,6 +207,32 @@ class StorageTest {
                 "A | A5 | S1 | 07-09-2026 | 50 | 40 | WA2"));
         assertEquals(List.of("Line 4: Marks must be between 0 and the total marks."), old.problems());
         assertEquals(5, old.data().getNextScoreNumber());
+    }
+
+    @Test
+    void decode_flags_roundTripWithOrWithoutReasonAndBadLinesAreSkipped() {
+        TutorLedgerData data = sampleData();
+        data.replaceStudent(data.getStudent("S1").withAttentionReason("Weak at vectors | integration"));
+        data.replaceStudent(data.getStudent("S2").withAttentionReason(""));
+
+        TutorLedgerData loaded = Storage.decode(Storage.encode(data).lines().toList()).data();
+
+        assertEquals("Weak at vectors | integration", loaded.getStudent("S1").getAttentionReason().orElseThrow());
+        assertEquals("", loaded.getStudent("S2").getAttentionReason().orElseThrow());
+
+        // Hand edits: the reason may be left out, but a flag must name a real student and appear once.
+        Storage.LoadResult edited = Storage.decode(List.of(
+                "S | S1 | Amirah Binte Rahman | Sec 3 | 91234567",
+                "S | S2 | Tan Wei Ming | Sec 4 | 81234567",
+                "flag | s1",
+                "FLAG | S1 | Exam soon",
+                "FLAG | S9 | Weak at algebra",
+                "FLAG | S2 | Exam soon | extra"));
+        assertEquals(List.of("Line 4: Duplicate flag for student S1.",
+                "Line 5: No student found with ID S9.",
+                "Line 6: A flag line needs 2 or 3 fields but has 4."), edited.problems());
+        assertEquals("", edited.data().getStudent("S1").getAttentionReason().orElseThrow());
+        assertFalse(edited.data().getStudent("S2").isFlagged());
     }
 
     @Test

@@ -138,4 +138,35 @@ class StorageCommandsTest {
                 restartedCommands.loadOnStartup());
         assertEquals("Amirah Binte Rahman", restarted.getStudent("S1").getName());
     }
+
+    @Test
+    void reloadAndStartup_unreadableFile_reportItAndKeepTheCurrentData() throws IOException {
+        // A folder in place of the data file cannot be read on any operating system.
+        Files.createDirectories(dataFile);
+
+        String reload = commands.execute("reload");
+        String startup = commands.loadOnStartup();
+
+        assertTrue(reload.startsWith("Could not read " + dataFile + " ("), reload);
+        assertTrue(reload.endsWith("Your current data has not been changed."), reload);
+        assertTrue(startup.startsWith("Could not read " + dataFile + " ("), startup);
+        assertTrue(startup.endsWith("Starting with no data."), startup);
+        // Neither message replaces the records already in memory with an empty set.
+        assertEquals(1, data.getStudents().size());
+    }
+
+    @Test
+    void save_invalidPath_reportsAnErrorWithoutSaving() {
+        // A NUL character is not allowed in a file path on any operating system.
+        String path = "backup" + (char) 0 + ".txt";
+
+        assertEquals("Error: " + path + " is not a valid file path.", commands.execute("save " + path));
+        assertFalse(Files.exists(dataFile));
+    }
+
+    @Test
+    void execute_notAStorageCommand_isRejected() {
+        assertEquals("Unknown storage command.", commands.execute("list"));
+        assertEquals("Unknown storage command.", commands.execute("   "));
+    }
 }

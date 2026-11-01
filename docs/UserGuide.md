@@ -15,7 +15,8 @@ your own tutoring work.
 * [Quick start](#quick-start)
 * [Notes about the command format](#notes-about-the-command-format)
 * [Features](#features)
-  * [Student book](#student-book): `add`, `subject`, `view`, `list`, `edit`, `archive`, `restore`, `delete`
+  * [Student book](#student-book): `add`, `subject`, `view`, `list`, `edit`, `archive`, `restore`,
+    `flag`, `unflag`, `flagged`, `delete`
   * [Lessons](#lessons): `schedule`, `log`, `lessons`, `filter`, `next`, `topics`, `record`, `reschedule`,
     `cancel`, `uncancel`, `edit`, `delete`
   * [Homework](#homework): `assign`, `submit`, `homework`, `edit`, `delete`
@@ -178,6 +179,8 @@ Format: `view STUDENT_ID`
 
 * Lessons are shown newest first, so the last lesson's notes are near the top.
 * Archived profiles remain accessible by ID and show `Status: archived`.
+* A [flagged](#flagging-a-student-who-needs-extra-attention-flag-unflag-flagged) student shows a
+  `Flagged:` line with your reason under their details.
 * The amount owed counts unpaid lessons dated today or earlier. Lessons still to come are not counted.
 
 Example: `view S1`
@@ -210,7 +213,8 @@ Format: `list [NAME] [status/STATUS]`
 
 * With no `NAME`, students in the selected status are listed in ID order.
 * `STATUS` is `active` (the default), `archived` or `all`, ignoring case. Place the optional status
-  after the name query: `list tan status/archived`. Archived rows show `[archived]`.
+  after the name query: `list tan status/archived`. Archived rows show `[archived]`, and flagged students
+  show `[flagged]`.
 * With a `NAME`, a student is listed if that text appears anywhere in their name. Case is ignored, so `list wei`
   finds both Tan Wei Ming and Tan Wei Ling.
 * The text may contain spaces. `list tan wei` matches names that contain "tan wei".
@@ -294,7 +298,7 @@ Formats: `archive STUDENT_ID` and `restore STUDENT_ID`
 
 * `archive S1` hides S1 from `list` and name searches. Use `list status/archived` or `list status/all`
   to find the profile again; `view S1` still shows its details and history.
-* Lessons, homework, scores, subjects, default rates, balances and permanent IDs are preserved.
+* Lessons, homework, scores, subjects, default rates, flags, balances and permanent IDs are preserved.
   Archiving does not cancel future lessons or hide them from lesson lists or `next`.
 * New single or recurring scheduling requires restoration first. Existing lessons can still be corrected,
   rescheduled or cancelled. You can log past lessons, record attendance, edit the profile and settle payments.
@@ -317,6 +321,44 @@ The student is active again. History and existing lessons are unchanged.
 
 Archiving and restoration are saved automatically. A completed deletion still removes the profile and
 its linked records permanently; archive when you want to keep them.
+
+#### Flagging a student who needs extra attention: `flag`, `unflag`, `flagged`
+
+Flag the students who need more of your preparation time, for example before an exam or after a weak test,
+with a short note on why. The flag then reminds you wherever you look at that student.
+
+Formats: `flag STUDENT_ID [REASON]`, `unflag STUDENT_ID` and `flagged`
+
+* `REASON` is any text after the student ID, and is optional. Without one, the reason shows as
+  `(no reason given)`.
+* Flagging a student who is already flagged replaces the old reason with the new one.
+* `unflag` removes the flag and its reason. Unflagging a student who is not flagged changes nothing.
+* `flagged` lists every flagged student with their reason. Archived students are listed last and marked
+  `[archived]`, so you can unflag them.
+* The flag also appears in [`list`](#listing-and-finding-students-list) as `[flagged]`, in
+  [`view`](#viewing-a-student-view) as a `Flagged:` line, and in [`next`](#preparing-for-the-next-lesson-next),
+  so you see the reason just before the lesson.
+* A flag is kept when you edit, archive or restore the student. Deleting the student deletes the flag.
+
+Examples:
+
+* `flag S2 Mixing up mole calculations`
+* `flag S1`
+* `unflag S2`
+
+```
+> flag S2 Mixing up mole calculations
+Flagged S2: Tan Wei Ming (Sec 4) as needing extra attention.
+Reason: Mixing up mole calculations
+> flag S2 Mole calculations; Chemistry test on Fri 06-11-2026
+Updated flag on S2: Tan Wei Ming (Sec 4) as needing extra attention.
+Reason: Mole calculations; Chemistry test on Fri 06-11-2026
+> flagged
+1 student flagged as needing extra attention:
+  S2  Tan Wei Ming (Sec 4)  Mole calculations; Chemistry test on Fri 06-11-2026
+> unflag S2
+Removed the flag on S2: Tan Wei Ming (Sec 4).
+```
 
 #### Deleting a student: `delete`
 
@@ -534,6 +576,9 @@ Format: `next [STUDENT_ID]`
 * **Unpaid** counts the student's unpaid lessons up to today, the same way as [`owed`](#showing-what-each-student-owes-owed).
 * **Follow-ups** lists your pending [follow-up tasks](#follow-up-tasks) for the student, soonest due first.
   This line only appears when there are some.
+* **Flagged** shows your reason if you have
+  [flagged the student](#flagging-a-student-who-needs-extra-attention-flag-unflag-flagged) as needing extra
+  attention. It comes right after the student's name, and only appears for a flagged student.
 
 Examples:
 
@@ -1225,6 +1270,7 @@ Your current data has not been changed.
 ```
 NEXT | S3 | L2 | H2 | A2 | T3
 S | S1 | Amirah Binte Rahman | Sec 3 | 91234567 | E Math | A Math
+FLAG | S1 | Struggling with vectors
 L | L1 | S1 | 15-09-2026 | 1600 | A Math | 60 | present | paid | Quadratics \| discriminant
 H | H1 | S1 | 29-09-2026 | outstanding | Worksheet 4A
 A | A1 | S1 | 07-09-2026 | 28 | 40 | WA1
@@ -1237,6 +1283,7 @@ T | T2 | done |  |  | Print term calendar
 | `NEXT` | the IDs the next new student, lesson, homework item, score and follow-up task will get              |
 | `R`    | student ID, default hourly rate; omit the record when no rate is set |
 | `ARCHIVED` | student ID; omit the record for an active student |
+| `FLAG` | student ID, reason (may be empty); omit the record for a student who is not flagged |
 | `S`    | student ID, name, level, phone number, then any number of subjects                                  |
 | `L`    | lesson ID, student ID, date, time, subject, fee, attendance (`not recorded`, `present`, `absent` or `late`), `paid`, `partial` or `unpaid`, notes, cancellation reason (empty if active), duration in minutes, amount paid |
 | `H`    | homework ID, student ID, due date, `outstanding` or `submitted`, description                        |
@@ -1260,6 +1307,9 @@ T | T2 | done |  |  | Print term calendar
   are reported by line number while other records still load.
 * Keep a backup before returning to an older build: builds without archiving report archive markers as
   unknown records and load those students as active. Saving with an older build loses archive status.
+* Example flag record: `FLAG | S1 | Struggling with vectors`. `FLAG | S1` flags S1 without a reason.
+  Like archive markers, a flag may appear before or after the student line, and an invalid or duplicate flag
+  is reported by line number. Older builds report flags as unknown records and drop them when saving.
 * Values follow the same rules as when you type them in a command, for example dates as `DD-MM-YYYY`.
 * To put a `|` inside a value, write `\|`. To put a `\` there, write `\\`.
 * Lines may be in any order, and spaces around `|` do not matter.
@@ -1299,6 +1349,12 @@ STUDENTS
       archive S5
   restore STUDENT_ID
       restore S5
+  flag STUDENT_ID [REASON]
+      flag S1 Struggling with vectors
+  unflag STUDENT_ID
+      unflag S1
+  flagged
+      flagged
   edit STUDENT_ID [n/NAME] [l/LEVEL] [p/PHONE_NUMBER] [s/SUBJECT]... [r/RATE]
       edit S1 l/Sec 4
   delete STUDENT_ID [confirm]
@@ -1483,6 +1539,8 @@ as absent; if you also do not want to charge for it, delete the lesson with `del
 | **List / find students**| `list [NAME]`<br>e.g. `list wei`                                                                                         |
 | **List archived / all** | `list [NAME] status/archived` or `list [NAME] status/all` |
 | **Archive / restore** | `archive STUDENT_ID` / `restore STUDENT_ID`<br>e.g. `archive S1`, then `restore S1` |
+| **Flag / unflag student** | `flag STUDENT_ID [REASON]` / `unflag STUDENT_ID`<br>e.g. `flag S2 Mixing up mole calculations` |
+| **List flagged students** | `flagged` |
 | **Edit student**        | `edit STUDENT_ID [n/NAME] [l/LEVEL] [p/PHONE_NUMBER] [s/SUBJECT]… [r/RATE]`<br>e.g. `edit S1 l/Sec 4`                            |
 | **Set / clear hourly rate** | `edit STUDENT_ID r/RATE` or `edit STUDENT_ID r/`<br>e.g. `edit S1 r/60` |
 | **Delete student**      | `delete STUDENT_ID [confirm]`<br>e.g. `delete S5`, then `delete S5 confirm` for a student with lessons |

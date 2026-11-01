@@ -290,11 +290,22 @@ public class LessonCommands {
         LOGGER.log(Level.FINE, "Next lesson is {0}", lesson.getLessonId());
         return "Next lesson: " + lesson.getLessonId() + ", " + formatSlot(lesson) + System.lineSeparator()
                 + "  Student: " + formatStudent(student) + " (" + student.getLevel() + ")" + System.lineSeparator()
+                + describeFlag(student)
                 + "  Subject: " + lesson.getSubject() + System.lineSeparator()
                 + "  Last topic: " + describeLastTopic(lesson) + System.lineSeparator()
                 + describeOutstandingHomework(student) + System.lineSeparator()
                 + "  Unpaid: " + describeUnpaid(student)
                 + describeFollowUps(student);
+    }
+
+    /**
+     * Reminds the tutor why they flagged the student as needing extra attention (US14), on its own line.
+     * Returns an empty string for an unflagged student, so the usual output is unchanged.
+     */
+    private static String describeFlag(Student student) {
+        return student.isFlagged()
+                ? "  Flagged: " + StudentCommands.reasonText(student) + System.lineSeparator()
+                : "";
     }
 
     /**

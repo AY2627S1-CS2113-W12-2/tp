@@ -744,6 +744,66 @@ paid and unpaid fees in date order, and report empty histories and invalid stude
 suite checks payment-status updates that the statement reads, as well as the intentionally narrower
 date and cancellation filters used by `unpaid` and `owed`.
 
+### Attention flags
+
+A tutor with many students has limited preparation time. Attention flags (US14) let the tutor mark the
+students who need more of it, with a short reason, such as a weak test or an exam coming up:
+
+| Command | Purpose |
+|---|---|
+| `flag STUDENT_ID [REASON]` | Flag a student, or replace the reason of an existing flag |
+| `unflag STUDENT_ID` | Remove the flag |
+| `flagged` | List flagged students and their reasons, active students first |
+
+The flag is then shown wherever the tutor already looks at the student: a `[flagged]` marker in `list`, a
+`Flagged:` line in `view`, and a `Flagged:` line in `next`, which `LessonCommands.describeFlag` adds just
+below the student's name.
+
+#### Flagging a student
+
+The sequence diagram below shows `flag S1 Weak at algebra`.
+
+![Sequence diagram of flagging a student](diagrams/student-flag-sequence.svg)
+
+*Figure 28. A flag is set by replacing the student with a flagged copy, the same way as archiving.*
+
+1. `StudentCommands` splits the arguments at the first space. The first word must be a student ID; the rest,
+   if any, is the reason.
+2. `TutorLedgerData.getStudent` finds the student, or throws if there is none, so a flag can never point to a
+   missing student.
+3. `Student.withAttentionReason` returns a copy with the reason set. The copy keeps every other detail,
+   including the rate and archive state. `replaceStudent` stores it under the same ID.
+
+`unflag` works the same way with `withAttentionReason(null)`. After either command, the main loop's automatic
+save (Figure 3) sees the changed snapshot and saves the file.
+
+#### Design considerations
+
+* *A field on `Student`, rather than a separate list of flagged IDs.* `Student` already holds the archive
+  state in the same way, so the flag follows an existing pattern. Because the flag is part of the student,
+  it is deleted with the student and needs no cascade logic. *Alternative considered:* a separate map in
+  `TutorLedgerData`, like follow-up tasks. This would leave `Student` unchanged, but every command that
+  shows a student would have to look the flag up separately, and deletion would need another cascade.
+* *One nullable field for both state and reason.* `null` means not flagged, and an empty string means
+  flagged without a reason. This avoids a separate `boolean` that could disagree with the reason.
+  `isFlagged()` and the `Optional` returned by `getAttentionReason()` keep the null away from callers.
+* *Reason as free text after the ID, rather than a prefix such as `r/`.* `r/` already means the hourly rate in
+  `add` and `edit`. Free text matches `task`, where the description also follows the student ID.
+* *Show the flag in `next`.* The story's scenario is preparing before a lesson. `next` is the command the
+  tutor already runs then, so the reminder appears without an extra step. The line is left out for students
+  who are not flagged, so the usual output is unchanged.
+
+#### Persistence and verification
+
+* `Storage` saves a flag as a separate `FLAG | STUDENT_ID | REASON` line, like `ARCHIVED`. Older data files
+  have no `FLAG` lines, so they still load with no student flagged. On loading, `FLAG | S1` without a
+  reason is also accepted, and duplicate flags or flags for unknown students are reported by line number.
+* `StudentFlagTest` covers each command, the `list`, `view` and `next` output, and that edit, archive and
+  restore keep the flag. `StorageTest` covers saving and loading flags, including reasons that contain `|`.
+
+*Possible improvements:* sort `flagged` by the date of each student's next lesson, so the most urgent
+preparation comes first, and let `list` show only flagged students.
+
 ## Appendix A: Product scope
 
 ### Target user profile
@@ -791,6 +851,7 @@ does not process money, deliver online lessons, or send messages to students and
 |v2.0b|independent tutor|archive a student who has stopped lessons|keep my active list uncluttered while preserving history|
 |v2.0b|independent tutor|list the topics already covered with a student|avoid repeating material we have finished|
 |v2.0b|independent tutor|see a summary of a student's attendance and scores over the term|review their progress at the end of the term|
+|v2.1|independent tutor|flag a student as needing extra attention|decide where to spend my limited prep time|
 
 ## Appendix C: Non-functional requirements
 
@@ -1088,3 +1149,16 @@ Use an empty working directory and run the packaged application with Java 25 and
    without received payments show `$0.00`.
 4. Try `income 13-2026`, `income 0000`, and `income 2026 extra`. Expected: each input is rejected with a
    usage or date-range error.
+
+### Attention flags
+
+1. Add `add n/Alice Tan l/Pri5 p/91234567` and `add n/Bob Tan l/JC2 p/81234567`, then
+   `schedule S1 d/01-12-2026 t/1600 s/Math`.
+2. Run `flag S1 Weak at fractions`. Expected: a confirmation with the reason. `list` shows `[flagged]` only
+   for Alice, `view S1` shows `Flagged: Weak at fractions`, and `next` shows the same line under her name.
+3. Run `flag S1 Exam on Fri`. Expected: `Updated flag on S1`, with the new reason. Run `flag S2`. Expected:
+   `Reason: (no reason given)`.
+4. Run `archive S1`, then `flagged`. Expected: Bob first, then Alice marked `[archived]`.
+5. Restart TutorLedger and run `flagged`. Expected: the same two students and reasons.
+6. Run `unflag S2` twice. Expected: the flag is removed, then `S2 Bob Tan is not flagged.`
+7. Try `flag`, `flag Alice`, `flag S9` and `flagged S1`. Expected: an error for each, with no changes.

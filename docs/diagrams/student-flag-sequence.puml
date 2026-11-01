@@ -1,0 +1,34 @@
+@startuml
+skinparam backgroundColor white
+skinparam defaultFontSize 14
+skinparam shadowing false
+hide footbox
+
+participant ":StudentCommands" as Commands
+participant ":TutorLedgerData" as Data
+participant "student:Student" as Original
+
+[-> Commands : execute("flag S1 Weak at algebra")
+activate Commands
+Commands -> Data : getStudent("S1")
+activate Data
+Data --> Commands : student
+deactivate Data
+
+Commands -> Original : withAttentionReason("Weak at algebra")
+activate Original
+create "flagged:Student" as Flagged
+Original -> Flagged : new Student(..., archived, "Weak at algebra")
+activate Flagged
+Flagged --> Original : flagged
+deactivate Flagged
+Original --> Commands : flagged
+deactivate Original
+
+Commands -> Data : replaceStudent(flagged)
+activate Data
+Data --> Commands
+deactivate Data
+[<-- Commands : "Flagged S1: ... Reason: Weak at algebra"
+deactivate Commands
+@enduml
