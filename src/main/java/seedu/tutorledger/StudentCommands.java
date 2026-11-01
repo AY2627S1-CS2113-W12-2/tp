@@ -7,8 +7,10 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
@@ -21,6 +23,10 @@ public class StudentCommands {
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("EEE dd-MM-uuuu", Locale.ENGLISH);
     /** Locates the first list prefix, leaving the preceding text as the existing free-text name query. */
     private static final Pattern LIST_PREFIX = Pattern.compile("(?i)(?<!\\S)[a-z]+/");
+    /** {@code list sort/owed}: the students who owe the most come first. */
+    private static final String SORT_OWED = "owed";
+    /** {@code list sort/last}: the students whose last lesson was longest ago come first. */
+    private static final String SORT_LAST = "last";
     private final TutorLedgerData data;
     private final Clock clock;
 
@@ -107,35 +113,100 @@ public class StudentCommands {
                 + ". Subjects: " + subjectText(updated);
     }
 
-    /** Lists active profiles by default without changing shared lookups used by payments and storage. */
+    /**
+     * Handles {@code list [NAME] [status/STATUS] [sort/SORT]}. Lists active profiles by default without
+     * changing shared lookups used by payments and storage.
+     * {@code sort/owed} and {@code sort/last} (story US41) reorder the list so the students who need
+     * attention first come first, and show the value each row was sorted by.
+     */
     private String list(String arguments) {
         String query = arguments;
         String status = "active";
+        String sort = null;
         Matcher prefix = LIST_PREFIX.matcher(arguments);
         if (prefix.find()) {
             query = arguments.substring(0, prefix.start()).trim();
             ArgumentParser.Fields fields = ArgumentParser.parseFields(arguments.substring(prefix.start()),
-                    List.of("status"));
-            status = fields.single("status", true).toLowerCase(Locale.ROOT);
+                    List.of("status", "sort"));
+            status = fields.singleOr("status", status).toLowerCase(Locale.ROOT);
+            sort = fields.has("sort") ? fields.single("sort", true).toLowerCase(Locale.ROOT) : null;
         }
         if (!List.of("active", "archived", "all").contains(status)) {
             throw new IllegalArgumentException("Use status/active, status/archived or status/all.");
         }
+        if (sort != null && !List.of(SORT_OWED, SORT_LAST).contains(sort)) {
+            throw new IllegalArgumentException("Use sort/owed or sort/last.");
+        }
         String selectedStatus = status;
-        List<Student> matches = data.findStudents(query).stream()
+        List<Student> matches = new ArrayList<>(data.findStudents(query).stream()
                 .filter(student -> selectedStatus.equals("all")
                         || student.isArchived() == selectedStatus.equals("archived"))
-                .toList();
+                .toList());
+
+        // Both sorts read the lessons once, then sort by the per-student value. List.sort is stable, so
+        // students with equal values keep the ID order that findStudents returned.
+        LocalDate today = LocalDate.now(clock);
+        Map<String, BigDecimal> owed = SORT_OWED.equals(sort) ? amountsOwed(today) : Map.of();
+        Map<String, LocalDate> lastLessons = SORT_LAST.equals(sort) ? lastLessonDates(today) : Map.of();
+        if (SORT_OWED.equals(sort)) {
+            matches.sort(Comparator.comparing(
+                    (Student student) -> owed.getOrDefault(student.getStudentId(), BigDecimal.ZERO)).reversed());
+        } else if (SORT_LAST.equals(sort)) {
+            // A student with no past lesson has waited longest of all, so LocalDate.MIN puts them first.
+            matches.sort(Comparator.comparing(
+                    (Student student) -> lastLessons.getOrDefault(student.getStudentId(), LocalDate.MIN)));
+        }
+
         String scope = status.equals("active") ? "" : " (" + status + ")";
+        String order = sort == null ? "" : SORT_OWED.equals(sort) ? ", most owed first"
+                : ", longest since last lesson first";
         String heading = count(matches.size(), "student") + scope
-                + (query.isEmpty() ? ":" : " match \"" + query + "\":");
+                + (query.isEmpty() ? "" : " match \"" + query + "\"") + order + ":";
         StringBuilder result = new StringBuilder(heading);
         for (Student student : matches) {
             result.append(System.lineSeparator()).append("  ").append(student.getStudentId()).append("  ")
                     .append(student.getName()).append(" (").append(student.getLevel()).append(")  ")
                     .append(subjectText(student)).append(student.isArchived() ? "  [archived]" : "");
+            if (SORT_OWED.equals(sort)) {
+                BigDecimal amount = owed.getOrDefault(student.getStudentId(), BigDecimal.ZERO);
+                result.append("  owes $").append(amount.setScale(2, RoundingMode.HALF_UP).toPlainString());
+            } else if (SORT_LAST.equals(sort)) {
+                LocalDate last = lastLessons.get(student.getStudentId());
+                result.append(last == null ? "  no past lessons" : "  last lesson " + last.format(DATE));
+            }
         }
         return result.toString();
+    }
+
+    /**
+     * Totals what each student still owes, keyed by student ID. It counts the same lessons as the
+     * {@code owed} and {@code unpaid} commands: not paid, not cancelled, and dated today or earlier.
+     */
+    private Map<String, BigDecimal> amountsOwed(LocalDate today) {
+        Map<String, BigDecimal> totals = new HashMap<>();
+        for (Lesson lesson : data.getLessons()) {
+            if (hasTakenPlace(lesson, today) && !Lesson.PAYMENT_PAID.equalsIgnoreCase(lesson.getPaymentStatus())) {
+                totals.merge(lesson.getStudentId().toUpperCase(Locale.ROOT), lesson.getAmountOwed(), BigDecimal::add);
+            }
+        }
+        return totals;
+    }
+
+    /** Finds each student's most recent lesson date that has taken place, keyed by student ID. */
+    private Map<String, LocalDate> lastLessonDates(LocalDate today) {
+        Map<String, LocalDate> latest = new HashMap<>();
+        for (Lesson lesson : data.getLessons()) {
+            if (hasTakenPlace(lesson, today)) {
+                latest.merge(lesson.getStudentId().toUpperCase(Locale.ROOT), lesson.getDate(),
+                        (first, second) -> first.isAfter(second) ? first : second);
+            }
+        }
+        return latest;
+    }
+
+    /** A lesson has taken place if it was not cancelled and is dated today or earlier, as in {@code owed}. */
+    private static boolean hasTakenPlace(Lesson lesson, LocalDate today) {
+        return !lesson.isCancelled() && !lesson.getDate().isAfter(today);
     }
 
     /** Archives or restores a profile without changing its linked records or permanent ID. */

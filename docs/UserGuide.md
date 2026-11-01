@@ -95,6 +95,7 @@ An ID is never reused, even after its item is deleted.
 | `REASON`         | `r/`    | Any text saying why a lesson was called off. Same rules as `NOTES`.             | `r/Student sick`     |
 | `STATUS`         | (none)  | `paid` or `unpaid`.                                                             | `paid`               |
 | `STATUS` (student list) | `status/` | `active`, `archived` or `all`, ignoring case. | `status/archived` |
+| `SORT` (student list) | `sort/` | `owed` or `last`, ignoring case. | `sort/owed` |
 | `DESCRIPTION`    | (none)  | Any text, written straight after the student ID.                                | `Worksheet 3B`       |
 | `TEST_NAME`      | (none)  | Any text, written straight after the student ID.                                | `Mid-year exam`      |
 | `MARKS/TOTAL`    | `m/`    | Marks scored, `/`, then the maximum marks. Up to 2 decimal places each.         | `m/28/40`            |
@@ -204,9 +205,10 @@ Amount owed: $120.00 (2 lessons)
 
 #### Listing and finding students: `list`
 
-Lists active students, or only the active students whose name contains what you type.
+Lists active students, or only the active students whose name contains what you type. You can also sort
+the list to see who needs your attention first.
 
-Format: `list [NAME] [status/STATUS]`
+Format: `list [NAME] [status/STATUS] [sort/SORT]`
 
 * With no `NAME`, students in the selected status are listed in ID order.
 * `STATUS` is `active` (the default), `archived` or `all`, ignoring case. Place the optional status
@@ -214,11 +216,20 @@ Format: `list [NAME] [status/STATUS]`
 * With a `NAME`, a student is listed if that text appears anywhere in their name. Case is ignored, so `list wei`
   finds both Tan Wei Ming and Tan Wei Ling.
 * The text may contain spaces. `list tan wei` matches names that contain "tan wei".
+* `sort/owed` lists the students who owe the most first, and shows each student's balance. It counts the
+  same lessons as [`owed`](#showing-what-each-student-owes-owed): unpaid, not cancelled, and dated today
+  or earlier. Students who owe nothing come last, showing `owes $0.00`.
+* `sort/last` lists the students whose last lesson was longest ago first, and shows that date. Cancelled
+  lessons and lessons after today do not count. Students with no past lessons come first.
+* Students with the same balance or date stay in ID order. Place `status/` and `sort/` after the name query,
+  in either order: `list tan status/all sort/owed`.
 
 Examples:
 
 * `list`
 * `list wei`
+* `list sort/owed`
+* `list sort/last`
 
 Example output:
 
@@ -227,6 +238,21 @@ Example output:
 2 students match "wei":
   S2  Tan Wei Ming (Sec 4)  A Math, Pure Chemistry
   S3  Tan Wei Ling (Sec 2)  Math, Science
+```
+
+Example output (today is Wed 14-10-2026):
+
+```
+> list sort/owed
+3 students, most owed first:
+  S1  Amirah Binte Rahman (Sec 3)  A Math  owes $120.00
+  S2  Tan Wei Ming (Sec 4)  Chemistry  owes $0.00
+  S3  Daniel Lim (Sec 2)  Math  owes $0.00
+> list sort/last
+3 students, longest since last lesson first:
+  S3  Daniel Lim (Sec 2)  Math  no past lessons
+  S2  Tan Wei Ming (Sec 4)  Chemistry  last lesson Mon 28-09-2026
+  S1  Amirah Binte Rahman (Sec 3)  A Math  last lesson Mon 12-10-2026
 ```
 
 #### Editing a student: `edit`
@@ -1293,7 +1319,7 @@ STUDENTS
       subject S1 s/E Math s/A Math
   view STUDENT_ID
       view S1
-  list [NAME] [status/STATUS]
+  list [NAME] [status/STATUS] [sort/SORT]
       list wei
   archive STUDENT_ID
       archive S5
@@ -1395,6 +1421,7 @@ STUDENT DELETION
 
 STUDENT STATUS
   list shows active students. Use status/active, status/archived or status/all.
+  Add sort/owed (most owed first) or sort/last (longest since last lesson first).
   Archiving keeps history and existing lessons. Restore before scheduling new lessons.
 
 SHORTCUTS (type the short form instead of the command word)
@@ -1482,6 +1509,7 @@ as absent; if you also do not want to charge for it, delete the lesson with `del
 | **View student**        | `view STUDENT_ID`<br>e.g. `view S1`                                                                                      |
 | **List / find students**| `list [NAME]`<br>e.g. `list wei`                                                                                         |
 | **List archived / all** | `list [NAME] status/archived` or `list [NAME] status/all` |
+| **Sort students**       | `list [NAME] sort/owed` or `list [NAME] sort/last`<br>e.g. `list sort/owed` |
 | **Archive / restore** | `archive STUDENT_ID` / `restore STUDENT_ID`<br>e.g. `archive S1`, then `restore S1` |
 | **Edit student**        | `edit STUDENT_ID [n/NAME] [l/LEVEL] [p/PHONE_NUMBER] [s/SUBJECT]… [r/RATE]`<br>e.g. `edit S1 l/Sec 4`                            |
 | **Set / clear hourly rate** | `edit STUDENT_ID r/RATE` or `edit STUDENT_ID r/`<br>e.g. `edit S1 r/60` |

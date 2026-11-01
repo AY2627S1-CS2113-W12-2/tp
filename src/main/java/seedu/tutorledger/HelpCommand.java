@@ -22,7 +22,7 @@ public final class HelpCommand {
                     new Entry("subject STUDENT_ID s/SUBJECT [s/SUBJECT]...",
                             "subject S1 s/E Math s/A Math"),
                     new Entry("view STUDENT_ID", "view S1"),
-                    new Entry("list [NAME] [status/STATUS]", "list wei"),
+                    new Entry("list [NAME] [status/STATUS] [sort/SORT]", "list wei"),
                     new Entry("archive STUDENT_ID", "archive S5"),
                     new Entry("restore STUDENT_ID", "restore S5"),
                     new Entry("edit STUDENT_ID [n/NAME] [l/LEVEL] [p/PHONE_NUMBER] [s/SUBJECT]... [r/RATE]",
@@ -128,6 +128,8 @@ public final class HelpCommand {
                 .append("STUDENT STATUS")
                 .append(System.lineSeparator()).append(FORMAT_INDENT)
                 .append("list shows active students. Use status/active, status/archived or status/all.")
+                .append(System.lineSeparator()).append(FORMAT_INDENT)
+                .append("Add sort/owed (most owed first) or sort/last (longest since last lesson first).")
                 .append(System.lineSeparator()).append(FORMAT_INDENT)
                 .append("Archiving keeps history and existing lessons. Restore before scheduling new lessons.");
         text.append(System.lineSeparator()).append(System.lineSeparator())
