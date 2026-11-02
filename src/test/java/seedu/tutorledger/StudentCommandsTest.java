@@ -207,6 +207,28 @@ class StudentCommandsTest {
         assertTrue(commands.execute("add n/Ravi s/x Kumar l/Sec 1 p/91234567").contains("Subjects: x Kumar"));
     }
 
+    /** Before s/o could be part of a name, a subject could follow n/ directly; that must keep working. */
+    @Test
+    void addAndEdit_subjectStartingWithCapitalOAfterName_staysASubject() {
+        String added = commands.execute("add n/Ravi s/O Level Math l/Sec 4 p/91234567");
+
+        assertTrue(added.startsWith("Added S1: Ravi (Sec 4), 91234567"), added);
+        assertEquals(List.of("O Level Math"), data.getStudent("S1").getSubjects());
+
+        String edited = commands.execute("edit S1 n/Ravi Kumar S/O Level Physics");
+        assertTrue(edited.contains("Edited S1: Ravi Kumar (Sec 4)"), edited);
+        assertEquals(List.of("O Level Physics"), data.getStudent("S1").getSubjects());
+    }
+
+    @Test
+    void add_nameInCapitalsWithSonOf_keepsTheWholeName() {
+        String added = commands.execute("add n/RAVI S/O KUMAR l/Sec 1 p/91234567 s/Math");
+
+        assertTrue(added.startsWith("Added S1: RAVI S/O KUMAR (Sec 1)"), added);
+        assertEquals(List.of("Math"), data.getStudent("S1").getSubjects());
+        assertTrue(commands.execute("list RAVI S/O").contains("S1  RAVI S/O KUMAR"));
+    }
+
     @Test
     void storage_namesWithSonOfOrDaughterOf_roundTrip() {
         commands.execute("add n/Ravi s/o Kumar l/Sec 1 p/91234567");
@@ -217,4 +239,3 @@ class StudentCommandsTest {
         assertEquals("Ravi s/o Kumar", reloaded.data().getStudent("S1").getName());
     }
 }
-

@@ -7,12 +7,23 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.regex.Pattern;
 
 /**
  * Represents a student profile.
  */
 public class Student {
     private static final Logger LOGGER = Logger.getLogger(Student.class.getName());
+
+    /**
+     * The words "s/o" (son of) and "d/o" (daughter of), in any case, which may join two words of a name,
+     * as in "Ravi s/o Kumar". They are common in Singapore names but look like the prefixes s/ and d/.
+     */
+    private static final Pattern NAME_CONNECTOR = Pattern.compile("(?i)[sd]/o");
+
+    /** Words joined by a space, hyphen or apostrophe, or by a {@link #NAME_CONNECTOR} between spaces. */
+    private static final Pattern NAME = Pattern.compile(
+            "\\p{L}+(?:(?:[ '\\-]| " + NAME_CONNECTOR.pattern() + " )\\p{L}+)*");
 
     private final String studentId;
     private final String name;
@@ -213,11 +224,24 @@ public class Student {
         return value;
     }
 
+    /**
+     * Returns whether a name connector ("s/o" or "d/o") starts at the given index, followed by whitespace
+     * or the end of the text. Command parsing uses this to keep the word inside a name.
+     *
+     * @param text The text being parsed.
+     * @param index Where the word would start.
+     */
+    static boolean isNameConnectorAt(String text, int index) {
+        assert index >= 0 && index <= text.length() : "Index outside the text: " + index;
+        int end = index + 3;
+        return NAME_CONNECTOR.matcher(text).region(index, Math.min(end, text.length())).matches()
+                && (end == text.length() || Character.isWhitespace(text.charAt(end)));
+    }
+
     private static String validateName(String name) {
         LOGGER.log(Level.FINE, "Validating name: {0}", name);
         requireNonNull(name, "Name");
-        // Words are joined by a space, hyphen or apostrophe, or by " s/o " or " d/o " (son of, daughter of).
-        if (!name.matches("\\p{L}+(?:(?:[ '\\-]|(?i: [sd]/o ))\\p{L}+)*")) {
+        if (!NAME.matcher(name).matches()) {
             throw new IllegalArgumentException("Name must contain only letters, spaces, hyphens, or apostrophes."
                     + " It may also contain s/o or d/o between words, as in Ravi s/o Kumar.");
         }

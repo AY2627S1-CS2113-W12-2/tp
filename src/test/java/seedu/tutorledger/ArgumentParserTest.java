@@ -94,27 +94,58 @@ class ArgumentParserTest {
     @Test
     void parseFields_sonOfOrDaughterOfInsideName_keptInTheName() {
         List<String> allowed = List.of("n", "l", "p", "s", "r");
+        Set<String> names = Set.of("n");
 
-        ArgumentParser.Fields son = ArgumentParser.parseFields("n/Ravi s/o Kumar l/Sec 1 s/Math", allowed);
-        ArgumentParser.Fields daughter = ArgumentParser.parseFields("n/Priya D/O Raman p/91234567", allowed);
+        ArgumentParser.Fields son = ArgumentParser.parseFields("n/Ravi s/o Kumar l/Sec 1 s/Math", allowed,
+                Set.of(), names);
+        ArgumentParser.Fields daughter = ArgumentParser.parseFields("n/Priya D/O Raman p/91234567", allowed,
+                Set.of(), names);
+        ArgumentParser.Fields capitals = ArgumentParser.parseFields("n/RAVI S/O KUMAR s/Math", allowed,
+                Set.of(), names);
+        ArgumentParser.Fields mixed = ArgumentParser.parseFields("n/Ravi S/o Kumar", allowed, Set.of(), names);
 
         assertEquals("Ravi s/o Kumar", son.single("n", true));
         assertEquals(List.of("Math"), son.values("s"));
+        // The command has no d/ prefix, so d/o is part of the name in any case.
         assertEquals("Priya D/O Raman", daughter.single("n", true));
         assertFalse(daughter.has("d"));
+        assertEquals("RAVI S/O KUMAR", capitals.single("n", true));
+        assertEquals(List.of("Math"), capitals.values("s"));
+        assertEquals("Ravi S/o Kumar", mixed.single("n", true));
+    }
+
+    /** A subject such as "O Level Math" right after a name must still be a subject, as before s/o was kept. */
+    @Test
+    void parseFields_capitalOAfterMixedCaseName_stillStartsASubject() {
+        List<String> allowed = List.of("n", "s");
+        Set<String> names = Set.of("n");
+
+        ArgumentParser.Fields lower = ArgumentParser.parseFields("n/Ravi s/O Level Math", allowed, Set.of(), names);
+        ArgumentParser.Fields upper = ArgumentParser.parseFields("n/Ravi S/O Level Math s/Physics", allowed,
+                Set.of(), names);
+
+        assertEquals("Ravi", lower.single("n", true));
+        assertEquals("O Level Math", lower.single("s", true));
+        assertEquals("Ravi", upper.single("n", true));
+        assertEquals(List.of("O Level Math", "Physics"), upper.values("s"));
     }
 
     @Test
     void parseFields_sonOfOutsideName_stillStartsASubject() {
         List<String> allowed = List.of("n", "s");
 
-        // Only a name keeps s/o; elsewhere s/ is the subject prefix, even for a subject starting with "O".
-        ArgumentParser.Fields fields = ArgumentParser.parseFields("s/O Level Math n/Ravi", allowed);
-        ArgumentParser.Fields joined = ArgumentParser.parseFields("n/Ravi s/oral English", allowed);
+        ArgumentParser.Fields before = ArgumentParser.parseFields("s/O Level Math n/Ravi", allowed, Set.of(),
+                Set.of("n"));
+        ArgumentParser.Fields joined = ArgumentParser.parseFields("n/Ravi s/oral English", allowed, Set.of(),
+                Set.of("n"));
+        // n/ is only a name when the command says so; the parser does not assume it.
+        ArgumentParser.Fields notName = ArgumentParser.parseFields("n/Ravi s/o Kumar", allowed);
 
-        assertEquals("O Level Math", fields.single("s", true));
-        assertEquals("Ravi", fields.single("n", true));
+        assertEquals("O Level Math", before.single("s", true));
+        assertEquals("Ravi", before.single("n", true));
         assertEquals("Ravi", joined.single("n", true));
         assertEquals("oral English", joined.single("s", true));
+        assertEquals("Ravi", notName.single("n", true));
+        assertEquals("o Kumar", notName.single("s", true));
     }
 }
