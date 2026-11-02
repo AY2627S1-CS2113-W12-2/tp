@@ -93,6 +93,13 @@ User-input checks use ordinary conditionals and exceptions, so they remain activ
 are disabled. Assertions check internal assumptions, such as preserving record identities and advancing
 ID counters after successful insertion.
 
+`RecordIds` validates numeric suffixes before a store collection is changed. Records and map keys keep
+string IDs; supported record numbers are 1 through 2147483646. Validation calculates the successor
+before insertion, so a rejected import leaves both the collection and its counter unchanged. All five
+record types use the same rule. Counters can reach 2147483647 as an exhausted value; creation checks
+capacity first, and a weekly schedule reserves capacity for its whole batch before inserting anything.
+This prevents both integer overflow and partially applied imports or schedules.
+
 Records are immutable: edits create validated copies, and the store replaces the original only after
 the relevant checks pass. The automatic-save flow described above then persists the changed store.
 The implementation sections below explain checks and persistence rules specific to each feature.
@@ -132,6 +139,8 @@ T | T1 | pending | 16-10-2026 | S1 | Bring Worksheet 4B
 
 * The `NEXT` line saves the ID counters. Without it, deleting the newest student and restarting would
   hand the deleted student's ID to the next new student, breaking the rule that IDs are never reused.
+  Positive counter values through 2147483647 are supported, including ten-digit values. A malformed
+  `NEXT` line is rejected as a whole; optional score/task counters in older files remain supported.
 * A `|` or `\` inside a value is escaped as `\|` or `\\`, so notes and subjects can contain any text.
 * Values are written in the same format the user types them (e.g. `DD-MM-YYYY`), so a hand-edited file
   uses the rules users already know.
@@ -1231,6 +1240,14 @@ Use an empty working directory and run the packaged application with Java 25 and
    the labels and amounts remain. Uncancel the lesson: it reappears in the partial/unpaid filters.
 
 ### Saving and loading data
+
+To check ID rejection, use a separate test folder with an existing `data/tutorledger.txt` containing
+`S | S1 | Bob Tan | Pri6 | 98765432` and `S | S2147483648 | Alice Tan | Pri5 | 91234567` on separate lines.
+Start the application: only Bob loads, and Alice's row is reported with a supported-range error.
+`list` must work, `view S2147483648` must report an unknown student, and `save` must omit Alice's row.
+Restart: there is no skipped-row warning. For counter exhaustion, set a test file's student `NEXT`
+counter to `S2147483647`: existing students remain readable, while `add` reports that no more S IDs
+are available and leaves the file unchanged. The same range/capacity checks apply to L, H, A and T.
 
 1. Automatic save and restart
    1. Start TutorLedger in an empty folder. Expected: a small set of synthetic sample records is loaded and

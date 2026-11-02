@@ -81,6 +81,11 @@ wherever the item is listed. Commands use the ID to say which item you mean.
 
 An ID is never reused, even after its item is deleted.
 
+IDs remain text such as `S123`. Their numeric part must be between 1 and 2147483646; larger IDs in a
+hand-edited data file are reported and skipped completely. The saved `NEXT` counters can reach
+2147483647, which means that no further IDs of that type are available. Creation is then rejected
+without changing records; a weekly schedule is rejected as a whole if there are too few IDs left.
+
 **Values.**
 
 | Value            | Prefix  | Accepted input                                                                  | Example              |

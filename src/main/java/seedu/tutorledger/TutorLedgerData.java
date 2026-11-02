@@ -45,6 +45,7 @@ public class TutorLedgerData {
     public Student addStudent(String name, String level, String phoneNumber, List<String> subjects, String hourlyRate) {
         LOGGER.log(Level.INFO, "Adding student: name={0}, level={1}, phone={2}",
                 new Object[]{name, level, phoneNumber});
+        RecordIds.requireCapacity(nextStudentNumber, 1, "S");
         Student candidate = new Student("S" + nextStudentNumber, name, level, phoneNumber, subjects, hourlyRate);
         ensureUnique(candidate, null);
         students.put(candidate.getStudentId(), candidate);
@@ -85,11 +86,12 @@ public class TutorLedgerData {
     /** Imports a student for storage reload while advancing the ID counter. */
     public void importStudent(Student student) {
         LOGGER.log(Level.INFO, "Importing student: {0}", student.getStudentId());
+        int nextNumber = Math.max(nextStudentNumber, RecordIds.nextAfter(student.getStudentId(), "S"));
         ensureUnique(student, null);
         if (students.putIfAbsent(student.getStudentId(), student) != null) {
             throw new IllegalArgumentException("Duplicate student ID " + student.getStudentId() + ".");
         }
-        nextStudentNumber = Math.max(nextStudentNumber, Integer.parseInt(student.getStudentId().substring(1)) + 1);
+        nextStudentNumber = nextNumber;
     }
 
     public int getNextStudentNumber() {
@@ -126,11 +128,9 @@ public class TutorLedgerData {
         LOGGER.log(Level.INFO, "Putting lesson {0} into store", lesson.getLessonId());
         getStudent(lesson.getStudentId());
         String key = lesson.getLessonId().toUpperCase(Locale.ROOT);
+        int nextNumber = Math.max(nextLessonNumber, RecordIds.nextAfter(key, "L"));
         lessons.put(key, lesson);
-        // Keep the counter ahead of any L<number> ID added directly, so addLesson never reuses it.
-        if (key.matches("L[1-9]\\d*")) {
-            nextLessonNumber = Math.max(nextLessonNumber, Integer.parseInt(key.substring(1)) + 1);
-        }
+        nextLessonNumber = nextNumber;
         LOGGER.log(Level.INFO, "Lesson stored: {0}", key);
     }
 
@@ -186,6 +186,7 @@ public class TutorLedgerData {
         Student student = getStudent(studentId);
         fee = resolveLessonFee(student, fee, durationMinutes);
         int lessonNumber = nextLessonNumber;
+        RecordIds.requireCapacity(lessonNumber, 1, "L");
         Lesson lesson = new Lesson("L" + lessonNumber, student.getStudentId(), subject, date, time,
                 attendance, fee, notes, durationMinutes);
         ensureSlotFree(lesson);
@@ -227,6 +228,7 @@ public class TutorLedgerData {
         fee = resolveLessonFee(student, fee, durationMinutes);
         LocalDate start = Lesson.parseDate(firstDate);
         int firstNumber = nextLessonNumber;
+        RecordIds.requireCapacity(firstNumber, weekCount, "L");
         List<Lesson> planned = new ArrayList<>();
         for (int week = 0; week < weekCount; week++) {
             Lesson lesson = new Lesson("L" + (firstNumber + week), student.getStudentId(), subject,
@@ -377,11 +379,9 @@ public class TutorLedgerData {
         LOGGER.log(Level.INFO, "Putting homework {0} into store", item.getHomeworkId());
         getStudent(item.getStudentId());
         String key = item.getHomeworkId().toUpperCase(Locale.ROOT);
+        int nextNumber = Math.max(nextHomeworkNumber, RecordIds.nextAfter(key, "H"));
         homework.put(key, item);
-        // Keep the counter ahead of any H<number> ID added directly, so addHomework never reuses it.
-        if (key.matches("H[1-9]\\d*")) {
-            nextHomeworkNumber = Math.max(nextHomeworkNumber, Integer.parseInt(key.substring(1)) + 1);
-        }
+        nextHomeworkNumber = nextNumber;
         LOGGER.log(Level.INFO, "Homework stored: {0}", key);
     }
 
@@ -397,6 +397,7 @@ public class TutorLedgerData {
         LOGGER.log(Level.INFO, "Assigning homework to student {0}: description={1}, dueDate={2}",
                 new Object[]{studentId, description, dueDate});
         Student student = getStudent(studentId);
+        RecordIds.requireCapacity(nextHomeworkNumber, 1, "H");
         Homework item = new Homework("H" + nextHomeworkNumber, student.getStudentId(), description, dueDate,
                 Homework.STATUS_OUTSTANDING);
         int numberBefore = nextHomeworkNumber;
@@ -501,6 +502,7 @@ public class TutorLedgerData {
     public Score addScore(String studentId, String testName, String marks, String totalMarks, String date) {
         LOGGER.log(Level.INFO, "Recording score for student {0}: {1}", new Object[]{studentId, testName});
         Student student = getStudent(studentId);
+        RecordIds.requireCapacity(nextScoreNumber, 1, "A");
         Score score = new Score("A" + nextScoreNumber, student.getStudentId(), testName, marks, totalMarks, date);
         int numberBefore = nextScoreNumber;
         putScore(score);
@@ -528,10 +530,9 @@ public class TutorLedgerData {
     private void putScore(Score score) {
         getStudent(score.getStudentId());
         String key = score.getScoreId().toUpperCase(Locale.ROOT);
+        int nextNumber = Math.max(nextScoreNumber, RecordIds.nextAfter(key, "A"));
         scores.put(key, score);
-        if (key.matches("A[1-9]\\d*")) {
-            nextScoreNumber = Math.max(nextScoreNumber, Integer.parseInt(key.substring(1)) + 1);
-        }
+        nextScoreNumber = nextNumber;
     }
 
     public int getNextScoreNumber() {
@@ -565,6 +566,7 @@ public class TutorLedgerData {
         LOGGER.log(Level.INFO, "Adding follow-up task for student {0}: {1}", new Object[]{studentId, description});
         // Looking the student up both checks they exist and gives their ID in its usual upper-case form.
         String linkedId = studentId == null ? null : getStudent(studentId).getStudentId();
+        RecordIds.requireCapacity(nextTaskNumber, 1, "T");
         FollowUpTask task = new FollowUpTask("T" + nextTaskNumber, description, linkedId, dueDate,
                 FollowUpTask.STATUS_PENDING);
         int numberBefore = nextTaskNumber;
@@ -612,10 +614,9 @@ public class TutorLedgerData {
     private void putTask(FollowUpTask task) {
         task.getStudentId().ifPresent(this::getStudent);
         String key = task.getTaskId().toUpperCase(Locale.ROOT);
+        int nextNumber = Math.max(nextTaskNumber, RecordIds.nextAfter(key, "T"));
         tasks.put(key, task);
-        if (key.matches("T[1-9]\\d*")) {
-            nextTaskNumber = Math.max(nextTaskNumber, Integer.parseInt(key.substring(1)) + 1);
-        }
+        nextTaskNumber = nextNumber;
     }
 
     public int getNextTaskNumber() {

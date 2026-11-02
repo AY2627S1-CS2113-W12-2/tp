@@ -286,10 +286,10 @@ public class Storage {
         int[] numbers = new int[prefixes.length];
         for (int i = 0; i < fields.size() - 1; i++) {
             String id = fields.get(i + 1);
-            if (!id.matches("(?i)" + prefixes[i] + "[1-9]\\d{0,8}")) {
+            if (!id.matches("(?i)" + prefixes[i] + "[1-9]\\d*")) {
                 throw new IllegalArgumentException(usage);
             }
-            numbers[i] = Integer.parseInt(id.substring(1));
+            numbers[i] = RecordIds.parseCounter(id, prefixes[i]);
         }
         return numbers;
     }
