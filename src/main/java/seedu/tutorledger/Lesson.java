@@ -61,7 +61,7 @@ public class Lesson {
      */
     public Lesson(String lessonId, String subject, String date, String time, String attendance,
             String fee, String notes) {
-        LOGGER.log(Level.INFO, "Creating lesson {0} for subject {1}", new Object[]{lessonId, subject});
+        LOGGER.log(Level.FINE, "Creating lesson {0} for subject {1}", new Object[]{lessonId, subject});
         this.lessonId = requireText(lessonId, "Lesson ID");
         this.studentId = null;
         this.subject = requireText(subject, "Subject");
@@ -74,7 +74,7 @@ public class Lesson {
         this.paymentStatus = paymentStatusFor(amountPaid, this.fee);
         this.durationMinutes = DEFAULT_DURATION_MINUTES;
         this.cancellationReason = "";
-        LOGGER.log(Level.INFO, "Lesson created: {0}", this.lessonId);
+        LOGGER.log(Level.FINE, "Lesson created: {0}", this.lessonId);
     }
 
     /** Creates a lesson linked to a student for student views and deletion. */
@@ -86,7 +86,7 @@ public class Lesson {
     /** Creates a linked lesson with a validated billing duration and an already chosen total fee. */
     public Lesson(String lessonId, String studentId, String subject, String date, String time, String attendance,
             String fee, String notes, int durationMinutes) {
-        LOGGER.log(Level.INFO, "Creating lesson {0} for student {1}", new Object[]{lessonId, studentId});
+        LOGGER.log(Level.FINE, "Creating lesson {0} for student {1}", new Object[]{lessonId, studentId});
         this.lessonId = requireText(lessonId, "Lesson ID");
         this.studentId = studentId;
         this.subject = requireText(subject, "Subject");
@@ -99,14 +99,14 @@ public class Lesson {
         this.paymentStatus = paymentStatusFor(amountPaid, this.fee);
         this.durationMinutes = validateDuration(durationMinutes);
         this.cancellationReason = "";
-        LOGGER.log(Level.INFO, "Lesson created: {0}", this.lessonId);
+        LOGGER.log(Level.FINE, "Lesson created: {0}", this.lessonId);
     }
 
     /** Creates a lesson from values that have already been validated and converted. */
     private Lesson(String lessonId, String studentId, String subject, LocalDate date, LocalTime time,
             Attendance attendance, BigDecimal fee, String notes, String paymentStatus,
             String cancellationReason, int durationMinutes, BigDecimal amountPaid) {
-        LOGGER.log(Level.INFO, "Creating validated lesson {0}", lessonId);
+        LOGGER.log(Level.FINE, "Creating validated lesson {0}", lessonId);
         // This constructor skips validation, so check that its caller really did validate everything.
         assert lessonId != null && !lessonId.isBlank() : "Lesson ID should already be validated";
         assert subject != null && !subject.isBlank() : "Subject should already be validated";
@@ -131,7 +131,7 @@ public class Lesson {
         this.paymentStatus = paymentStatusFor(this.amountPaid, fee);
         this.durationMinutes = durationMinutes;
         this.cancellationReason = cancellationReason;
-        LOGGER.log(Level.INFO, "Validated lesson created: {0}", lessonId);
+        LOGGER.log(Level.FINE, "Validated lesson created: {0}", lessonId);
     }
 
     public String getLessonId() {
@@ -249,7 +249,7 @@ public class Lesson {
      */
     public Lesson withDetails(String newSubject, String newDate, String newTime, String newAttendance,
             String newFee, String newNotes) {
-        LOGGER.log(Level.INFO, "Updating lesson {0} details: subject={1}, date={2}, time={3}",
+        LOGGER.log(Level.FINE, "Updating lesson {0} details: subject={1}, date={2}, time={3}",
                 new Object[]{lessonId, newSubject, newDate, newTime});
         BigDecimal updatedFee = newFee == null ? fee : parseFee(newFee);
         if (updatedFee.compareTo(amountPaid) < 0) {
@@ -271,17 +271,17 @@ public class Lesson {
         assert updatedFee.compareTo(fee) != 0 || updated.paymentStatus.equals(paymentStatus)
                 : "withDetails changed the payment status without changing the fee";
         assert updated.cancellationReason.equals(cancellationReason) : "withDetails changed the cancellation";
-        LOGGER.log(Level.INFO, "Lesson {0} details updated", lessonId);
+        LOGGER.log(Level.FINE, "Lesson {0} details updated", lessonId);
         return updated;
     }
 
     /** Returns a copy with the supplied paid/unpaid status; a zero-fee lesson always remains paid. */
     public Lesson withPaymentStatus(String status) {
-        LOGGER.log(Level.INFO, "Changing payment status for lesson {0} to {1}", new Object[]{lessonId, status});
+        LOGGER.log(Level.FINE, "Changing payment status for lesson {0} to {1}", new Object[]{lessonId, status});
         String validatedStatus = validatePaymentStatus(status);
         BigDecimal updatedAmount = PAYMENT_PAID.equals(validatedStatus) ? fee : BigDecimal.ZERO;
         Lesson updated = withAmountPaid(updatedAmount);
-        LOGGER.log(Level.INFO, "Lesson {0} payment status changed to {1}",
+        LOGGER.log(Level.FINE, "Lesson {0} payment status changed to {1}",
                 new Object[]{lessonId, updated.paymentStatus});
         return updated;
     }
@@ -301,7 +301,7 @@ public class Lesson {
      * @throws IllegalArgumentException If the reason is blank.
      */
     public Lesson withCancellation(String reason) {
-        LOGGER.log(Level.INFO, "Cancelling lesson {0}: {1}", new Object[]{lessonId, reason});
+        LOGGER.log(Level.FINE, "Cancelling lesson {0}: {1}", new Object[]{lessonId, reason});
         Lesson cancelled = new Lesson(lessonId, studentId, subject, date, time, attendance, fee, notes,
                 paymentStatus, requireText(reason, "Reason").strip(), durationMinutes, amountPaid);
         assert cancelled.isCancelled() : "A lesson given a non-blank reason should count as cancelled";
@@ -315,7 +315,7 @@ public class Lesson {
      * @return The copy, which takes up its slot again and is charged as usual.
      */
     public Lesson withoutCancellation() {
-        LOGGER.log(Level.INFO, "Removing cancellation from lesson {0}", lessonId);
+        LOGGER.log(Level.FINE, "Removing cancellation from lesson {0}", lessonId);
         Lesson restored = new Lesson(lessonId, studentId, subject, date, time, attendance, fee, notes,
                 paymentStatus, "", durationMinutes, amountPaid);
         assert !restored.isCancelled() : "A lesson with an empty reason should not count as cancelled";

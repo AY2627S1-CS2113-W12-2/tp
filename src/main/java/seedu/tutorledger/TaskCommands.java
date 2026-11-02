@@ -123,7 +123,7 @@ public class TaskCommands {
 
         FollowUpTask task = data.addTask(studentId, text, dueDate);
         assert !task.isDone() : "A newly logged task should be pending";
-        LOGGER.log(Level.INFO, "Logged follow-up task {0}", task.getTaskId());
+        LOGGER.log(Level.FINE, "Logged follow-up task {0}", task.getTaskId());
 
         StringBuilder output = new StringBuilder("Added " + task.getTaskId() + ": " + task.getDescription());
         List<String> details = new ArrayList<>();
@@ -196,7 +196,7 @@ public class TaskCommands {
         // Tasks are immutable, so store a done copy under the same ID.
         data.replaceTask(task.asDone());
         assert data.getTask(task.getTaskId()).isDone() : "Stored task should now be done";
-        LOGGER.log(Level.INFO, "Marked task {0} as done", task.getTaskId());
+        LOGGER.log(Level.FINE, "Marked task {0} as done", task.getTaskId());
         return "Marked " + task.getTaskId() + " as done: " + task.getDescription();
     }
 

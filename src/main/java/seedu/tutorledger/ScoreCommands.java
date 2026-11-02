@@ -120,7 +120,7 @@ public class ScoreCommands {
 
         Score score = data.addScore(studentId, testName, marks.group(1), marks.group(2), date);
         Student student = data.getStudent(score.getStudentId());
-        LOGGER.log(Level.INFO, "Recorded score {0} for {1}", new Object[]{score.getScoreId(), student.getStudentId()});
+        LOGGER.log(Level.FINE, "Recorded score {0} for {1}", new Object[]{score.getScoreId(), student.getStudentId()});
 
         StringBuilder output = new StringBuilder("Recorded " + score.getScoreId() + " for " + label(student));
         output.append(System.lineSeparator()).append("  ").append(score.getTestName()).append(": ")
