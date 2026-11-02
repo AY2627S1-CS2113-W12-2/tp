@@ -21,10 +21,6 @@ public class Student {
      */
     private static final Pattern NAME_CONNECTOR = Pattern.compile("(?i)[sd]/o");
 
-    /** Words joined by a space, hyphen or apostrophe, or by a {@link #NAME_CONNECTOR} between spaces. */
-    private static final Pattern NAME = Pattern.compile(
-            "\\p{L}+(?:(?:[ '\\-]| " + NAME_CONNECTOR.pattern() + " )\\p{L}+)*");
-
     private final String studentId;
     private final String name;
     private final String level;
@@ -241,11 +237,51 @@ public class Student {
     private static String validateName(String name) {
         LOGGER.log(Level.FINE, "Validating name: {0}", name);
         requireNonNull(name, "Name");
-        if (!NAME.matcher(name).matches()) {
+        // Check the grammar iteratively. A backtracking regex here can overflow the stack for a very long name.
+        if (!isValidName(name)) {
             throw new IllegalArgumentException("Name must contain only letters, spaces, hyphens, or apostrophes."
                     + " It may also contain s/o or d/o between words, as in Ravi s/o Kumar.");
         }
         return name;
+    }
+
+    /** Returns whether a name contains letter words joined by the supported separators. */
+    private static boolean isValidName(String name) {
+        int index = 0;
+        while (index < name.length()) {
+            int codePoint = name.codePointAt(index);
+            if (!Character.isLetter(codePoint)) {
+                return false;
+            }
+            index += Character.charCount(codePoint);
+
+            while (index < name.length()) {
+                codePoint = name.codePointAt(index);
+                if (!Character.isLetter(codePoint)) {
+                    break;
+                }
+                index += Character.charCount(codePoint);
+            }
+            if (index == name.length()) {
+                return true;
+            }
+
+            // " s/o " or " d/o " joins two words; the connector itself is defined once, in NAME_CONNECTOR.
+            if (name.charAt(index) == ' ' && isNameConnectorAt(name, index + 1)
+                    && index + 4 < name.length() && name.charAt(index + 4) == ' ') {
+                index += 5;
+            } else if (name.charAt(index) == ' ' || name.charAt(index) == '-'
+                    || name.charAt(index) == '\'') {
+                index++;
+            } else {
+                return false;
+            }
+
+            if (index == name.length() || !Character.isLetter(name.codePointAt(index))) {
+                return false;
+            }
+        }
+        return false;
     }
 
     /** Validates the supported year ranges and normalises case and the optional single space. */

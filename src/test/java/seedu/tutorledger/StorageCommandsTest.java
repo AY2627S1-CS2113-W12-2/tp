@@ -11,6 +11,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -195,6 +196,32 @@ class StorageCommandsTest {
         assertTrue(startup.endsWith("Starting with no data."), startup);
         // Neither message replaces the records already in memory with an empty set.
         assertEquals(1, data.getStudents().size());
+    }
+
+    @Test
+    void startupReadFailure_doesNotAutomaticallyOverwriteTheUnreadableFile() throws IOException {
+        AtomicInteger saveAttempts = new AtomicInteger();
+        Storage unreadableStorage = new Storage(dataFile.toString()) {
+            @Override
+            public LoadResult load() throws IOException {
+                throw new IOException("file is locked");
+            }
+
+            @Override
+            public void save(TutorLedgerData records) {
+                saveAttempts.incrementAndGet();
+            }
+        };
+        StorageCommands unreadableCommands = new StorageCommands(data, unreadableStorage);
+
+        unreadableCommands.loadOnStartup();
+        String before = unreadableCommands.snapshot();
+        data.addStudent("New Person", "Sec 2", "87654321");
+
+        String warning = unreadableCommands.saveIfChanged(before);
+
+        assertEquals(0, saveAttempts.get());
+        assertTrue(warning.contains("automatic saving is disabled"), warning);
     }
 
     @Test
