@@ -35,7 +35,7 @@ public class TutorLedger {
      * Any command that changes data is saved straight away, so nothing needs saving on exit.
      */
     public static void main(String[] args) {
-        run(new Storage(Storage.DEFAULT_FILE_PATH));
+        run(new Storage(Storage.DEFAULT_FILE_PATH), true);
     }
 
     /**
@@ -46,6 +46,11 @@ public class TutorLedger {
      * @param storage The data file to load at start-up and save to after each change.
      */
     static void run(Storage storage) {
+        run(storage, false);
+    }
+
+    /** Runs the command loop, optionally creating first-launch sample records when storage is absent. */
+    private static void run(Storage storage, boolean seedSampleData) {
         assert storage != null : "The command loop needs a data file to load and save";
         configureLogging(Logger.getLogger(""));
         TutorLedgerData data = new TutorLedgerData();
@@ -58,7 +63,7 @@ public class TutorLedger {
         ScoreCommands scoreCommands = new ScoreCommands(data, clock);
         TaskCommands taskCommands = new TaskCommands(data, clock);
         LessonFilterCommand filterCommand = new LessonFilterCommand(data);
-        StorageCommands storageCommands = new StorageCommands(data, storage);
+        StorageCommands storageCommands = new StorageCommands(data, storage, seedSampleData, clock);
         CommandHistory history = new CommandHistory();
         System.out.println("TutorLedger student book. Type exit to close.");
         System.out.println(storageCommands.loadOnStartup());
