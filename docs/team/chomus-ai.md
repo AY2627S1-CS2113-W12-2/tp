@@ -6,7 +6,7 @@ TutorLedger is a Java command-line application that helps independent tutors man
 lessons, homework and payments in a local data file.
 
 My contributions span the payment workflow, its supporting data model and tests, and project documentation.
-I also worked on command routing, diagnostics, build reliability and first-launch onboarding.
+I also helped the team integrate cross-cutting features, improve build reliability, and onboard new users.
 
 ## Summary of contributions
 
@@ -63,3 +63,27 @@ I also worked on command routing, diagnostics, build reliability and first-launc
 * Expanded the [Developer Guide](../DeveloperGuide.md) with the fee-statement design
   ([PR #83](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/83)), income-summary test instructions
   ([PR #86](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/86)), and project-specific appendices.
+
+### Team contributions
+
+* **Shared foundation:** established the initial `Student`, `Lesson` and `Homework` model and its tests
+  ([PR #59](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/59)), giving the team a common data model to
+  extend with lessons, homework, scores and payment records.
+* **Cross-feature integration:** maintained compatibility between payment state, lesson changes, storage
+  and command routing as teammates added recurring lessons, hourly rates, archiving and follow-up tasks.
+  This included integrating the lesson changes ([PR #90](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/90))
+  and follow-up tasks ([PR #96](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/96)).
+* **Team quality and release support:** added end-to-end command-routing coverage
+  ([PR #108](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/108)), fixed a Checkstyle/build failure
+  ([PR #109](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/109)), and kept the User Guide, Developer
+  Guide and first-launch onboarding documentation aligned with the shared codebase.
+
+### Review and mentoring contributions
+
+* Reviewed and helped integrate teammates' work where it crossed shared payment, storage or command-routing
+  code, including lesson changes, follow-up
+  tasks ([PR #96](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/96)), Developer Guide review fixes
+  ([PR #111](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/111)), and confirmed command history
+  ([PR #118](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/118)).
+* Helped teammates diagnose integration and build problems by tracing command dispatch, payment allocation,
+  persistence and test behavior together, then sharing the fixes through focused tests and documentation.
