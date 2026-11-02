@@ -227,6 +227,62 @@ class StudentCommandsTest {
         assertTrue(commands.execute("list RAVI S/O").contains("S1  RAVI S/O KUMAR"));
     }
 
+    /** Before this was fixed, the subject was swallowed and the student was saved as "RAVI S/O Level Math". */
+    @Test
+    void addAndEdit_capitalOSubjectAfterNameInCapitals_staysASubject() {
+        String added = commands.execute("add n/RAVI S/O Level Math l/Sec 4 p/91234567");
+        String both = commands.execute("add n/PRIYA D/O RAMAN s/O Level Math l/Sec 4 p/81234567");
+
+        assertTrue(added.startsWith("Added S1: RAVI (Sec 4), 91234567"), added);
+        assertEquals(List.of("O Level Math"), data.getStudent("S1").getSubjects());
+        assertTrue(both.startsWith("Added S2: PRIYA D/O RAMAN (Sec 4)"), both);
+        assertEquals(List.of("O Level Math"), data.getStudent("S2").getSubjects());
+
+        String edited = commands.execute("edit S1 n/RAVI S/O KUMAR s/O Level Physics");
+        assertTrue(edited.startsWith("Edited S1: RAVI S/O KUMAR (Sec 4)"), edited);
+        assertEquals(List.of("O Level Physics"), data.getStudent("S1").getSubjects());
+    }
+
+    @Test
+    void addAndEdit_mixedCaseConnectors_followTheDocumentedRule() {
+        String upperS = commands.execute("add n/Ravi S/o Kumar l/Sec 1 p/91234567 s/Math");
+        String upperD = commands.execute("add n/Priya D/o Raman l/Sec 1 p/81234567");
+        String capitalO = commands.execute("add n/Tan s/O Kumar l/Sec 1 p/71234567");
+
+        // A lower-case "o" always marks the word as part of the name.
+        assertTrue(upperS.startsWith("Added S1: Ravi S/o Kumar (Sec 1)"), upperS);
+        assertEquals(List.of("Math"), data.getStudent("S1").getSubjects());
+        // add has no d/ prefix, so d/o in any case is part of the name.
+        assertTrue(upperD.startsWith("Added S2: Priya D/o Raman (Sec 1)"), upperD);
+        // s/O after a mixed-case name is a subject, and the result says so.
+        assertTrue(capitalO.contains("Added S3: Tan (Sec 1)") && capitalO.contains("Subjects: O Kumar"), capitalO);
+        assertTrue(commands.execute("list s/O").contains("S1  Ravi S/o Kumar"));
+    }
+
+    @Test
+    void addAndEdit_nameEndingWithSonOfOrDaughterOf_isRejectedWithoutChanges() {
+        commands.execute("add n/Ravi s/o Kumar l/Sec 1 p/91234567 s/Math");
+        String[] rejected = {
+            "add n/Priya d/o l/Sec 2 p/81234567",
+            "add n/PRIYA D/O l/Sec 2 p/81234567",
+            "add n/Ravi s/o l/Sec 2 p/81234567 s/Math",
+            "add n/RAVI S/O l/Sec 2 p/81234567",
+            "add n/Ravi s/o s/Math l/Sec 2 p/81234567",
+            "edit S1 n/Ravi s/o",
+            "edit S1 n/Priya d/o",
+            "edit S1 n/RAVI S/O",
+            "edit S1 n/Ravi s/o s/Physics",
+        };
+
+        for (String command : rejected) {
+            String result = commands.execute(command);
+            assertTrue(result.startsWith("Error: Name must contain only letters"), command + " -> " + result);
+        }
+        assertEquals(1, data.getStudents().size());
+        assertEquals("Ravi s/o Kumar", data.getStudent("S1").getName());
+        assertEquals(List.of("Math"), data.getStudent("S1").getSubjects());
+    }
+
     @Test
     void storage_namesWithSonOfOrDaughterOf_roundTrip() {
         commands.execute("add n/Ravi s/o Kumar l/Sec 1 p/91234567");

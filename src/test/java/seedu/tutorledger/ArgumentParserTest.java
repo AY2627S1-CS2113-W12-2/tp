@@ -130,6 +130,84 @@ class ArgumentParserTest {
         assertEquals(List.of("O Level Math", "Physics"), upper.values("s"));
     }
 
+    /** A name typed in capitals continues in capitals, so "O Level Math" after one is still a subject. */
+    @Test
+    void parseFields_capitalOAfterNameInCapitals_keptOnlyWhileTheNameStaysInCapitals() {
+        List<String> allowed = List.of("n", "l", "s");
+        Set<String> names = Set.of("n");
+
+        ArgumentParser.Fields subject = ArgumentParser.parseFields("n/RAVI S/O Level Math l/Sec 4", allowed,
+                Set.of(), names);
+        ArgumentParser.Fields both = ArgumentParser.parseFields("n/RAVI S/O KUMAR s/O Level Math", allowed,
+                Set.of(), names);
+        ArgumentParser.Fields twice = ArgumentParser.parseFields("n/RAVI S/O KUMAR S/O LEE s/Math", allowed,
+                Set.of(), names);
+
+        assertEquals("RAVI", subject.single("n", true));
+        assertEquals("O Level Math", subject.single("s", true));
+        assertEquals("Sec 4", subject.single("l", true));
+        assertEquals("RAVI S/O KUMAR", both.single("n", true));
+        assertEquals("O Level Math", both.single("s", true));
+        assertEquals("RAVI S/O KUMAR S/O LEE", twice.single("n", true));
+        assertEquals(List.of("Math"), twice.values("s"));
+    }
+
+    /**
+     * A name cannot end with s/o or d/o. The word stays in the name so that the name check rejects it, rather
+     * than the command quietly saving a subject called "O".
+     */
+    @Test
+    void parseFields_nameEndingWithSonOfOrDaughterOf_keepsTheWordInTheName() {
+        List<String> allowed = List.of("n", "l", "s");
+        Set<String> names = Set.of("n");
+        String[][] cases = {
+            {"n/Ravi s/o", "Ravi s/o"},
+            {"n/Ravi s/o l/Sec 1", "Ravi s/o"},
+            {"n/Ravi s/o s/Math", "Ravi s/o"},
+            {"n/RAVI S/O", "RAVI S/O"},
+            {"n/RAVI S/O l/Sec 1", "RAVI S/O"},
+            {"n/Priya d/o", "Priya d/o"},
+            {"n/Priya D/O l/Sec 1", "Priya D/O"},
+            {"n/PRIYA D/O", "PRIYA D/O"},
+        };
+
+        for (String[] each : cases) {
+            ArgumentParser.Fields fields = ArgumentParser.parseFields(each[0], allowed, Set.of(), names);
+            assertEquals(each[1], fields.single("n", true), each[0]);
+            assertTrue(fields.values("s").stream().noneMatch(value -> value.equalsIgnoreCase("o")), each[0]);
+        }
+    }
+
+    @Test
+    void parseFields_connectorsNextToOtherPrefixes_splitOnlyAtTheRealPrefixes() {
+        List<String> allowed = List.of("n", "l", "p", "s");
+        Set<String> names = Set.of("n");
+
+        ArgumentParser.Fields middle = ArgumentParser.parseFields("l/Sec 1 n/Ravi s/o Kumar p/91234567", allowed,
+                Set.of(), names);
+        ArgumentParser.Fields chained = ArgumentParser.parseFields("n/Priya d/o Raman s/o Kumar s/Math", allowed,
+                Set.of(), names);
+        ArgumentParser.Fields thenSubject = ArgumentParser.parseFields("n/Ravi s/o Kumar S/O Level Math",
+                allowed, Set.of(), names);
+        // Without a space after it, s/o is not the word "s/o" but the start of a subject.
+        ArgumentParser.Fields glued = ArgumentParser.parseFields("n/Ravi s/oKumar", allowed, Set.of(), names);
+        // When the command also has a d/ prefix, D/O after a mixed-case name is that prefix, as with s/O.
+        ArgumentParser.Fields withDate = ArgumentParser.parseFields("n/Priya d/o Raman d/01-10-2026 n/Tan D/O 1",
+                List.of("n", "d"), Set.of(), names);
+
+        assertEquals("Ravi s/o Kumar", middle.single("n", true));
+        assertEquals("Sec 1", middle.single("l", true));
+        assertEquals("91234567", middle.single("p", true));
+        assertEquals("Priya d/o Raman s/o Kumar", chained.single("n", true));
+        assertEquals(List.of("Math"), chained.values("s"));
+        assertEquals("Ravi s/o Kumar", thenSubject.single("n", true));
+        assertEquals("O Level Math", thenSubject.single("s", true));
+        assertEquals("Ravi", glued.single("n", true));
+        assertEquals("oKumar", glued.single("s", true));
+        assertEquals(List.of("Priya d/o Raman", "Tan"), withDate.values("n"));
+        assertEquals(List.of("01-10-2026", "O 1"), withDate.values("d"));
+    }
+
     @Test
     void parseFields_sonOfOutsideName_stillStartsASubject() {
         List<String> allowed = List.of("n", "s");

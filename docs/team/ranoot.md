@@ -45,14 +45,17 @@ handling changes of plan. I also wrote the first complete User Guide and set up 
   undoes a cancellation, and homework can be edited and deleted. Overlapping lessons are rejected, not just
   lessons that start at the same time, and routine log messages no longer appear in the tutor's terminal.
 * **Bug fixes in the v2.1 features** ([PR #120](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/120),
-  [PR #125](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/125)):
+  [PR #125](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/125),
+  [PR #127](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/127)):
   names containing `s/o` or `d/o`, which are common in Singapore, were split into a name and a subject or
   rejected. They are now kept whole in `add`, `edit` and `list`. I also moved the first-launch sample lessons
   so that the Quick start's `lessons week` shows one on any day, not only on weekdays.
   A code review of my fix showed that it broke subjects such as `s/O Level Math` typed after a name. The
   follow-up keeps `s/o` in a name only when the "o" is lower case or the whole name is in capitals, which
   restores those subjects without splitting names such as `RAVI S/O KUMAR` again. I also moved the rule into
-  one place, so the parser, `list` and the name check cannot disagree.
+  one place, so the parser, `list` and the name check cannot disagree. A later review found that a subject
+  typed after a name in capitals, as in `n/RAVI S/O Level Math`, was still taken into the name, so the name
+  must now stay in capitals after the `S/O` as well.
 * **Defensive programming and code quality** ([PR #75](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/75),
   [PR #94](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/94)):
   added assertions and debug logging to the lesson features, enabled assertions for `gradlew run`, and
