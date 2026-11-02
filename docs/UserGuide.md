@@ -4,7 +4,7 @@
 
 TutorLedger is a desktop app for independent tutors who teach primary-school, secondary-school and
 junior-college students. It keeps your students, lessons, homework and payments in one place, and it is built
-to be used by typing: every task is a single command, so a tutor who types quickly can log a lesson faster
+to be used by typing: most tasks use a single command, so a tutor who types quickly can log a lesson faster
 than they could fill in a form.
 
 TutorLedger does not teach online, message students or parents, or process payments. It is a personal record of
@@ -24,6 +24,7 @@ your own tutoring work.
   * [Scores and progress](#scores-and-progress): `score`, `scores`, `progress`
   * [Follow-up tasks](#follow-up-tasks): `task`, `tasks`, `done`
   * [Storage](#storage): `save`, `reload`
+  * [Command history](#command-history): `history`, `repeat`
   * [Help and exiting](#help-and-exiting): `help`, `exit`, [shortcuts](#shortcuts-for-common-commands)
 * [FAQ](#faq)
 * [Known issues](#known-issues)
@@ -1367,6 +1368,60 @@ T | T2 | done |  |  | Print term calendar
 > file the next time TutorLedger saves, so fix it and reload again before carrying on. The same checks run
 > when TutorLedger starts.
 
+### Command history
+
+Use history to **re-run a query after updating records**, without retyping its student, dates or filters.
+For example, run `filter S1 from/01-09-2026 to/31-12-2026 pay/unpaid`, record a payment, then repeat
+that query to see the updated results. The command runs again against the current records; old output
+is not cached.
+
+#### Viewing this session's commands: `history`
+
+Format: `history`
+
+Lists ordinary commands oldest first with their history numbers. For example, if the first two commands
+in this session were a query and a payment update:
+
+```
+> history
+Command history (2 commands)
+  1  filter S1 from/01-09-2026 to/31-12-2026 pay/unpaid
+  2  mark L1 paid
+```
+
+* Numbers start at 1 and stay attached to their entries for the session.
+* History includes unsuccessful commands, short aliases, `save` and `reload`. Surrounding whitespace is
+  removed, but the command's other text is kept as typed.
+* Blank input, `exit`, `history`, `repeat` and confirmation replies are not recorded. `history` takes no arguments.
+* History is kept in memory only. `reload` keeps it; closing and restarting the application clears it.
+  An empty session reports `No commands in history.` History does not become part of a backup or data file.
+
+#### Re-running a saved command: `repeat`
+
+Format: `repeat NUMBER`
+
+Displays the selected command and waits for confirmation. For the history above:
+
+```
+> repeat 1
+Selected command: filter S1 from/01-09-2026 to/31-12-2026 pay/unpaid
+Run this command? (yes/no):
+> yes
+```
+
+* **Selection does not execute anything.** `yes` or `y` runs the displayed command once; `no` or `n`
+  cancels it. Replies ignore case and surrounding whitespace. Other replies ask you to enter yes or no;
+  they are not treated as commands. End-of-input also cancels safely.
+* This displays the saved text for confirmation; it does not put an editable command in the input line.
+  To change its values, copy or type the command with those changes instead.
+* A confirmed command is added once as a new history entry, even if its normal validation rejects it.
+  A cancelled or invalid history request adds no entry.
+* Use a positive number shown by `history`. Missing, malformed, oversized and unavailable numbers produce
+  an error without changing records.
+* **Repeating an update can change or delete data.** Check the displayed command before confirming.
+  The usual safeguards still apply: deleted IDs may now be unknown, occupied slots may be rejected,
+  and repeating `delete S1` still requires the normal explicit `confirm` argument to delete linked records.
+
 ### Help and exiting
 
 #### Viewing help: `help`
@@ -1481,6 +1536,12 @@ STORAGE
       save backups/term1.txt
   reload
       reload
+
+COMMAND HISTORY
+  history
+      history
+  repeat NUMBER
+      repeat 2
 
 OTHER
   help
@@ -1631,5 +1692,7 @@ student ID, as in `topics S1 k/vectors`, to see only that student's lessons.
 | **Finish follow-up task**| `done TASK_ID`<br>e.g. `done T1`                                                                                        |
 | **Save**                | `save [FILE_PATH]`<br>e.g. `save backups/term1.txt`                                                                      |
 | **Reload data file**    | `reload`                                                                                                                 |
+| **View command history** | `history` |
+| **Repeat after confirmation** | `repeat NUMBER`<br>e.g. `repeat 1`, then `yes` |
 | **Help**                | `help`                                                                                                                   |
 | **Exit**                | `exit`                                                                                                                   |

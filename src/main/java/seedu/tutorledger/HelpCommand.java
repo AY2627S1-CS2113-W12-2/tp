@@ -80,6 +80,9 @@ public final class HelpCommand {
             new Section("STORAGE", List.of(
                     new Entry("save [FILE_PATH]", "save backups/term1.txt"),
                     new Entry("reload", "reload"))),
+            new Section("COMMAND HISTORY", List.of(
+                    new Entry("history", "history"),
+                    new Entry("repeat NUMBER", "repeat 2"))),
             new Section("OTHER", List.of(
                     new Entry("help", "help"),
                     new Entry("exit", "exit"))));
