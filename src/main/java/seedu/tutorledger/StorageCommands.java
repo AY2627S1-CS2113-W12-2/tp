@@ -150,9 +150,14 @@ public class StorageCommands extends CommandHandler {
             return "";
         }
         if (!isAutomaticSavingEnabled) {
+            // The unreadable file may still hold every record, while memory only holds this session's changes.
+            // A plain save would replace the file with them, so the advice points to reload and a separate copy.
             return "Warning: your change could not be saved to " + storage.getDisplayPath()
-                    + " because automatic saving is disabled after the file could not be read."
-                    + " Fix the file and run reload, or use save explicitly.";
+                    + " because automatic saving is disabled after the file could not be read." + System.lineSeparator()
+                    + "The file may still hold all your records. A plain save would replace them with only this"
+                    + " session's changes." + System.lineSeparator()
+                    + "Close any program using the file, then run reload. To keep this change, first run"
+                    + " save FILE_PATH to save a separate copy.";
         }
         LOGGER.log(Level.FINE, "Data changed, saving automatically");
         try {

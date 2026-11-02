@@ -42,6 +42,7 @@ public class TaskCommands extends CommandHandler {
     /**
      * Finds standalone date prefixes. Only the last one's entire suffix is parsed as a date;
      * earlier prefixes remain description text, and embedded text such as {@code and/or} is ignored.
+     * A name connector such as {@code d/o} is skipped in {@link #addTask}, so it also stays in the description.
      */
     private static final Pattern DUE_DATE_PREFIX = Pattern.compile("(?i)(?<!\\S)d/");
 
@@ -77,6 +78,10 @@ public class TaskCommands extends CommandHandler {
         int dateStart = -1;
         int dateEnd = -1;
         while (prefix.find()) {
+            // "d/o" in a name such as "Priya d/o Raman" is part of the description, not a due date.
+            if (Student.isNameConnectorAt(arguments, prefix.start())) {
+                continue;
+            }
             dateStart = prefix.start();
             dateEnd = prefix.end();
         }

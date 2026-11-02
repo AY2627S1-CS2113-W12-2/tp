@@ -98,6 +98,23 @@ class TaskCommandsTest {
     }
 
     @Test
+    void task_nameConnectorDslashO_staysInTheDescriptionInsteadOfBeingADate() {
+        // Regression test: names may contain "d/o" (daughter of), which was once read as a due date marker.
+        assertEquals("Added T1: Call Priya d/o Raman's mother", commands.execute("task Call Priya d/o Raman's mother"));
+        assertTrue(data.getTask("T1").getDueDate().isEmpty());
+
+        // Upper case, at the end of the text, and before a real due date.
+        assertEquals("Added T2: Call Priya D/O", commands.execute("task Call Priya D/O"));
+        assertTrue(commands.execute("task S1 Call Priya d/o Raman d/16-10-2026")
+                .startsWith("Added T3: Call Priya d/o Raman" + NL));
+        assertEquals(LocalDate.of(2026, 10, 16), data.getTask("T3").getDueDate().orElseThrow());
+
+        // A date marker that only starts with "o" is still a date, and still rejected when it is not one.
+        assertTrue(commands.execute("task Call parents d/oct").startsWith("Error:"));
+        assertEquals(3, data.getTasks().size());
+    }
+
+    @Test
     void tasks_listsPendingSoonestFirstUndatedLastAndMarksOverdue() {
         commands.execute("task Print term calendar");
         commands.execute("task S1 Bring Worksheet 4B d/20-10-2026");
