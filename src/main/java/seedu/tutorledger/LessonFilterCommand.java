@@ -1,11 +1,8 @@
 package seedu.tutorledger;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.DateTimeException;
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.time.format.ResolverStyle;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -29,16 +26,8 @@ public class LessonFilterCommand {
     private static final String COMMAND_WORD = "filter";
     private static final String USAGE = "Use: filter [STUDENT_ID] [from/DATE] [to/DATE] [pay/STATUS]";
 
-    /** Date format typed by the user, e.g. 21-09-2026. STRICT rejects dates like 31-02-2026. */
-    private static final DateTimeFormatter INPUT_DATE = DateTimeFormatter.ofPattern("dd-MM-uuuu", Locale.ROOT)
-            .withResolverStyle(ResolverStyle.STRICT);
 
-    /** Date format shown to the user, e.g. Mon 21-09-2026. */
-    private static final DateTimeFormatter DISPLAY_DATE = DateTimeFormatter.ofPattern("EEE dd-MM-uuuu",
-            Locale.ENGLISH);
 
-    /** Time format shown to the user, e.g. 1600. */
-    private static final DateTimeFormatter DISPLAY_TIME = DateTimeFormatter.ofPattern("HHmm", Locale.ROOT);
 
     private final TutorLedgerData data;
 
@@ -117,7 +106,7 @@ public class LessonFilterCommand {
 
     private static LocalDate parseDate(String value) {
         try {
-            return LocalDate.parse(value, INPUT_DATE);
+            return LocalDate.parse(value, Formats.INPUT_DATE);
         } catch (DateTimeException exception) {
             throw new IllegalArgumentException("Date must be a real date in DD-MM-YYYY format.", exception);
         }
@@ -134,7 +123,7 @@ public class LessonFilterCommand {
 
     /** Builds the heading, one aligned row per lesson, and the total of their fees. */
     private String format(List<Lesson> lessons, Criteria criteria) {
-        StringBuilder output = new StringBuilder(count(lessons.size(), "lesson"))
+        StringBuilder output = new StringBuilder(Formats.count(lessons.size(), "lesson"))
                 .append(" (").append(criteria.describe()).append(")");
         if (lessons.isEmpty()) {
             return output.toString();
@@ -151,9 +140,9 @@ public class LessonFilterCommand {
         BigDecimal total = BigDecimal.ZERO;
         for (Lesson lesson : lessons) {
             output.append(System.lineSeparator()).append(String.format(Locale.ROOT, rowFormat,
-                    lesson.getLessonId(), DISPLAY_DATE.format(lesson.getDate()),
-                    DISPLAY_TIME.format(lesson.getTime()), studentLabel(lesson), lesson.getSubject(),
-                    money(lesson.getFee()), lesson.getPaymentStatus()));
+                    lesson.getLessonId(), Formats.DISPLAY_DATE.format(lesson.getDate()),
+                    Formats.TIME.format(lesson.getTime()), studentLabel(lesson), lesson.getSubject(),
+                    Formats.money(lesson.getFee()), lesson.getPaymentStatus()));
             if (lesson.isCancelled()) {
                 output.append(" [cancelled: ").append(lesson.getCancellationReason()).append("; not chargeable]");
             } else {
@@ -162,7 +151,7 @@ public class LessonFilterCommand {
         }
         String totalLabel = lessons.stream().anyMatch(Lesson::isCancelled)
                 ? "Total fees (excluding cancelled lessons): " : "Total fees: ";
-        output.append(System.lineSeparator()).append(totalLabel).append(money(total));
+        output.append(System.lineSeparator()).append(totalLabel).append(Formats.money(total));
         return output.toString();
     }
 
@@ -170,16 +159,6 @@ public class LessonFilterCommand {
     private String studentLabel(Lesson lesson) {
         Student student = data.getStudent(lesson.getStudentId());
         return student.getStudentId() + " " + student.getName();
-    }
-
-    private static String money(BigDecimal amount) {
-        // Lesson only accepts fees with at most two decimals, so rounding is never needed here.
-        assert amount.scale() <= 2 : "Fee has more than two decimal places: " + amount;
-        return "$" + amount.setScale(2, RoundingMode.UNNECESSARY).toPlainString();
-    }
-
-    private static String count(int amount, String noun) {
-        return amount + " " + noun + (amount == 1 ? "" : "s");
     }
 
     /**
@@ -208,10 +187,10 @@ public class LessonFilterCommand {
                 parts.add(student.getStudentId() + " " + student.getName());
             }
             if (from != null) {
-                parts.add("from " + DISPLAY_DATE.format(from));
+                parts.add("from " + Formats.DISPLAY_DATE.format(from));
             }
             if (to != null) {
-                parts.add("to " + DISPLAY_DATE.format(to));
+                parts.add("to " + Formats.DISPLAY_DATE.format(to));
             }
             if (payment != null) {
                 parts.add(payment);

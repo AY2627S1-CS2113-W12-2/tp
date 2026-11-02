@@ -1,9 +1,6 @@
 package seedu.tutorledger;
 
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.time.format.ResolverStyle;
-import java.util.Locale;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -66,7 +63,7 @@ public class Homework {
         this.studentId = studentId;
         this.description = description;
         this.dueDate = LocalDate.parse(dueDate,
-                DateTimeFormatter.ofPattern("dd-MM-uuuu", Locale.ROOT).withResolverStyle(ResolverStyle.STRICT));
+                Formats.INPUT_DATE);
         if (studentId != null) {
             requireText(studentId, "Student ID");
             requireText(description, "Description");

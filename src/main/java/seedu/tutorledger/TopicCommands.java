@@ -2,7 +2,6 @@ package seedu.tutorledger;
 
 import java.time.Clock;
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -19,8 +18,6 @@ import java.util.logging.Logger;
  */
 public class TopicCommands {
     private static final Logger LOGGER = Logger.getLogger(TopicCommands.class.getName());
-    private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("EEE dd-MM-uuuu", Locale.ENGLISH);
-    private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HHmm", Locale.ROOT);
     /** Most recent lessons appear first, with a stable ID order when dates and times are equal. */
     private static final Comparator<Lesson> NEWEST_FIRST = Comparator.comparing(Lesson::getDate)
             .thenComparing(Lesson::getTime).thenComparing(Lesson::getLessonId).reversed();
@@ -116,7 +113,8 @@ public class TopicCommands {
             assert !lesson.getNotes().isBlank() : "A covered-topic entry must contain notes";
             assert query.matches(lesson) : "Every listed lesson must match the query";
             output.append(System.lineSeparator()).append("  ").append(lesson.getLessonId()).append("  ")
-                    .append(DATE.format(lesson.getDate())).append(" ").append(TIME.format(lesson.getTime()))
+                    .append(Formats.DISPLAY_DATE.format(lesson.getDate())).append(" ")
+                    .append(Formats.TIME.format(lesson.getTime()))
                     .append("  ").append(query.student() == null ? studentLabel(lesson) + "  " : "")
                     .append(lesson.getSubject()).append(System.lineSeparator())
                     .append("    ").append(lesson.getNotes());

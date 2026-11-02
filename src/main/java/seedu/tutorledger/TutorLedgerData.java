@@ -3,7 +3,6 @@ package seedu.tutorledger;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -18,8 +17,6 @@ import java.util.logging.Logger;
 public class TutorLedgerData {
     private static final Logger LOGGER = Logger.getLogger(TutorLedgerData.class.getName());
 
-    /** Start time format used when describing a clashing lesson, e.g. 1600. */
-    private static final DateTimeFormatter START_TIME = DateTimeFormatter.ofPattern("HHmm", Locale.ROOT);
 
     private final Map<String, Student> students = new LinkedHashMap<>();
     private final Map<String, Lesson> lessons = new LinkedHashMap<>();
@@ -736,7 +733,7 @@ public class TutorLedgerData {
             }
             if (isOverlapChecked && existing.overlaps(candidate)) {
                 throw new IllegalArgumentException("That time overlaps " + existing.getLessonId() + " ("
-                        + Lesson.formatDate(existing.getDate()) + " " + existing.getTime().format(START_TIME)
+                        + Lesson.formatDate(existing.getDate()) + " " + existing.getTime().format(Formats.TIME)
                         + ", " + existing.getDurationMinutes() + " min).");
             }
         }

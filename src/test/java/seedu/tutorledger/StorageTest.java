@@ -354,4 +354,20 @@ class StorageTest {
         assertTrue(result.problems().isEmpty());
         assertFalse(result.data().getLesson("L1").isCancelled());
     }
+
+    /** The header explains the format to a tutor editing the file by hand, so its wording is part of the file. */
+    @Test
+    void encode_header_namesTheFieldsOfEachRecordType() {
+        List<String> header = Storage.encode(new TutorLedgerData()).lines()
+                .filter(line -> line.startsWith("#   "))
+                .toList();
+
+        assertTrue(header.contains("#   L | LESSON_ID | STUDENT_ID | DATE | TIME | SUBJECT | FEE | ATTENDANCE"
+                + " | PAYMENT | NOTES | CANCELLATION_REASON | MINUTES | AMOUNT_PAID"), header.toString());
+        assertTrue(header.contains("#   A | SCORE_ID | STUDENT_ID | DATE | MARKS | TOTAL_MARKS | TEST_NAME"),
+                header.toString());
+        assertTrue(header.contains("#   H | HOMEWORK_ID | STUDENT_ID | DUE_DATE | STATUS | DESCRIPTION"),
+                header.toString());
+    }
 }
+

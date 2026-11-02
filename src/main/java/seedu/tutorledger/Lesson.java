@@ -277,7 +277,7 @@ public class Lesson {
         BigDecimal updatedFee = newFee == null ? fee : parseFee(newFee);
         if (updatedFee.compareTo(amountPaid) < 0) {
             throw new IllegalArgumentException("Fee cannot be less than the amount already paid ($"
-                    + amountPaid.setScale(2).toPlainString() + ").");
+                    + Formats.amount(amountPaid) + ").");
         }
         Lesson updated = new Lesson(lessonId, studentId,
                 newSubject == null ? subject : requireText(newSubject, "Subject"),

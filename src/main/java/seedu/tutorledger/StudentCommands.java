@@ -1,10 +1,8 @@
 package seedu.tutorledger;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -21,7 +19,6 @@ import java.util.regex.Pattern;
 public class StudentCommands {
     /** Records rejected commands when debug logging is enabled. */
     private static final Logger LOGGER = Logger.getLogger(StudentCommands.class.getName());
-    private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("EEE dd-MM-uuuu", Locale.ENGLISH);
     /** Locates a list prefix, leaving the preceding text as the existing free-text name query. */
     private static final Pattern LIST_PREFIX = Pattern.compile("(?i)(?<!\\S)[a-z]+/");
     /** Prefixes whose values are names, which may contain "s/o" or "d/o". */
@@ -100,7 +97,7 @@ public class StudentCommands {
         long archivedCount = data.getStudents().stream().filter(Student::isArchived).count();
         String breakdown = archivedCount == 0 ? "" : " in total (" + (total - archivedCount)
                 + " active, " + archivedCount + " archived)";
-        return "You now have " + count(total, "student") + breakdown + ".";
+        return "You now have " + Formats.count(total, "student") + breakdown + ".";
     }
 
     private String subject(String arguments) {
@@ -116,7 +113,7 @@ public class StudentCommands {
                 student.getPhoneNumber(), subjects);
         int added = updated.getSubjects().size() - student.getSubjects().size();
         data.replaceStudent(updated);
-        return "Added " + count(added, "subject") + " to " + student.getStudentId() + " " + student.getName()
+        return "Added " + Formats.count(added, "subject") + " to " + student.getStudentId() + " " + student.getName()
                 + ". Subjects: " + subjectText(updated);
     }
 
@@ -167,7 +164,7 @@ public class StudentCommands {
         String scope = status.equals("active") ? "" : " (" + status + ")";
         String order = sort == null ? "" : SORT_OWED.equals(sort) ? ", most owed first"
                 : ", longest since last lesson first";
-        String heading = count(matches.size(), "student") + scope
+        String heading = Formats.count(matches.size(), "student") + scope
                 + (query.isEmpty() ? "" : " match \"" + query + "\"") + order + ":";
         StringBuilder result = new StringBuilder(heading);
         for (Student student : matches) {
@@ -177,10 +174,11 @@ public class StudentCommands {
                     .append(student.isFlagged() ? "  [flagged]" : "");
             if (SORT_OWED.equals(sort)) {
                 BigDecimal amount = owed.getOrDefault(student.getStudentId(), BigDecimal.ZERO);
-                result.append("  owes $").append(amount.setScale(2, RoundingMode.HALF_UP).toPlainString());
+                result.append("  owes ").append(Formats.money(amount));
             } else if (SORT_LAST.equals(sort)) {
                 LocalDate last = lastLessons.get(student.getStudentId());
-                result.append(last == null ? "  no past lessons" : "  last lesson " + last.format(DATE));
+                result.append(last == null ? "  no past lessons"
+                        : "  last lesson " + last.format(Formats.DISPLAY_DATE));
             }
         }
         return result.toString();
@@ -288,7 +286,7 @@ public class StudentCommands {
                 .filter(Student::isFlagged)
                 .sorted(Comparator.comparing(Student::isArchived))
                 .toList();
-        StringBuilder result = new StringBuilder(count(flagged.size(), "student")
+        StringBuilder result = new StringBuilder(Formats.count(flagged.size(), "student")
                 + " flagged as needing extra attention" + (flagged.isEmpty() ? "." : ":"));
         for (Student student : flagged) {
             result.append(System.lineSeparator()).append("  ").append(student.getStudentId()).append("  ")
@@ -355,14 +353,16 @@ public class StudentCommands {
                 new Object[]{student.getStudentId(), isConfirmed});
         TutorLedgerData.Deletion removed = data.deleteStudent(student.getStudentId());
         String result = "Deleted " + student.getStudentId() + ": " + student.getName() + " (" + student.getLevel()
-                + ")" + System.lineSeparator() + "Also deleted " + count(removed.lessonCount(), "lesson") + " and "
-                + count(removed.homeworkCount(), "homework item") + ".";
+                + ")" + System.lineSeparator()
+                + "Also deleted " + Formats.count(removed.lessonCount(), "lesson") + " and "
+                + Formats.count(removed.homeworkCount(), "homework item") + ".";
         // Scores are only mentioned when there were some, so the usual message stays short.
         if (removed.scoreCount() > 0) {
-            result += System.lineSeparator() + "Also deleted " + count(removed.scoreCount(), "score") + ".";
+            result += System.lineSeparator() + "Also deleted " + Formats.count(removed.scoreCount(), "score") + ".";
         }
         if (removed.taskCount() > 0) {
-            result += System.lineSeparator() + "Also deleted " + count(removed.taskCount(), "follow-up task") + ".";
+            result += System.lineSeparator() + "Also deleted "
+                    + Formats.count(removed.taskCount(), "follow-up task") + ".";
         }
         return result;
     }
@@ -388,12 +388,12 @@ public class StudentCommands {
         LOGGER.log(Level.FINE, "Deletion requires confirmation for {0}: {1}", new Object[]{id, linked});
         // Follow-up tasks are only mentioned when there are some, so the usual warning stays short.
         String taskLine = linked.taskCount() == 0 ? ""
-                : "  " + count(linked.taskCount(), "follow-up task") + "." + System.lineSeparator();
+                : "  " + Formats.count(linked.taskCount(), "follow-up task") + "." + System.lineSeparator();
         return "Warning: deleting " + id + ": " + student.getName() + " (" + student.getLevel()
                 + ") will permanently remove:" + System.lineSeparator()
-                + "  " + count(linked.lessonCount(), "lesson") + ", "
-                + count(linked.homeworkCount(), "homework item")
-                + " and " + count(linked.scoreCount(), "score") + "." + System.lineSeparator()
+                + "  " + Formats.count(linked.lessonCount(), "lesson") + ", "
+                + Formats.count(linked.homeworkCount(), "homework item")
+                + " and " + Formats.count(linked.scoreCount(), "score") + "." + System.lineSeparator()
                 + taskLine
                 + "This cannot be undone. No records have been deleted." + System.lineSeparator()
                 + "To confirm, type: delete " + id + " confirm" + System.lineSeparator()
@@ -435,16 +435,16 @@ public class StudentCommands {
         int unpaidCount = 0;
         for (Lesson lesson : lessons) {
             output.append(System.lineSeparator()).append("  ").append(lesson.getLessonId()).append("  ")
-                    .append(DATE.format(lesson.getDate())).append(" ")
+                    .append(Formats.DISPLAY_DATE.format(lesson.getDate())).append(" ")
                     .append(String.format(Locale.ROOT, "%02d%02d",
                             lesson.getTime().getHour(), lesson.getTime().getMinute()))
-                    .append("  ").append(lesson.getSubject()).append("  ").append(money(lesson.getFee()))
+                    .append("  ").append(lesson.getSubject()).append("  ").append(Formats.money(lesson.getFee()))
                     .append("  ").append(lesson.isCancelled() ? "cancelled"
                             : lesson.getAttendance().name().toLowerCase(Locale.ROOT).replace('_', ' '))
                     .append("  ").append(lesson.getPaymentStatus());
             if (lesson.getAmountPaid().signum() > 0 && !lesson.getPaymentStatus().equals(Lesson.PAYMENT_PAID)) {
-                output.append("  ").append(money(lesson.getAmountPaid())).append(" paid, ")
-                        .append(money(lesson.getAmountOwed())).append(" remaining");
+                output.append("  ").append(Formats.money(lesson.getAmountPaid())).append(" paid, ")
+                        .append(Formats.money(lesson.getAmountOwed())).append(" remaining");
             }
             if (lesson.getDurationMinutes() != Lesson.DEFAULT_DURATION_MINUTES) {
                 output.append("  ").append(lesson.getDurationMinutes()).append(" min");
@@ -471,8 +471,8 @@ public class StudentCommands {
         }
         outstanding.forEach(item -> output.append(System.lineSeparator()).append("  ").append(item.getHomeworkId())
                 .append("  ").append(item.getDescription()).append("  due ")
-                .append(DATE.format(item.getDueDate())));
-        output.append(System.lineSeparator()).append("Amount owed: ").append(money(owed))
+                .append(Formats.DISPLAY_DATE.format(item.getDueDate())));
+        output.append(System.lineSeparator()).append("Amount owed: ").append(Formats.money(owed))
                 .append(" (").append(unpaidCount).append(unpaidCount == 1 ? " lesson)" : " lessons)");
         return output.toString();
     }
@@ -489,15 +489,7 @@ public class StudentCommands {
     /** Formats the optional rate consistently for add, edit and view. */
     private static String rateText(Student student) {
         return "Default hourly rate: " + student.getDefaultHourlyRate()
-                .map(rate -> money(rate) + "/hour").orElse("not set");
-    }
-
-    private static String money(BigDecimal amount) {
-        return "$" + amount.setScale(2, RoundingMode.UNNECESSARY).toPlainString();
-    }
-
-    private static String count(long amount, String noun) {
-        return amount + " " + noun + (amount == 1 ? "" : "s");
+                .map(rate -> Formats.money(rate) + "/hour").orElse("not set");
     }
 
     private static String singleId(String argument) {

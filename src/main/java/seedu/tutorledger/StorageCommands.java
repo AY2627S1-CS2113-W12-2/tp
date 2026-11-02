@@ -219,9 +219,9 @@ public class StorageCommands {
 
     /** Describes the records, e.g. "10 students, 42 lessons and 7 homework items". */
     private static String describeContents(TutorLedgerData records) {
-        return count(records.getStudents().size(), "student") + ", "
-                + count(records.getLessons().size(), "lesson") + " and "
-                + count(records.getHomework().size(), "homework item");
+        return Formats.count(records.getStudents().size(), "student") + ", "
+                + Formats.count(records.getLessons().size(), "lesson") + " and "
+                + Formats.count(records.getHomework().size(), "homework item");
     }
 
     /** Lists the skipped lines under a heading, or returns nothing if no line was skipped. */
@@ -230,7 +230,7 @@ public class StorageCommands {
             return "";
         }
         StringBuilder text = new StringBuilder(System.lineSeparator()).append("Skipped ")
-                .append(count(problems.size(), "line")).append(" that could not be read:");
+                .append(Formats.count(problems.size(), "line")).append(" that could not be read:");
         for (String problem : problems) {
             text.append(System.lineSeparator()).append("  ").append(problem);
         }
@@ -250,7 +250,4 @@ public class StorageCommands {
         return exception.getMessage();
     }
 
-    private static String count(int amount, String noun) {
-        return amount + " " + noun + (amount == 1 ? "" : "s");
-    }
 }

@@ -1,7 +1,6 @@
 package seedu.tutorledger;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
@@ -50,12 +49,7 @@ public class LessonCommands {
      */
     private static final Set<String> FREE_TEXT_PREFIXES = Set.of("note", "r");
 
-    /** Date format shown to the user, e.g. Tue 22-09-2026. */
-    private static final DateTimeFormatter DISPLAY_DATE = DateTimeFormatter.ofPattern("EEE dd-MM-uuuu",
-            Locale.ENGLISH);
 
-    /** Time format shown to the user, e.g. 1600. */
-    private static final DateTimeFormatter DISPLAY_TIME = DateTimeFormatter.ofPattern("HHmm", Locale.ROOT);
 
     /** Day-of-week format shown for a weekly slot, e.g. Tue. */
     private static final DateTimeFormatter DISPLAY_WEEKDAY = DateTimeFormatter.ofPattern("EEE", Locale.ENGLISH);
@@ -157,9 +151,9 @@ public class LessonCommands {
         assert lesson.getStudentId().equals(student.getStudentId()) : "Lesson was scheduled for the wrong student";
         assert !lesson.isRecorded() : "A newly scheduled lesson should not have attendance yet";
         LOGGER.log(Level.FINE, "Scheduled {0} for {1}", new Object[]{lesson.getLessonId(), student.getStudentId()});
-        return "Scheduled " + lesson.getLessonId() + " for " + formatStudent(student) + System.lineSeparator()
+        return "Scheduled " + lesson.getLessonId() + " for " + Formats.studentLabel(student) + System.lineSeparator()
                 + "  " + formatSlot(lesson) + ", " + lesson.getSubject() + ", "
-                + formatMoney(lesson.getFee());
+                + Formats.money(lesson.getFee());
     }
 
     /** Schedules a weekly slot and describes the lessons it added. */
@@ -173,12 +167,13 @@ public class LessonCommands {
         assert last.getDate().equals(first.getDate().plusWeeks(weekCount - 1)) : "Lessons should be a week apart";
         LOGGER.log(Level.FINE, "Scheduled {0} weekly lessons for {1}",
                 new Object[]{weekCount, student.getStudentId()});
-        return "Scheduled " + weekCount + " weekly lessons for " + formatStudent(student) + ": "
+        return "Scheduled " + weekCount + " weekly lessons for " + Formats.studentLabel(student) + ": "
                 + first.getLessonId() + " to " + last.getLessonId() + System.lineSeparator()
-                + "  Every " + DISPLAY_WEEKDAY.format(first.getDate()) + " " + DISPLAY_TIME.format(first.getTime())
+                + "  Every " + DISPLAY_WEEKDAY.format(first.getDate()) + " " + Formats.TIME.format(first.getTime())
                 + (duration == Lesson.DEFAULT_DURATION_MINUTES ? "" : " (" + duration + " min)")
-                + ", " + subject + ", " + formatMoney(first.getFee()) + " each" + System.lineSeparator()
-                + "  From " + DISPLAY_DATE.format(first.getDate()) + " to " + DISPLAY_DATE.format(last.getDate());
+                + ", " + subject + ", " + Formats.money(first.getFee()) + " each" + System.lineSeparator()
+                + "  From " + Formats.DISPLAY_DATE.format(first.getDate())
+                + " to " + Formats.DISPLAY_DATE.format(last.getDate());
     }
 
     /**
@@ -204,8 +199,8 @@ public class LessonCommands {
                 notes == null ? "" : notes);
         assert lesson.isRecorded() : "A logged lesson should already have its attendance";
         LOGGER.log(Level.FINE, "Logged {0} for {1}", new Object[]{lesson.getLessonId(), student.getStudentId()});
-        return "Logged " + lesson.getLessonId() + " for " + formatStudent(student) + System.lineSeparator()
-                + "  " + formatSlot(lesson) + ", " + lesson.getSubject() + ", " + formatMoney(lesson.getFee())
+        return "Logged " + lesson.getLessonId() + " for " + Formats.studentLabel(student) + System.lineSeparator()
+                + "  " + formatSlot(lesson) + ", " + lesson.getSubject() + ", " + Formats.money(lesson.getFee())
                 + ", " + formatAttendance(lesson) + formatNotesLine(lesson);
     }
 
@@ -224,13 +219,13 @@ public class LessonCommands {
         assert !firstDay.isAfter(lastDay) : "The listed range must not end before it starts";
         assert !today.isBefore(firstDay) && !today.isAfter(lastDay) : "The listed range must include today";
         String heading = isWeekView
-                ? "This week, " + DISPLAY_DATE.format(firstDay) + " to " + DISPLAY_DATE.format(lastDay)
-                : "Today, " + DISPLAY_DATE.format(today);
+                ? "This week, " + Formats.DISPLAY_DATE.format(firstDay) + " to " + Formats.DISPLAY_DATE.format(lastDay)
+                : "Today, " + Formats.DISPLAY_DATE.format(today);
 
         List<Lesson> lessons = findLessonsBetween(firstDay, lastDay);
         LOGGER.log(Level.FINE, "Listing {0} lessons from {1} to {2}",
                 new Object[]{lessons.size(), firstDay, lastDay});
-        return heading + ": " + formatCount(lessons.size(), "lesson") + formatLessonRows(lessons);
+        return heading + ": " + Formats.count(lessons.size(), "lesson") + formatLessonRows(lessons);
     }
 
     /** Returns the lessons dated from {@code firstDay} to {@code lastDay} inclusive, earliest first. */
@@ -247,7 +242,7 @@ public class LessonCommands {
      */
     private String formatLessonRows(List<Lesson> lessons) {
         List<String> studentLabels = lessons.stream()
-                .map(lesson -> formatStudent(data.getStudent(lesson.getStudentId())))
+                .map(lesson -> Formats.studentLabel(data.getStudent(lesson.getStudentId())))
                 .toList();
         int idWidth = lessons.stream().mapToInt(lesson -> lesson.getLessonId().length()).max().orElse(0);
         int studentWidth = studentLabels.stream().mapToInt(String::length).max().orElse(0);
@@ -283,13 +278,15 @@ public class LessonCommands {
                 .filter(lesson -> !startOf(lesson).isBefore(now))
                 .min(BY_START);
         if (upcoming.isEmpty()) {
-            return chosen == null ? "No upcoming lessons." : "No upcoming lessons for " + formatStudent(chosen) + ".";
+            return chosen == null ? "No upcoming lessons."
+                    : "No upcoming lessons for " + Formats.studentLabel(chosen) + ".";
         }
         Lesson lesson = upcoming.get();
         Student student = data.getStudent(lesson.getStudentId());
         LOGGER.log(Level.FINE, "Next lesson is {0}", lesson.getLessonId());
         return "Next lesson: " + lesson.getLessonId() + ", " + formatSlot(lesson) + System.lineSeparator()
-                + "  Student: " + formatStudent(student) + " (" + student.getLevel() + ")" + System.lineSeparator()
+                + "  Student: " + Formats.studentLabel(student) + " (" + student.getLevel() + ")"
+                + System.lineSeparator()
                 + describeFlag(student)
                 + "  Subject: " + lesson.getSubject() + System.lineSeparator()
                 + "  Last topic: " + describeLastTopic(lesson) + System.lineSeparator()
@@ -318,7 +315,7 @@ public class LessonCommands {
                 .filter(task -> task.getStudentId().filter(student.getStudentId()::equals).isPresent())
                 .sorted(TaskCommands.DISPLAY_ORDER)
                 .map(task -> task.getTaskId() + " " + task.getDescription()
-                        + task.getDueDate().map(date -> " (by " + TaskCommands.DISPLAY_DATE.format(date) + ")")
+                        + task.getDueDate().map(date -> " (by " + Formats.DISPLAY_DATE.format(date) + ")")
                                 .orElse(""))
                 .toList();
         return pending.isEmpty() ? "" : System.lineSeparator() + "  Follow-ups: " + String.join("; ", pending);
@@ -333,7 +330,7 @@ public class LessonCommands {
                 .filter(lesson -> startOf(lesson).isBefore(start))
                 .max(BY_START)
                 .map(lesson -> lesson.getNotes() + " (" + lesson.getLessonId() + ", "
-                        + DISPLAY_DATE.format(lesson.getDate()) + ")")
+                        + Formats.DISPLAY_DATE.format(lesson.getDate()) + ")")
                 .orElse("none recorded yet");
     }
 
@@ -351,7 +348,8 @@ public class LessonCommands {
         StringBuilder text = new StringBuilder("  Outstanding homework: " + outstanding.size());
         for (Homework item : outstanding) {
             text.append(System.lineSeparator()).append("    ").append(item.getHomeworkId()).append("  ")
-                    .append(item.getDescription()).append(", due ").append(DISPLAY_DATE.format(item.getDueDate()));
+                    .append(item.getDescription()).append(", due ")
+                .append(Formats.DISPLAY_DATE.format(item.getDueDate()));
             if (item.getDueDate().isBefore(today)) {
                 text.append(" (overdue)");
             }
@@ -370,7 +368,7 @@ public class LessonCommands {
             return "none";
         }
         BigDecimal total = unpaid.stream().map(Lesson::getAmountOwed).reduce(BigDecimal.ZERO, BigDecimal::add);
-        return formatCount(unpaid.size(), "lesson") + ", " + formatMoney(total);
+        return Formats.count(unpaid.size(), "lesson") + ", " + Formats.money(total);
     }
 
     /** Handles {@code record LESSON_ID a/ATTENDANCE [note/NOTES]}. */
@@ -390,7 +388,7 @@ public class LessonCommands {
         data.replaceLesson(recorded);
         LOGGER.log(Level.FINE, "Recorded {0} as {1}", new Object[]{recorded.getLessonId(), attendance});
         Student student = data.getStudent(recorded.getStudentId());
-        return "Recorded " + recorded.getLessonId() + " for " + formatStudent(student)
+        return "Recorded " + recorded.getLessonId() + " for " + Formats.studentLabel(student)
                 + " (" + formatSlot(recorded) + ")" + System.lineSeparator()
                 + "  Attendance: " + formatAttendance(recorded) + formatNotesLine(recorded);
     }
@@ -423,8 +421,8 @@ public class LessonCommands {
         data.replaceLesson(edited);
         LOGGER.log(Level.FINE, "Edited {0} using prefixes {1}",
                 new Object[]{edited.getLessonId(), fields.fields().keySet()});
-        return "Edited " + edited.getLessonId() + " for " + formatStudent(student) + System.lineSeparator()
-                + "  " + formatSlot(edited) + ", " + edited.getSubject() + ", " + formatMoney(edited.getFee())
+        return "Edited " + edited.getLessonId() + " for " + Formats.studentLabel(student) + System.lineSeparator()
+                + "  " + formatSlot(edited) + ", " + edited.getSubject() + ", " + Formats.money(edited.getFee())
                 + ", " + formatAttendance(edited) + ", " + edited.getPaymentStatus()
                 + formatNotesLine(edited);
     }
@@ -462,7 +460,7 @@ public class LessonCommands {
         LOGGER.log(Level.FINE, "Rescheduled {0} from {1} to {2}",
                 new Object[]{lesson.getLessonId(), oldStart, newStart});
         Student student = data.getStudent(moved.getStudentId());
-        return "Rescheduled " + moved.getLessonId() + " for " + formatStudent(student) + System.lineSeparator()
+        return "Rescheduled " + moved.getLessonId() + " for " + Formats.studentLabel(student) + System.lineSeparator()
                 + "  From: " + formatSlot(lesson) + System.lineSeparator()
                 + "  To:   " + formatSlot(moved);
     }
@@ -488,10 +486,10 @@ public class LessonCommands {
         LOGGER.log(Level.FINE, "Cancelled {0}: {1}", new Object[]{cancelled.getLessonId(), reason});
         Student student = data.getStudent(cancelled.getStudentId());
         String paidReminder = cancelled.getAmountPaid().signum() > 0
-                ? System.lineSeparator() + "  This lesson has " + formatMoney(cancelled.getAmountPaid())
+                ? System.lineSeparator() + "  This lesson has " + Formats.money(cancelled.getAmountPaid())
                         + " paid, so refund or carry over that amount."
                 : "";
-        return "Cancelled " + cancelled.getLessonId() + " for " + formatStudent(student)
+        return "Cancelled " + cancelled.getLessonId() + " for " + Formats.studentLabel(student)
                 + " (" + formatSlot(cancelled) + ")" + System.lineSeparator()
                 + "  Reason: " + cancelled.getCancellationReason() + paidReminder;
     }
@@ -521,7 +519,7 @@ public class LessonCommands {
         LOGGER.log(Level.FINE, "Uncancelled {0}, which was cancelled for: {1}",
                 new Object[]{lesson.getLessonId(), lesson.getCancellationReason()});
         Student student = data.getStudent(restored.getStudentId());
-        return "Uncancelled " + restored.getLessonId() + " for " + formatStudent(student)
+        return "Uncancelled " + restored.getLessonId() + " for " + Formats.studentLabel(student)
                 + " (" + formatSlot(restored) + ")" + System.lineSeparator()
                 + "  It was cancelled for: " + lesson.getCancellationReason();
     }
@@ -534,7 +532,7 @@ public class LessonCommands {
         Lesson lesson = data.deleteLesson(arguments);
         LOGGER.log(Level.FINE, "Deleted {0}", lesson.getLessonId());
         Student student = data.getStudent(lesson.getStudentId());
-        return "Deleted " + lesson.getLessonId() + " for " + formatStudent(student) + ": "
+        return "Deleted " + lesson.getLessonId() + " for " + Formats.studentLabel(student) + ": "
                 + formatSlot(lesson) + ", " + lesson.getSubject();
     }
 
@@ -641,10 +639,10 @@ public class LessonCommands {
             }
         }
         if (student.getSubjects().isEmpty()) {
-            throw new IllegalArgumentException(formatStudent(student)
+            throw new IllegalArgumentException(Formats.studentLabel(student)
                     + " has no subjects yet. Add one with: subject " + student.getStudentId() + " s/SUBJECT");
         }
-        throw new IllegalArgumentException(subject + " is not one of " + formatStudent(student)
+        throw new IllegalArgumentException(subject + " is not one of " + Formats.studentLabel(student)
                 + "'s subjects (" + String.join(", ", student.getSubjects()) + ").");
     }
 
@@ -665,7 +663,7 @@ public class LessonCommands {
     private static String formatSlot(Lesson lesson) {
         String duration = lesson.getDurationMinutes() == Lesson.DEFAULT_DURATION_MINUTES ? ""
                 : " (" + lesson.getDurationMinutes() + " min)";
-        return DISPLAY_DATE.format(lesson.getDate()) + " " + DISPLAY_TIME.format(lesson.getTime()) + duration;
+        return Formats.DISPLAY_DATE.format(lesson.getDate()) + " " + Formats.TIME.format(lesson.getTime()) + duration;
     }
 
     /** Formats attendance the way it is typed and shown, e.g. "present" or "not recorded". */
@@ -676,23 +674,6 @@ public class LessonCommands {
     /** Returns an indented "Notes: ..." line for a lesson that has notes, or nothing if it has none. */
     private static String formatNotesLine(Lesson lesson) {
         return lesson.getNotes().isBlank() ? "" : System.lineSeparator() + "  Notes: " + lesson.getNotes();
-    }
-
-    /** Formats a student as "S1 Amirah Binte Rahman". */
-    private static String formatStudent(Student student) {
-        return student.getStudentId() + " " + student.getName();
-    }
-
-    /** Formats a fee as dollars with two decimal places, e.g. $60.00. */
-    private static String formatMoney(BigDecimal amount) {
-        // Lesson only accepts fees with at most two decimals, so rounding is never needed here.
-        assert amount.scale() <= 2 : "Fee has more than two decimal places: " + amount;
-        return "$" + amount.setScale(2, RoundingMode.UNNECESSARY).toPlainString();
-    }
-
-    /** Formats an amount with its noun, adding an "s" unless there is exactly one, e.g. "4 lessons". */
-    private static String formatCount(int amount, String noun) {
-        return amount + " " + noun + (amount == 1 ? "" : "s");
     }
 
     /** The ID typed straight after the command word, with the prefixed values that follow it. */

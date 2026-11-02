@@ -1,7 +1,6 @@
 package seedu.tutorledger;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.Month;
@@ -30,8 +29,6 @@ public class PaymentCommands {
             "income");
     private static final Pattern MARK_FORMAT = Pattern.compile("(?i)(\\S+)\\s+(\\S+)");
     private static final Pattern INCOME_FORMAT = Pattern.compile("([0-9]{2})-([0-9]{4})|([0-9]{4})");
-    private static final DateTimeFormatter DISPLAY_DATE =
-            DateTimeFormatter.ofPattern("EEE dd-MM-uuuu", Locale.ENGLISH);
     private static final DateTimeFormatter DISPLAY_MONTH =
             DateTimeFormatter.ofPattern("MMMM uuuu", Locale.ENGLISH);
     private static final String SEPARATOR = "_".repeat(60);
@@ -101,7 +98,7 @@ public class PaymentCommands {
 
         if (amount.compareTo(totalOwed) > 0) {
             throw new IllegalArgumentException("Payment exceeds the selected lessons' outstanding balance ($"
-                    + formatMoney(totalOwed) + ").");
+                    + Formats.amount(totalOwed) + ").");
         }
 
         List<String> paidLessonIds = applyPayment(lessons, amount);
@@ -165,14 +162,9 @@ public class PaymentCommands {
 
     /** Formats a confirmation for the lessons that received the payment. */
     private static String paymentConfirmation(BigDecimal amount, List<String> paidLessonIds) {
-        return "Recorded payment of $" + formatMoney(amount) + " for "
+        return "Recorded payment of $" + Formats.amount(amount) + " for "
                 + paidLessonIds.size() + (paidLessonIds.size() == 1 ? " lesson: " : " lessons: ")
                 + String.join(", ", paidLessonIds) + ".";
-    }
-
-    private static String formatMoney(BigDecimal amount) {
-        assert amount.scale() <= 2 : "Payment amount has more than two decimal places: " + amount;
-        return amount.setScale(2, RoundingMode.UNNECESSARY).toPlainString();
     }
 
     private String mark(String arguments) {
@@ -199,7 +191,7 @@ public class PaymentCommands {
         List<Lesson> unpaidLessons = unpaidLessons(LocalDate.now(clock), selectedStudentId);
 
         int studentWidth = unpaidLessons.stream()
-                .map(lesson -> studentLabel(data.getStudent(lesson.getStudentId())).length())
+                .map(lesson -> Formats.studentLabel(data.getStudent(lesson.getStudentId())).length())
                 .max(Integer::compareTo)
                 .orElse(0);
         int subjectWidth = unpaidLessons.stream()
@@ -218,9 +210,9 @@ public class PaymentCommands {
             Student student = data.getStudent(lesson.getStudentId());
             output.append(System.lineSeparator())
                     .append(String.format(Locale.ROOT, rowFormat,
-                            lesson.getLessonId(), DISPLAY_DATE.format(lesson.getDate()),
-                            studentLabel(student), lesson.getSubject(),
-                            lesson.getAmountOwed().setScale(2, RoundingMode.UNNECESSARY).toPlainString()));
+                            lesson.getLessonId(), Formats.DISPLAY_DATE.format(lesson.getDate()),
+                            Formats.studentLabel(student), lesson.getSubject(),
+                            Formats.amount(lesson.getAmountOwed())));
         }
         output.append(System.lineSeparator()).append("       ").append(SEPARATOR);
         return output.toString();
@@ -251,8 +243,8 @@ public class PaymentCommands {
             for (Student student : owingStudents) {
                 OwedTotal total = totals.get(student.getStudentId());
                 output.append(System.lineSeparator())
-                        .append(studentLabel(student)).append("  $")
-                        .append(total.amount().setScale(2, RoundingMode.UNNECESSARY).toPlainString())
+                        .append(Formats.studentLabel(student)).append("  $")
+                        .append(Formats.amount(total.amount()))
                         .append("  (").append(total.lessonCount())
                         .append(total.lessonCount() == 1 ? " lesson)" : " lessons)");
             }
@@ -278,7 +270,7 @@ public class PaymentCommands {
 
         StringBuilder output = new StringBuilder("        ").append(SEPARATOR)
                 .append(System.lineSeparator())
-                .append("Payment history for ").append(studentLabel(student))
+                .append("Payment history for ").append(Formats.studentLabel(student))
                 .append(" (").append(lessons.size()).append(lessons.size() == 1 ? " lesson)" : " lessons)");
         if (lessons.isEmpty()) {
             output.append(System.lineSeparator()).append("No lesson payments found.");
@@ -286,11 +278,11 @@ public class PaymentCommands {
         for (Lesson lesson : lessons) {
             output.append(System.lineSeparator())
                     .append(String.format(Locale.ROOT, "%s  %s  %-20s  $%s  %s",
-                            lesson.getLessonId(), DISPLAY_DATE.format(lesson.getDate()), lesson.getSubject(),
-                            lesson.getFee().setScale(2, RoundingMode.UNNECESSARY).toPlainString(),
+                            lesson.getLessonId(), Formats.DISPLAY_DATE.format(lesson.getDate()), lesson.getSubject(),
+                            Formats.amount(lesson.getFee()),
                             lesson.getPaymentStatus() + (lesson.getAmountPaid().signum() > 0
                                     && !Lesson.PAYMENT_PAID.equals(lesson.getPaymentStatus())
-                                    ? " ($" + formatMoney(lesson.getAmountPaid()) + " paid)" : "")));
+                                    ? " ($" + Formats.amount(lesson.getAmountPaid()) + " paid)" : "")));
             if (lesson.isCancelled()) {
                 output.append(" [cancelled: ").append(lesson.getCancellationReason()).append("; not chargeable]");
             }
@@ -328,7 +320,7 @@ public class PaymentCommands {
         StringBuilder output = new StringBuilder("        ").append(SEPARATOR)
                 .append(System.lineSeparator())
                 .append("Income for ").append(DISPLAY_MONTH.format(month)).append(": $")
-                .append(total.setScale(2, RoundingMode.UNNECESSARY).toPlainString());
+                .append(Formats.amount(total));
         appendPayments(output, payments);
         output.append(System.lineSeparator()).append("       ").append(SEPARATOR);
         return output.toString();
@@ -355,7 +347,7 @@ public class PaymentCommands {
             BigDecimal total = payments.stream().map(Lesson::getAmountPaid).reduce(BigDecimal.ZERO, BigDecimal::add);
             output.append(System.lineSeparator())
                     .append(month.getDisplayName(TextStyle.FULL, Locale.ENGLISH))
-                    .append(": $").append(total.setScale(2, RoundingMode.UNNECESSARY).toPlainString());
+                    .append(": $").append(Formats.amount(total));
             appendPayments(output, payments);
         }
         output.append(System.lineSeparator()).append("       ").append(SEPARATOR);
@@ -378,9 +370,9 @@ public class PaymentCommands {
             Student student = data.getStudent(lesson.getStudentId());
             output.append(System.lineSeparator())
                     .append(String.format(Locale.ROOT, "  %s  %s  %s  %s  $%s",
-                            lesson.getLessonId(), DISPLAY_DATE.format(lesson.getDate()),
-                            studentLabel(student), lesson.getSubject(),
-                            lesson.getAmountPaid().setScale(2, RoundingMode.UNNECESSARY).toPlainString()));
+                            lesson.getLessonId(), Formats.DISPLAY_DATE.format(lesson.getDate()),
+                            Formats.studentLabel(student), lesson.getSubject(),
+                            Formats.amount(lesson.getAmountPaid())));
         }
     }
 
@@ -393,10 +385,6 @@ public class PaymentCommands {
                         .thenComparing(Lesson::getTime)
                         .thenComparing(Lesson::getLessonId))
                 .toList();
-    }
-
-    private static String studentLabel(Student student) {
-        return student.getStudentId() + " " + student.getName();
     }
 
     private record OwedTotal(BigDecimal amount, int lessonCount) {

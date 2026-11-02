@@ -6,8 +6,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.DateTimeException;
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.time.format.ResolverStyle;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -65,8 +63,6 @@ public class Storage {
             "#   A | SCORE_ID | STUDENT_ID | DATE | MARKS | TOTAL_MARKS | TEST_NAME",
             "#   T | TASK_ID | STATUS | DUE_DATE | STUDENT_ID | DESCRIPTION (DUE_DATE and STUDENT_ID may be blank)");
 
-    private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd-MM-uuuu", Locale.ROOT);
-    private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HHmm", Locale.ROOT);
     private static final String SEPARATOR = " | ";
     private static final int LESSON_FIELD_COUNT = 10;
     private static final int HOMEWORK_FIELD_COUNT = 6;
@@ -152,7 +148,8 @@ public class Storage {
         }
         for (Lesson lesson : data.getLessons()) {
             List<String> fields = new ArrayList<>(List.of("L", lesson.getLessonId(), lesson.getStudentId(),
-                    DATE.format(lesson.getDate()), TIME.format(lesson.getTime()), lesson.getSubject(),
+                    Formats.INPUT_DATE.format(lesson.getDate()), Formats.TIME.format(lesson.getTime()),
+                    lesson.getSubject(),
                     lesson.getFee().toPlainString(),
                     lesson.getAttendance().name().toLowerCase(Locale.ROOT).replace('_', ' '),
                     lesson.getPaymentStatus(), lesson.getNotes(), lesson.getCancellationReason(),
@@ -160,16 +157,17 @@ public class Storage {
             lines.add(join(fields.toArray(String[]::new)));
         }
         for (Homework item : data.getHomework()) {
-            lines.add(join("H", item.getHomeworkId(), item.getStudentId(), DATE.format(item.getDueDate()),
+            lines.add(join("H", item.getHomeworkId(), item.getStudentId(), Formats.INPUT_DATE.format(item.getDueDate()),
                     item.getSubmitStatus(), item.getDescription()));
         }
         for (Score score : data.getScores()) {
-            lines.add(join("A", score.getScoreId(), score.getStudentId(), DATE.format(score.getDate()),
+            lines.add(join("A", score.getScoreId(), score.getStudentId(), Formats.INPUT_DATE.format(score.getDate()),
                     score.getMarks().toPlainString(), score.getTotalMarks().toPlainString(), score.getTestName()));
         }
         for (FollowUpTask task : data.getTasks()) {
             // A missing due date or student is written as an empty field, so every task line has 6 fields.
-            lines.add(join("T", task.getTaskId(), task.getStatus(), task.getDueDate().map(DATE::format).orElse(""),
+            lines.add(join("T", task.getTaskId(), task.getStatus(),
+                    task.getDueDate().map(Formats.INPUT_DATE::format).orElse(""),
                     task.getStudentId().orElse(""), task.getDescription()));
         }
         long rateCount = data.getStudents().stream()
@@ -411,7 +409,7 @@ public class Storage {
         LocalDate dueDate = null;
         if (!fields.get(3).isBlank()) {
             try {
-                dueDate = LocalDate.parse(fields.get(3), DATE.withResolverStyle(ResolverStyle.STRICT));
+                dueDate = LocalDate.parse(fields.get(3), Formats.INPUT_DATE);
             } catch (DateTimeException exception) {
                 throw new IllegalArgumentException("Due date must be a real date in DD-MM-YYYY format.", exception);
             }
