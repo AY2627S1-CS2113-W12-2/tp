@@ -11,9 +11,13 @@ title Fee statements: read-only access to saved lesson data
 class TutorLedger {
   {static} +main(args)
 }
+abstract class CommandHandler {
+  ~handles(input) : boolean
+  ~execute(input) : String
+  #{abstract} run(line) : String
+}
 class PaymentCommands {
-  {static} +handles(input) : boolean
-  +execute(input) : String
+  #run(line) : String
   -feeStatement(studentId) : String
 }
 class TutorLedgerData {
@@ -35,7 +39,8 @@ class Lesson {
   +getPaymentStatus() : String
 }
 
-TutorLedger ..> PaymentCommands : routes commands
+TutorLedger --> "*" CommandHandler : routes commands
+CommandHandler <|-- PaymentCommands
 PaymentCommands --> TutorLedgerData : reads shared data
 TutorLedgerData "1" *--> "0..*" Student : stores
 TutorLedgerData "1" *--> "0..*" Lesson : stores

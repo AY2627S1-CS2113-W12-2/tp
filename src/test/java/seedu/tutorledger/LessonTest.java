@@ -198,4 +198,33 @@ class LessonTest {
         // The original is unchanged, since lessons are immutable.
         assertTrue(cancelled.isCancelled());
     }
+
+    @Test
+    void hasTakenPlaceBy_countsTodayAndEarlierButNotFutureOrCancelled() {
+        LocalDate today = LocalDate.of(2026, 9, 21);
+        Lesson yesterday = new Lesson("L1", "S1", "Math", "20-09-2026", "1600", "present", "60", "");
+        Lesson laterToday = new Lesson("L2", "S1", "Math", "21-09-2026", "2300", "not recorded", "60", "");
+        Lesson tomorrow = new Lesson("L3", "S1", "Math", "22-09-2026", "0800", "not recorded", "60", "");
+
+        assertTrue(yesterday.hasTakenPlaceBy(today));
+        // Like owed, the rule works by date, so a lesson later today already counts.
+        assertTrue(laterToday.hasTakenPlaceBy(today));
+        assertFalse(tomorrow.hasTakenPlaceBy(today));
+        assertFalse(yesterday.withCancellation("Sick").hasTakenPlaceBy(today));
+    }
+
+    @Test
+    void isOwedOn_onlyPastUncancelledLessonsWithABalance() {
+        LocalDate today = LocalDate.of(2026, 9, 21);
+        Lesson unpaid = new Lesson("L1", "S1", "Math", "20-09-2026", "1600", "present", "60", "");
+
+        assertTrue(unpaid.isOwedOn(today));
+        assertTrue(unpaid.withAmountPaid(new BigDecimal("20")).isOwedOn(today));
+        assertFalse(unpaid.withPaymentStatus(Lesson.PAYMENT_PAID).isOwedOn(today));
+        assertFalse(unpaid.withCancellation("Sick").isOwedOn(today));
+        assertFalse(unpaid.isOwedOn(LocalDate.of(2026, 9, 19)));
+        // A $0 lesson is always paid, so it is never owed.
+        assertFalse(new Lesson("L2", "S1", "Math", "20-09-2026", "1600", "present", "0", "").isOwedOn(today));
+    }
 }
+

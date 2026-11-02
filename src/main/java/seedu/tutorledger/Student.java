@@ -29,7 +29,7 @@ public class Student {
     /** Null means no default is set; zero is a valid rate for free lessons. */
     private final BigDecimal defaultHourlyRate;
     /** Archived profiles stay available by ID but are hidden from the default student list. */
-    private final boolean archived;
+    private final boolean isArchived;
     /**
      * Why the tutor flagged this student as needing extra attention (US14). Null means not flagged;
      * an empty string means flagged without a reason.
@@ -61,8 +61,8 @@ public class Student {
 
     /** Creates a validated immutable copy, retaining archive and attention state alongside profile details. */
     private Student(String studentId, String name, String level, String phoneNumber, List<String> subjects,
-            String hourlyRate, boolean archived, String attentionReason) {
-        LOGGER.log(Level.INFO, "Constructing student with ID={0}, name={1}, subjects={2}",
+            String hourlyRate, boolean isArchived, String attentionReason) {
+        LOGGER.log(Level.FINE, "Constructing student with ID={0}, name={1}, subjects={2}",
                 new Object[]{studentId, name, subjects});
         this.studentId = validateId(studentId);
         this.name = validateName(name);
@@ -70,9 +70,9 @@ public class Student {
         this.phoneNumber = validatePhoneNumber(phoneNumber);
         this.subjects = validateSubjects(subjects);
         this.defaultHourlyRate = hourlyRate == null ? null : parseHourlyRate(hourlyRate);
-        this.archived = archived;
+        this.isArchived = isArchived;
         this.attentionReason = attentionReason == null ? null : validateReason(attentionReason);
-        LOGGER.log(Level.INFO, "Student constructed: {0}", this.studentId);
+        LOGGER.log(Level.FINE, "Student constructed: {0}", this.studentId);
     }
 
     public String getStudentId() {
@@ -107,7 +107,7 @@ public class Student {
 
     /** Returns whether this profile is hidden from the active student list. */
     public boolean isArchived() {
-        return archived;
+        return isArchived;
     }
 
     /** Returns whether the tutor has flagged this student as needing extra attention. */
@@ -125,7 +125,7 @@ public class Student {
      * All other details are kept.
      */
     public Student withAttentionReason(String reason) {
-        Student updated = new Student(studentId, name, level, phoneNumber, subjects, rateText(), archived, reason);
+        Student updated = new Student(studentId, name, level, phoneNumber, subjects, rateText(), isArchived, reason);
         assert updated.studentId.equals(studentId) : "Flagging must preserve the student ID";
         assert updated.isFlagged() == (reason != null) : "Flag state was not copied";
         LOGGER.log(Level.FINE, "Student {0} flagged: {1}", new Object[]{studentId, updated.isFlagged()});
@@ -133,18 +133,18 @@ public class Student {
     }
 
     /** Returns a profile with the requested archive state while keeping all other details. */
-    public Student withArchived(boolean archived) {
-        Student updated = new Student(studentId, name, level, phoneNumber, subjects, rateText(), archived,
+    public Student withArchived(boolean isArchived) {
+        Student updated = new Student(studentId, name, level, phoneNumber, subjects, rateText(), isArchived,
                 attentionReason);
         assert updated.studentId.equals(studentId) : "Archiving must preserve the student ID";
-        assert updated.archived == archived : "Archive state was not copied";
-        LOGGER.log(Level.FINE, "Student {0} archive state set to {1}", new Object[]{studentId, archived});
+        assert updated.isArchived == isArchived : "Archive state was not copied";
+        LOGGER.log(Level.FINE, "Student {0} archive state set to {1}", new Object[]{studentId, isArchived});
         return updated;
     }
 
     /** Returns a replacement profile with a validated rate, or clears it when rate is null. */
     public Student withDefaultHourlyRate(String rate) {
-        Student updated = new Student(studentId, name, level, phoneNumber, subjects, rate, archived, attentionReason);
+        Student updated = new Student(studentId, name, level, phoneNumber, subjects, rate, isArchived, attentionReason);
         assert updated.studentId.equals(studentId) : "Changing a rate must preserve the student ID";
         LOGGER.log(Level.FINE, "Default hourly rate updated for {0}", studentId);
         return updated;
@@ -152,11 +152,11 @@ public class Student {
 
     /** Returns a replacement profile after validating all changed fields. */
     public Student withDetails(String newName, String newLevel, String newPhoneNumber, List<String> newSubjects) {
-        LOGGER.log(Level.INFO, "Updating student {0} details: name={1}, level={2}, phone={3}, subjects={4}",
+        LOGGER.log(Level.FINE, "Updating student {0} details: name={1}, level={2}, phone={3}, subjects={4}",
                 new Object[]{studentId, newName, newLevel, newPhoneNumber, newSubjects});
         Student updated = new Student(studentId, newName, newLevel, newPhoneNumber, newSubjects, rateText(),
-                archived, attentionReason);
-        LOGGER.log(Level.INFO, "Updated student record: {0}", updated.studentId);
+                isArchived, attentionReason);
+        LOGGER.log(Level.FINE, "Updated student record: {0}", updated.studentId);
         return updated;
     }
 

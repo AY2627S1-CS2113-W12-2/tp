@@ -9,10 +9,16 @@ hide empty members
 
 class TutorLedger
 
+abstract class CommandHandler {
+  ~handles(input: String): boolean
+  ~execute(input: String): String
+  #{abstract} run(line: CommandLine): String
+}
+
 class LessonCommands {
   -clock: Clock
-  {static} +handles(input: String): boolean
-  +execute(input: String): String
+  ~handles(input: String): boolean
+  #run(line: CommandLine): String
 }
 
 class ArgumentParser {
@@ -54,7 +60,8 @@ enum Attendance <<enumeration>> {
   LATE
 }
 
-TutorLedger ..> LessonCommands
+TutorLedger --> "*" CommandHandler : handlers
+CommandHandler <|-- LessonCommands
 LessonCommands --> "1" TutorLedgerData : data
 LessonCommands ..> ArgumentParser
 TutorLedgerData "1" *--> "*" Student

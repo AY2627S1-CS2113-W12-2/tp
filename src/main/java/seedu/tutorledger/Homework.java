@@ -1,9 +1,6 @@
 package seedu.tutorledger;
 
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.time.format.ResolverStyle;
-import java.util.Locale;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -31,18 +28,18 @@ public class Homework {
      * @param submitStatus the homework submission status
      */
     public Homework(String homeworkId, String submitStatus) {
-        LOGGER.log(Level.INFO, "Creating homework shell {0} status={1}", new Object[]{homeworkId, submitStatus});
+        LOGGER.log(Level.FINE, "Creating homework shell {0} status={1}", new Object[]{homeworkId, submitStatus});
         this.homeworkId = requireText(homeworkId, "Homework ID");
         this.submitStatus = requireText(submitStatus, "Submission status");
         this.studentId = null;
         this.description = null;
         this.dueDate = null;
-        LOGGER.log(Level.INFO, "Homework shell created: {0}", this.homeworkId);
+        LOGGER.log(Level.FINE, "Homework shell created: {0}", this.homeworkId);
     }
 
     /** Creates homework linked to a student with the details needed by view. */
     public Homework(String homeworkId, String studentId, String description, LocalDate dueDate, String submitStatus) {
-        LOGGER.log(Level.INFO, "Creating homework {0} for student {1}", new Object[]{homeworkId, studentId});
+        LOGGER.log(Level.FINE, "Creating homework {0} for student {1}", new Object[]{homeworkId, studentId});
         this.homeworkId = requireText(homeworkId, "Homework ID");
         this.submitStatus = requireText(submitStatus, "Submission status");
         this.studentId = studentId;
@@ -55,23 +52,23 @@ public class Homework {
                 throw new IllegalArgumentException("Due date cannot be null.");
             }
         }
-        LOGGER.log(Level.INFO, "Homework created: {0}", this.homeworkId);
+        LOGGER.log(Level.FINE, "Homework created: {0}", this.homeworkId);
     }
 
     /** Creates linked homework from the documented date format. */
     public Homework(String homeworkId, String studentId, String description, String dueDate, String submitStatus) {
-        LOGGER.log(Level.INFO, "Creating homework {0} from string date {1}", new Object[]{homeworkId, dueDate});
+        LOGGER.log(Level.FINE, "Creating homework {0} from string date {1}", new Object[]{homeworkId, dueDate});
         this.homeworkId = requireText(homeworkId, "Homework ID");
         this.submitStatus = requireText(submitStatus, "Submission status");
         this.studentId = studentId;
         this.description = description;
         this.dueDate = LocalDate.parse(dueDate,
-                DateTimeFormatter.ofPattern("dd-MM-uuuu", Locale.ROOT).withResolverStyle(ResolverStyle.STRICT));
+                Formats.INPUT_DATE);
         if (studentId != null) {
             requireText(studentId, "Student ID");
             requireText(description, "Description");
         }
-        LOGGER.log(Level.INFO, "Homework created from string date: {0}", this.homeworkId);
+        LOGGER.log(Level.FINE, "Homework created from string date: {0}", this.homeworkId);
     }
 
     public String getHomeworkId() {
@@ -101,9 +98,10 @@ public class Homework {
 
     /** Returns true if this homework has been handed in. */
     public boolean isSubmitted() {
-        boolean submitted = STATUS_SUBMITTED.equalsIgnoreCase(submitStatus);
-        LOGGER.log(Level.FINE, "Checking if homework {0} is submitted: {1}", new Object[]{homeworkId, submitted});
-        return submitted;
+        boolean hasBeenSubmitted = STATUS_SUBMITTED.equalsIgnoreCase(submitStatus);
+        LOGGER.log(Level.FINE, "Checking if homework {0} is submitted: {1}",
+                new Object[]{homeworkId, hasBeenSubmitted});
+        return hasBeenSubmitted;
     }
 
     /**
@@ -111,9 +109,9 @@ public class Homework {
      * A copy is returned because Homework is immutable.
      */
     public Homework asSubmitted() {
-        LOGGER.log(Level.INFO, "Marking homework {0} as submitted", homeworkId);
+        LOGGER.log(Level.FINE, "Marking homework {0} as submitted", homeworkId);
         Homework updated = new Homework(homeworkId, studentId, description, dueDate, STATUS_SUBMITTED);
-        LOGGER.log(Level.INFO, "Homework marked as submitted: {0}", updated.homeworkId);
+        LOGGER.log(Level.FINE, "Homework marked as submitted: {0}", updated.homeworkId);
         return updated;
     }
 

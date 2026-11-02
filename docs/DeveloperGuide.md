@@ -70,9 +70,9 @@ At startup, `TutorLedger` creates one `TutorLedgerData` and passes it to the han
 coordinator. `StorageCommands.loadOnStartup()` restores that store before the input loop starts.
 History requests are handled before alias expansion. A recalled command requires confirmation before
 it enters ordinary dispatch; cancellation never reaches a handler. The loop expands aliases through
-`CommandAliases` and retains the original command text in session history; `handles` checks route it
-to the appropriate handler.
-Unclaimed input reaches `StudentCommands`, which also handles help and unknown commands.
+`CommandAliases` and retains the original command text in session history, then offers the line to each
+handler in turn; the first whose `handles` returns true runs it.
+Unclaimed input reaches `StudentCommands`, the last handler, which also handles help and unknown commands.
 
 Before an ordinary feature command, the entry point records a storage snapshot. After the handler
 returns, it calls `saveIfChanged`; persistence writes only when the records changed. Explicit `save`
@@ -80,10 +80,20 @@ and `reload` commands use the persistence path directly. Feature handlers do not
 and the data model does not depend on persistence.
 
 Sharing a store makes edits immediately visible to other commands without duplicating records. Keeping
-file operations in persistence allows commands to operate on in-memory data during tests. This design
-does not require a common command interface: the current handlers use static `handles` methods and
-instance `execute` methods. The more detailed class, sequence and activity diagrams below explain the
-selected implementation decisions.
+file operations in persistence allows commands to operate on in-memory data during tests.
+
+Every handler extends the abstract class `CommandHandler`. Its `handles(input)` says whether the handler
+owns a line: by default, when the first word is one of its command words. `execute(input)` does the steps
+every command shares. It splits off the command word, traces the command, calls the subclass's `run`, and
+turns a rejected command into an `Error: ...` message. A subclass only maps its words to its methods in
+`run`. The entry point keeps the handlers in a list, so adding a handler means adding it to that list.
+
+*Alternative considered:* each handler repeating the split, check and error handling itself, with the
+entry point choosing a handler in a chain of `if` statements. That was the first design. It needed no
+shared class, but left eight copies of the same steps, which had to be kept in step by hand.
+
+The more detailed class, sequence and activity diagrams below explain the selected implementation
+decisions.
 
 ### Validation and updates
 
@@ -119,8 +129,8 @@ records in a text editor.
 * **`Storage`** knows the file format and does the file input/output. It never prints anything, so it can
   be tested on its own.
 * **`StorageCommands`** runs `save` and `reload`, loads the file at startup and saves automatically. It turns
-  file errors into messages for the user, following the same `handles`/`execute` pattern as the other
-  command classes.
+  file errors into messages for the user. Like the other command classes it extends `CommandHandler`, but
+  its `shouldSaveAfterwards()` returns false, because `save` and `reload` manage the file themselves.
 * **`TutorLedgerData`** gained `importLesson`, `importHomework`, `setNextLessonNumber`,
   `setNextHomeworkNumber` and `replaceAllWith` so that records can be restored with their saved IDs.
 
@@ -238,7 +248,7 @@ student at the end of a term.
 * **`Score`** is an immutable record of one test result, like `Lesson` and `Homework`. Its constructor
   checks every value, for example that the marks are not more than the total. A score therefore cannot
   exist in an invalid state, whether it was typed in or loaded from a hand-edited file.
-* **`ScoreCommands`** follows the same `handles`/`execute` pattern as the other command classes. The main
+* **`ScoreCommands`** extends `CommandHandler`, like the other command classes. The main
   loop routes `score`, `scores` and `progress` to it.
 * **`TutorLedgerData`** stores scores in a map keyed by ID, with a counter that never decreases, as it does
   for lessons and homework. `deleteStudent` also removes the student's scores, and `Deletion` reports how
@@ -329,7 +339,7 @@ the lesson.
 * **`FollowUpTask`** is an immutable record, like `Homework`. Its student and due date are optional, because
   some reminders (such as "Print term calendar") are not about one student or day. The getters return
   `Optional`, so callers cannot forget to handle a task that has neither.
-* **`TaskCommands`** follows the same `handles`/`execute` pattern as the other command classes. The main loop
+* **`TaskCommands`** extends `CommandHandler`, like the other command classes. The main loop
   routes `task`, `tasks` and `done` to it.
 * **`TutorLedgerData`** stores tasks in a map keyed by ID, with a counter that never decreases, as for every
   other record. A task links to a student by ID rather than holding the `Student` object. Student profiles
@@ -401,10 +411,10 @@ change plans when real life gets in the way:
 
 #### Responsibilities and object relationships
 
-`LessonCommands` parses and runs every lesson command. Like the other command classes, it follows the
-`handles`/`execute` pattern: the main loop asks `LessonCommands.handles(line)` whether the line is a lesson
-command, then passes the line to `execute`, which returns the text to display. `edit` and `delete` are also
-student commands, so `handles` claims them only when the ID after the command word starts with `L`. For
+`LessonCommands` parses and runs every lesson command. Like the other command classes, it extends
+`CommandHandler`: the main loop asks `handles(line)` whether the line is a lesson command, then passes the
+line to `execute`, which returns the text to display. `edit` and `delete` are also student commands, so
+`LessonCommands` overrides `handles` to claim them only when the ID after the command word starts with `L`. For
 example, `edit L3 t/1700` is routed here, while `edit S1 p/91234567` is left for `StudentCommands`.
 
 ![Class diagram of the lesson commands, the shared data store, Lesson and Attendance](diagrams/lesson-class.svg)
@@ -889,7 +899,7 @@ stable one-based numbers, and `repeat NUMBER` selects one and requests confirmat
 
 `CommandHistory` owns a session-local list of ordinary command strings. It validates selection numbers
 and formats the list, but has no reference to `TutorLedgerData` or `Storage`. `TutorLedger.selectCommand`
-handles history controls and uses `confirmRepeat` to read replies. Only a confirmed selection returns
+handles history controls and uses `isRepeatConfirmed` to read replies. Only a confirmed selection returns
 to the existing command loop. Rejected requests and cancellations return without dispatch or saving.
 
 ![Sequence diagram of selecting a query, confirming or cancelling, and reusing normal dispatch](diagrams/command-history-sequence.svg)

@@ -2,7 +2,6 @@ package seedu.tutorledger;
 
 import java.time.Clock;
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -17,10 +16,8 @@ import java.util.logging.Logger;
  * <p>A lesson's notes are its topic tag: {@code topics S1} lists what was covered with one student (US12), and
  * {@code topics k/vectors} finds every lesson that covered a topic, with any student (US22).
  */
-public class TopicCommands {
+public class TopicCommands extends CommandHandler {
     private static final Logger LOGGER = Logger.getLogger(TopicCommands.class.getName());
-    private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("EEE dd-MM-uuuu", Locale.ENGLISH);
-    private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HHmm", Locale.ROOT);
     /** Most recent lessons appear first, with a stable ID order when dates and times are equal. */
     private static final Comparator<Lesson> NEWEST_FIRST = Comparator.comparing(Lesson::getDate)
             .thenComparing(Lesson::getTime).thenComparing(Lesson::getLessonId).reversed();
@@ -32,35 +29,21 @@ public class TopicCommands {
 
     /** Shares the existing records and clock so eligibility uses the same date as other commands. */
     public TopicCommands(TutorLedgerData data, Clock clock) {
+        super(Set.of("topics"));
         assert data != null : "TopicCommands needs shared records";
         assert clock != null : "TopicCommands needs a clock";
         this.data = data;
         this.clock = clock;
     }
 
-    /** Returns whether the first command word is topics; null and blank input belong to other handlers. */
-    public static boolean handles(String input) {
-        return input != null && !input.isBlank()
-                && input.strip().split("\\s+", 2)[0].equalsIgnoreCase("topics");
-    }
-
     /**
-     * Executes {@code topics STUDENT_ID [s/SUBJECT] [k/KEYWORD]} or {@code topics k/KEYWORD [s/SUBJECT]},
-     * reporting validation errors without mutation.
+     * Runs {@code topics STUDENT_ID [s/SUBJECT] [k/KEYWORD]} or {@code topics k/KEYWORD [s/SUBJECT]}.
      *
      * <p>The second form finds every lesson that covered a topic, whichever student it was with (US22).
      */
-    public String execute(String input) {
-        if (!handles(input)) {
-            return "Unknown topics command.";
-        }
-        try {
-            Query query = parseQuery(input);
-            return listTopics(query);
-        } catch (IllegalArgumentException exception) {
-            LOGGER.log(Level.FINE, "Topics command rejected: {0}", exception.getMessage());
-            return "Error: " + exception.getMessage();
-        }
+    @Override
+    protected String run(CommandLine line) {
+        return listTopics(parseQuery(line.arguments()));
     }
 
     /**
@@ -68,9 +51,7 @@ public class TopicCommands {
      *
      * @throws IllegalArgumentException If a value is invalid, or neither a student nor a keyword is given.
      */
-    private Query parseQuery(String input) {
-        String[] command = input.strip().split("\\s+", 2);
-        String arguments = command.length == 2 ? command[1] : "";
+    private Query parseQuery(String arguments) {
         // As in filter, a first word without a slash is the student ID and the rest are prefixed values.
         String[] pieces = arguments.split("\\s+", 2);
         Student student = null;
@@ -98,7 +79,7 @@ public class TopicCommands {
     private String listTopics(Query query) {
         LocalDate today = LocalDate.now(clock);
         List<Lesson> lessons = data.getLessons().stream()
-                .filter(lesson -> !lesson.isCancelled() && !lesson.getDate().isAfter(today))
+                .filter(lesson -> lesson.hasTakenPlaceBy(today))
                 .filter(lesson -> lesson.getAttendance() == Lesson.Attendance.PRESENT
                         || lesson.getAttendance() == Lesson.Attendance.LATE)
                 .filter(lesson -> !lesson.getNotes().isBlank())
@@ -116,7 +97,8 @@ public class TopicCommands {
             assert !lesson.getNotes().isBlank() : "A covered-topic entry must contain notes";
             assert query.matches(lesson) : "Every listed lesson must match the query";
             output.append(System.lineSeparator()).append("  ").append(lesson.getLessonId()).append("  ")
-                    .append(DATE.format(lesson.getDate())).append(" ").append(TIME.format(lesson.getTime()))
+                    .append(Formats.DISPLAY_DATE.format(lesson.getDate())).append(" ")
+                    .append(Formats.TIME.format(lesson.getTime()))
                     .append("  ").append(query.student() == null ? studentLabel(lesson) + "  " : "")
                     .append(lesson.getSubject()).append(System.lineSeparator())
                     .append("    ").append(lesson.getNotes());

@@ -8,9 +8,6 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
@@ -58,7 +55,7 @@ class CancelledPaymentViewsTest {
         String before = Storage.encode(data);
         String filter = new LessonFilterCommand(data).execute("filter S1");
         String statement = new PaymentCommands(data,
-                Clock.fixed(Instant.parse("2026-11-02T10:00:00Z"), ZoneOffset.UTC))
+                TestUtil.clockAt("2026-11-02T10:00:00Z"))
                 .execute("fee_statement S1");
         for (String output : List.of(filter, statement)) {
             assertEquals(4, output.lines().filter(line -> line.contains("[cancelled: Sick; not chargeable]")).count());

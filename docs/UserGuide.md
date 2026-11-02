@@ -143,8 +143,8 @@ Format: `add n/NAME l/LEVEL p/PHONE_NUMBER [s/SUBJECT]… [r/RATE]`
   adds Ravi s/o Kumar with the subject Math. The same applies to `edit` and to searching with `list ravi s/o`.
   * `d/o` is part of the name in any case, since `add` and `edit` have no `d/` prefix.
   * `s/o` is part of the name when written with a lower-case `o`, or when the whole name is in capitals, as in
-    `n/RAVI S/O KUMAR`. Otherwise `s/O` is read as the subject prefix, so `add n/Ravi s/O Level Math ...` adds
-    Ravi with the subject O Level Math.
+    `n/RAVI S/O KUMAR`. Otherwise `s/O` is read as the subject prefix, so `add n/Ravi s/O Level Math ...` and
+    `add n/RAVI S/O Level Math ...` both add a student with the subject O Level Math.
   * So for a name typed in mixed case, write `s/o` in lower case: `n/Ravi S/O Kumar` is read as Ravi with the
     subject O Kumar, which the `Subjects:` line of the result shows.
 

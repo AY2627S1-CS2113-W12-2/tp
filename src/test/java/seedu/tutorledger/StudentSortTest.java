@@ -3,11 +3,10 @@ package seedu.tutorledger;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static seedu.tutorledger.TestUtil.NL;
 
 import java.math.BigDecimal;
 import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -26,7 +25,6 @@ import org.junit.jupiter.api.Test;
  * </ul>
  */
 class StudentSortTest {
-    private static final String NEWLINE = System.lineSeparator();
     private TutorLedgerData data;
     private StudentCommands commands;
 
@@ -49,13 +47,13 @@ class StudentSortTest {
         data.putLesson(new Lesson("L6", "S3", "Science", "20-09-2026", "1600", "present", "60", "")
                 .withCancellation("Student sick"));
 
-        Clock clock = Clock.fixed(Instant.parse("2026-09-21T10:00:00Z"), ZoneOffset.UTC);
+        Clock clock = TestUtil.clockAt("2026-09-21T10:00:00Z");
         commands = new StudentCommands(data, clock);
     }
 
     @Test
     void sortOwedPutsLargestBalanceFirstAndKeepsIdOrderForTies() {
-        String expected = String.join(NEWLINE,
+        String expected = String.join(NL,
                 "4 students, most owed first:",
                 "  S2  Bob Lim (Sec 4)  none  owes $120.00",
                 "  S1  Alice Tan (Sec 3)  none  owes $60.00",
@@ -66,7 +64,7 @@ class StudentSortTest {
 
     @Test
     void sortLastPutsStudentsWithoutLessonsFirstThenOldestLastLesson() {
-        String expected = String.join(NEWLINE,
+        String expected = String.join(NL,
                 "4 students, longest since last lesson first:",
                 "  S4  Dan Ng (Sec 1)  none  no past lessons",
                 "  S2  Bob Lim (Sec 4)  none  last lesson Tue 01-09-2026",

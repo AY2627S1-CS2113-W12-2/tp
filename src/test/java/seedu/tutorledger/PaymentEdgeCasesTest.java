@@ -8,8 +8,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -18,7 +16,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 /** Reproduces payment interactions with free lessons, fee edits, cancellation and persistence. */
 class PaymentEdgeCasesTest {
-    private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-10-26T08:00:00Z"), ZoneOffset.UTC);
+    private static final Clock CLOCK = TestUtil.clockAt("2026-10-26T08:00:00Z");
 
     @TempDir
     Path tempDir;

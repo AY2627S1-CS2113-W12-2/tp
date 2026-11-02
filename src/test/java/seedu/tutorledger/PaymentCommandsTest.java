@@ -4,10 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneOffset;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -22,7 +18,7 @@ class PaymentCommandsTest {
         data.putLesson(new Lesson("L37", "S1", "Pure Chemistry", "22-09-2026", "1600",
                 "present", "62.50", "Started vectors"));
         commands = new PaymentCommands(data,
-                Clock.fixed(Instant.parse("2026-09-21T10:00:00Z"), ZoneOffset.UTC));
+                TestUtil.clockAt("2026-09-21T10:00:00Z"));
     }
 
     @Test
@@ -289,17 +285,17 @@ class PaymentCommandsTest {
         assertTrue(commands.execute("income 13-2026").startsWith("Error: MONTH"));
         assertTrue(commands.execute("income 0000").startsWith("Error: YEAR"));
         assertTrue(commands.execute("income 2026 extra").startsWith("Error: Use: income"));
-        assertTrue(PaymentCommands.handles("income 2026"));
+        assertTrue(commands.handles("income 2026"));
     }
 
     @Test
     void handlesUnpaidButRejectsExtraArguments() {
-        assertTrue(PaymentCommands.handles("unpaid"));
-        assertTrue(PaymentCommands.handles("UNPAID s1"));
+        assertTrue(commands.handles("unpaid"));
+        assertTrue(commands.handles("UNPAID s1"));
         assertTrue(commands.execute("unpaid S1 extra").startsWith("Error:"));
-        assertTrue(PaymentCommands.handles("owed"));
+        assertTrue(commands.handles("owed"));
         assertTrue(commands.execute("owed S1").startsWith("Error:"));
-        assertTrue(PaymentCommands.handles("fee_statement S1"));
+        assertTrue(commands.handles("fee_statement S1"));
     }
 
     @Test

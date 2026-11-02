@@ -3,18 +3,15 @@ package seedu.tutorledger;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static seedu.tutorledger.TestUtil.NL;
 
 import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneOffset;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /** Checks the task, tasks and done commands. Today is fixed at Wed 14-10-2026, 10:00. */
 class TaskCommandsTest {
-    private static final String NL = System.lineSeparator();
-
     private TutorLedgerData data;
     private Clock clock;
     private TaskCommands commands;
@@ -22,7 +19,7 @@ class TaskCommandsTest {
     @BeforeEach
     void setUp() {
         data = new TutorLedgerData();
-        clock = Clock.fixed(Instant.parse("2026-10-14T10:00:00Z"), ZoneOffset.UTC);
+        clock = TestUtil.clockAt("2026-10-14T10:00:00Z");
         commands = new TaskCommands(data, clock);
         data.addStudent("Amirah Binte Rahman", "Sec 3", "91234567");
         data.addStudent("Tan Wei Ming", "Sec 4", "81234567");
@@ -172,10 +169,10 @@ class TaskCommandsTest {
 
     @Test
     void handles_onlyTaskCommandWords() {
-        assertTrue(TaskCommands.handles("TASK Bring notes"));
-        assertTrue(TaskCommands.handles("tasks"));
-        assertTrue(TaskCommands.handles("done T1"));
-        assertFalse(TaskCommands.handles("homework"));
-        assertFalse(TaskCommands.handles(" "));
+        assertTrue(commands.handles("TASK Bring notes"));
+        assertTrue(commands.handles("tasks"));
+        assertTrue(commands.handles("done T1"));
+        assertFalse(commands.handles("homework"));
+        assertFalse(commands.handles(" "));
     }
 }

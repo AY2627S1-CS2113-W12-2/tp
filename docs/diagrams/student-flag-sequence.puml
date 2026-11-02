@@ -18,7 +18,7 @@ deactivate Data
 Commands -> Original : withAttentionReason("Weak at algebra")
 activate Original
 create "flagged:Student" as Flagged
-Original -> Flagged : new Student(..., archived, "Weak at algebra")
+Original -> Flagged : new Student(..., isArchived, "Weak at algebra")
 activate Flagged
 Flagged --> Original : flagged
 deactivate Flagged

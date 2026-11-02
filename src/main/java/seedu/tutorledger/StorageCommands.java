@@ -9,7 +9,6 @@ import java.nio.file.Path;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -21,7 +20,7 @@ import java.util.logging.Logger;
  * <p>Like the other command classes, each method returns the text to show, and problems are
  * reported as messages instead of crashing the program.
  */
-public class StorageCommands {
+public class StorageCommands extends CommandHandler {
     /** Traces storage commands and file errors at FINE level, shown only when debug logging is enabled. */
     private static final Logger LOGGER = Logger.getLogger(StorageCommands.class.getName());
 
@@ -30,10 +29,10 @@ public class StorageCommands {
 
     private final TutorLedgerData data;
     private final Storage storage;
-    private final boolean seedSampleData;
+    private final boolean shouldSeedSampleData;
     private final Clock clock;
     /** Prevents a later data-changing command from overwriting a file that could not be read. */
-    private boolean automaticSavingEnabled = true;
+    private boolean isAutomaticSavingEnabled = true;
 
     /**
      * Creates the handler for the storage commands.
@@ -52,8 +51,8 @@ public class StorageCommands {
      * @param storage The data file that is saved to automatically.
      * @param seedSampleData Whether a missing file should be populated with first-launch sample records.
      */
-    public StorageCommands(TutorLedgerData data, Storage storage, boolean seedSampleData) {
-        this(data, storage, seedSampleData, Clock.systemDefaultZone());
+    public StorageCommands(TutorLedgerData data, Storage storage, boolean shouldSeedSampleData) {
+        this(data, storage, shouldSeedSampleData, Clock.systemDefaultZone());
     }
 
     /**
@@ -64,36 +63,27 @@ public class StorageCommands {
      * @param seedSampleData Whether a missing file should be populated with first-launch sample records.
      * @param clock Source of today's date for relative first-launch sample records.
      */
-    public StorageCommands(TutorLedgerData data, Storage storage, boolean seedSampleData, Clock clock) {
+    public StorageCommands(TutorLedgerData data, Storage storage, boolean shouldSeedSampleData, Clock clock) {
+        super(COMMAND_WORDS);
         assert data != null : "StorageCommands needs the records to save";
         assert storage != null : "StorageCommands needs a data file to save to";
         assert clock != null : "StorageCommands needs a clock for sample data";
         this.data = data;
         this.storage = storage;
-        this.seedSampleData = seedSampleData;
+        this.shouldSeedSampleData = shouldSeedSampleData;
         this.clock = clock;
     }
 
-    /** Returns true if the first word of the input is a storage command. */
-    public static boolean handles(String input) {
-        if (input == null || input.isBlank()) {
-            return false;
-        }
-        String command = input.strip().split("\\s+", 2)[0].toLowerCase(Locale.ROOT);
-        return COMMAND_WORDS.contains(command);
+    @Override
+    protected String run(CommandLine line) {
+        // Words typed after reload are ignored, as the user guide says.
+        return line.word().equals("save") ? save(line.arguments()) : reload();
     }
 
-    /** Executes one storage command and returns its display text. */
-    public String execute(String input) {
-        if (!handles(input)) {
-            return "Unknown storage command.";
-        }
-        String[] words = input.strip().split("\\s+", 2);
-        String command = words[0].toLowerCase(Locale.ROOT);
-        String arguments = words.length == 2 ? words[1].trim() : "";
-        LOGGER.log(Level.FINE, "Running storage command {0} with arguments: {1}", new Object[]{command, arguments});
-        // Words typed after reload are ignored, as the user guide says.
-        return command.equals("save") ? save(arguments) : reload();
+    /** Returns false: save and reload manage the file themselves, and reload must never be followed by a save. */
+    @Override
+    boolean shouldSaveAfterwards() {
+        return false;
     }
 
     /**
@@ -106,12 +96,12 @@ public class StorageCommands {
         try {
             Storage.LoadResult result = storage.load();
             data.replaceAllWith(result.data());
-            automaticSavingEnabled = true;
+            isAutomaticSavingEnabled = true;
             return "Loaded " + describeContents(data) + " from " + storage.getDisplayPath() + "."
                     + describeProblems(result.problems());
         } catch (NoSuchFileException exception) {
-            automaticSavingEnabled = true;
-            if (!seedSampleData) {
+            isAutomaticSavingEnabled = true;
+            if (!shouldSeedSampleData) {
                 LOGGER.log(Level.FINE, "No data file at startup; starting empty");
                 return "No saved data yet. TutorLedger will create " + storage.getDisplayPath()
                         + " when you add something.";
@@ -129,7 +119,7 @@ public class StorageCommands {
                         + " (" + describe(saveException) + ").";
             }
         } catch (IOException exception) {
-            automaticSavingEnabled = false;
+            isAutomaticSavingEnabled = false;
             LOGGER.log(Level.FINE, "Could not read data file at startup", exception);
             return "Could not read " + storage.getDisplayPath() + " (" + describe(exception) + ")."
                     + System.lineSeparator() + "Starting with no data.";
@@ -159,7 +149,7 @@ public class StorageCommands {
         if (snapshot().equals(snapshotBefore)) {
             return "";
         }
-        if (!automaticSavingEnabled) {
+        if (!isAutomaticSavingEnabled) {
             return "Warning: your change could not be saved to " + storage.getDisplayPath()
                     + " because automatic saving is disabled after the file could not be read."
                     + " Fix the file and run reload, or use save explicitly.";
@@ -180,7 +170,7 @@ public class StorageCommands {
         try {
             if (filePath.isEmpty()) {
                 storage.save(data);
-                automaticSavingEnabled = true;
+                isAutomaticSavingEnabled = true;
                 return "Saved " + describeContents(data) + System.lineSeparator()
                         + "to " + storage.getDisplayPath();
             }
@@ -205,12 +195,12 @@ public class StorageCommands {
             return "No data file found at " + storage.getDisplayPath() + "." + System.lineSeparator()
                     + "Your current data has not been changed.";
         } catch (IOException exception) {
-            automaticSavingEnabled = false;
+            isAutomaticSavingEnabled = false;
             return "Could not read " + storage.getDisplayPath() + " (" + describe(exception) + ")."
                     + System.lineSeparator() + "Your current data has not been changed.";
         }
         data.replaceAllWith(result.data());
-        automaticSavingEnabled = true;
+        isAutomaticSavingEnabled = true;
         // The file was just read in full, so saving now would write back exactly the records it gave.
         assert snapshot().equals(Storage.encode(result.data())) : "Reload did not copy every record";
         return "Reloaded " + storage.getDisplayPath() + System.lineSeparator()
@@ -219,9 +209,9 @@ public class StorageCommands {
 
     /** Describes the records, e.g. "10 students, 42 lessons and 7 homework items". */
     private static String describeContents(TutorLedgerData records) {
-        return count(records.getStudents().size(), "student") + ", "
-                + count(records.getLessons().size(), "lesson") + " and "
-                + count(records.getHomework().size(), "homework item");
+        return Formats.count(records.getStudents().size(), "student") + ", "
+                + Formats.count(records.getLessons().size(), "lesson") + " and "
+                + Formats.count(records.getHomework().size(), "homework item");
     }
 
     /** Lists the skipped lines under a heading, or returns nothing if no line was skipped. */
@@ -230,7 +220,7 @@ public class StorageCommands {
             return "";
         }
         StringBuilder text = new StringBuilder(System.lineSeparator()).append("Skipped ")
-                .append(count(problems.size(), "line")).append(" that could not be read:");
+                .append(Formats.count(problems.size(), "line")).append(" that could not be read:");
         for (String problem : problems) {
             text.append(System.lineSeparator()).append("  ").append(problem);
         }
@@ -250,7 +240,4 @@ public class StorageCommands {
         return exception.getMessage();
     }
 
-    private static String count(int amount, String noun) {
-        return amount + " " + noun + (amount == 1 ? "" : "s");
-    }
 }

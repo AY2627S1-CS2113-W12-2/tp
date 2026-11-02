@@ -5,8 +5,6 @@ import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.DateTimeException;
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.time.format.ResolverStyle;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -26,7 +24,7 @@ import java.util.regex.Pattern;
  * Like the other command classes, each command returns its display text, and validation problems
  * are reported as an "Error: ..." message instead of crashing the program.
  */
-public class ScoreCommands {
+public class ScoreCommands extends CommandHandler {
     private static final Logger LOGGER = Logger.getLogger(ScoreCommands.class.getName());
 
     /** Command words this class understands, used by the main loop to route input here. */
@@ -38,13 +36,7 @@ public class ScoreCommands {
     /** Marks typed as MARKS/TOTAL, e.g. 28/40 or 17.5/20. */
     private static final Pattern MARKS_FORMAT = Pattern.compile("([^/\\s]+)/([^/\\s]+)");
 
-    /** Date format typed by the user, e.g. 21-09-2026. STRICT rejects dates like 31-02-2026. */
-    private static final DateTimeFormatter INPUT_DATE = DateTimeFormatter.ofPattern("dd-MM-uuuu", Locale.ROOT)
-            .withResolverStyle(ResolverStyle.STRICT);
 
-    /** Date format shown to the user, e.g. Mon 21-09-2026. */
-    private static final DateTimeFormatter DISPLAY_DATE = DateTimeFormatter.ofPattern("EEE dd-MM-uuuu",
-            Locale.ENGLISH);
 
     /** Orders scores oldest first; scores on the same day keep the order they were recorded in. */
     private static final Comparator<Score> BY_DATE = Comparator.comparing(Score::getDate)
@@ -55,42 +47,21 @@ public class ScoreCommands {
     private final Clock clock;
 
     public ScoreCommands(TutorLedgerData data, Clock clock) {
+        super(COMMAND_WORDS);
         assert data != null : "ScoreCommands needs a data store";
         assert clock != null : "ScoreCommands needs a clock to know today's date";
         this.data = data;
         this.clock = clock;
     }
 
-    /** Returns true if the first word of the input is a score or progress command. */
-    public static boolean handles(String input) {
-        if (input == null || input.isBlank()) {
-            return false;
-        }
-        String command = input.strip().split("\\s+", 2)[0].toLowerCase(Locale.ROOT);
-        return COMMAND_WORDS.contains(command);
-    }
-
-    /** Executes one command and returns its display text, including validation errors. */
-    public String execute(String input) {
-        if (!handles(input)) {
-            return "Unknown command.";
-        }
-        String[] words = input.strip().split("\\s+", 2);
-        String command = words[0].toLowerCase(Locale.ROOT);
-        String arguments = words.length == 2 ? words[1].trim() : "";
-        LOGGER.log(Level.FINE, "Running score command {0} with arguments: {1}", new Object[]{command, arguments});
-        try {
-            return switch (command) {
-            case "score" -> score(arguments);
-            case "scores" -> listScores(arguments);
-            default -> progress(arguments);
-            };
-        } catch (IllegalArgumentException exception) {
-            // A rejected command is the user's mistake and is already explained on screen, so it is only traced.
-            LOGGER.log(Level.FINE, "Rejected score command {0}: {1}",
-                    new Object[]{input.strip(), exception.getMessage()});
-            return "Error: " + exception.getMessage();
-        }
+    @Override
+    protected String run(CommandLine line) {
+        String arguments = line.arguments();
+        return switch (line.word()) {
+        case "score" -> score(arguments);
+        case "scores" -> listScores(arguments);
+        default -> progress(arguments);
+        };
     }
 
     /** Handles {@code score STUDENT_ID TEST_NAME m/MARKS/TOTAL [d/DATE]}. */
@@ -116,29 +87,36 @@ public class ScoreCommands {
             throw new IllegalArgumentException("Write the marks as MARKS/TOTAL, for example m/28/40.");
         }
         // The date is optional because scores are usually recorded on the day the test is returned.
-        String date = fields.singleOr("d", INPUT_DATE.format(LocalDate.now(clock)));
+        String date = fields.singleOr("d", Formats.INPUT_DATE.format(LocalDate.now(clock)));
 
         Score score = data.addScore(studentId, testName, marks.group(1), marks.group(2), date);
         Student student = data.getStudent(score.getStudentId());
-        LOGGER.log(Level.INFO, "Recorded score {0} for {1}", new Object[]{score.getScoreId(), student.getStudentId()});
+        LOGGER.log(Level.FINE, "Recorded score {0} for {1}", new Object[]{score.getScoreId(), student.getStudentId()});
 
-        StringBuilder output = new StringBuilder("Recorded " + score.getScoreId() + " for " + label(student));
+        StringBuilder output = new StringBuilder("Recorded " + score.getScoreId() + " for "
+                + Formats.studentLabel(student));
         output.append(System.lineSeparator()).append("  ").append(score.getTestName()).append(": ")
                 .append(score.getMarksText()).append(" (").append(percent(score.getPercentage())).append(") on ")
-                .append(DISPLAY_DATE.format(score.getDate()));
+                .append(Formats.DISPLAY_DATE.format(score.getDate()));
 
-        // Comparing with the test just before this one answers "is the student improving?" straight away.
-        List<Score> history = scoresOf(student.getStudentId());
+        return output.append(describeChangeFromPrevious(score)).toString();
+    }
+
+    /**
+     * Returns a line comparing the score with the student's test just before it, or nothing for their first
+     * test. Comparing with the previous test answers "is the student improving?" straight away.
+     */
+    private String describeChangeFromPrevious(Score score) {
+        List<Score> history = scoresOf(score.getStudentId());
         int position = history.indexOf(score);
         assert position >= 0 : "The score just recorded should be in the student's history";
-        if (position > 0) {
-            Score previous = history.get(position - 1);
-            output.append(System.lineSeparator()).append("  ")
-                    .append(describeChange(score.getPercentage().subtract(previous.getPercentage())))
-                    .append(" from ").append(previous.getTestName()).append(" (")
-                    .append(percent(previous.getPercentage())).append(")");
+        if (position == 0) {
+            return "";
         }
-        return output.toString();
+        Score previous = history.get(position - 1);
+        return System.lineSeparator() + "  "
+                + describeChange(score.getPercentage().subtract(previous.getPercentage()))
+                + " from " + previous.getTestName() + " (" + percent(previous.getPercentage()) + ")";
     }
 
     /** Handles {@code scores STUDENT_ID}: every score for one student, oldest first, with the trend. */
@@ -148,7 +126,7 @@ public class ScoreCommands {
         }
         Student student = data.getStudent(arguments);
         List<Score> history = scoresOf(student.getStudentId());
-        String heading = count(history.size(), "score") + " for " + label(student);
+        String heading = Formats.count(history.size(), "score") + " for " + Formats.studentLabel(student);
         if (history.isEmpty()) {
             return heading;
         }
@@ -179,8 +157,8 @@ public class ScoreCommands {
         List<Lesson> lessons = data.getLessons().stream()
                 .filter(lesson -> id.equals(lesson.getStudentId()))
                 // A cancelled lesson was never going to be attended, so it does not count either way.
-                .filter(lesson -> !lesson.isCancelled())
-                .filter(lesson -> isWithin(lesson.getDate(), from, to) && !lesson.getDate().isAfter(today))
+                .filter(lesson -> lesson.hasTakenPlaceBy(today))
+                .filter(lesson -> isWithin(lesson.getDate(), from, to))
                 .toList();
         List<Score> periodScores = scoresOf(id).stream()
                 .filter(score -> isWithin(score.getDate(), from, to))
@@ -188,14 +166,14 @@ public class ScoreCommands {
         LOGGER.log(Level.FINE, "Progress for {0}: {1} lessons, {2} scores",
                 new Object[]{id, lessons.size(), periodScores.size()});
 
-        String period = from.equals(LocalDate.MIN) ? "up to " + DISPLAY_DATE.format(to)
-                : DISPLAY_DATE.format(from) + " to " + DISPLAY_DATE.format(to);
-        StringBuilder output = new StringBuilder("Progress for " + label(student) + ", " + period);
+        String period = from.equals(LocalDate.MIN) ? "up to " + Formats.DISPLAY_DATE.format(to)
+                : Formats.DISPLAY_DATE.format(from) + " to " + Formats.DISPLAY_DATE.format(to);
+        StringBuilder output = new StringBuilder("Progress for " + Formats.studentLabel(student) + ", " + period);
         output.append(System.lineSeparator()).append(attendanceSummary(lessons));
         if (periodScores.isEmpty()) {
             output.append(System.lineSeparator()).append("Scores: none in this period");
         } else {
-            output.append(System.lineSeparator()).append("Scores: ").append(count(periodScores.size(), "test"))
+            output.append(System.lineSeparator()).append("Scores: ").append(Formats.count(periodScores.size(), "test"))
                     .append(", average ").append(percent(average(periodScores)))
                     .append(System.lineSeparator()).append(scoreTable(periodScores))
                     .append(System.lineSeparator()).append(trend(periodScores));
@@ -215,15 +193,16 @@ public class ScoreCommands {
         if (recorded == 0) {
             String result = "Attendance: no recorded lessons in this period";
             return notRecorded == 0 ? result
-                    : result + System.lineSeparator() + "  " + count(notRecorded, "lesson") + " not recorded yet";
+                    : result + System.lineSeparator() + "  " + Formats.count(notRecorded, "lesson")
+                        + " not recorded yet";
         }
         BigDecimal rate = BigDecimal.valueOf(100L * (present + late))
                 .divide(BigDecimal.valueOf(recorded), 1, RoundingMode.HALF_UP);
-        String result = "Attendance: attended " + (present + late) + " of " + count(recorded, "recorded lesson")
+        String result = "Attendance: attended " + (present + late) + " of " + Formats.count(recorded, "recorded lesson")
                 + " (" + percent(rate) + ")" + System.lineSeparator()
                 + "  " + present + " present, " + late + " late, " + absent + " absent";
         if (notRecorded > 0) {
-            result += System.lineSeparator() + "  " + count(notRecorded, "lesson") + " not recorded yet";
+            result += System.lineSeparator() + "  " + Formats.count(notRecorded, "lesson") + " not recorded yet";
         }
         return result;
     }
@@ -245,7 +224,7 @@ public class ScoreCommands {
             if (i > 0) {
                 table.append(System.lineSeparator());
             }
-            table.append(String.format(rowFormat, score.getScoreId(), DISPLAY_DATE.format(score.getDate()),
+            table.append(String.format(rowFormat, score.getScoreId(), Formats.DISPLAY_DATE.format(score.getDate()),
                     score.getTestName(), score.getMarksText(), percent(score.getPercentage())));
             if (i > 0) {
                 BigDecimal change = score.getPercentage().subtract(scores.get(i - 1).getPercentage());
@@ -293,7 +272,7 @@ public class ScoreCommands {
 
     private static LocalDate parseDate(String value) {
         try {
-            return LocalDate.parse(value, INPUT_DATE);
+            return LocalDate.parse(value, Formats.INPUT_DATE);
         } catch (DateTimeException exception) {
             throw new IllegalArgumentException("Date must be a real date in DD-MM-YYYY format.", exception);
         }
@@ -303,12 +282,4 @@ public class ScoreCommands {
         return value.toPlainString() + "%";
     }
 
-    private static String count(int amount, String noun) {
-        return amount + " " + noun + (amount == 1 ? "" : "s");
-    }
-
-    /** Formats a student as "S1 Amirah Binte Rahman". */
-    private static String label(Student student) {
-        return student.getStudentId() + " " + student.getName();
-    }
 }

@@ -3,8 +3,6 @@ package seedu.tutorledger;
 import java.time.Clock;
 import java.time.DateTimeException;
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.time.format.ResolverStyle;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -25,7 +23,7 @@ import java.util.regex.Pattern;
  * Like the other command classes, each command returns its display text, and validation problems
  * are reported as an "Error: ..." message instead of crashing the program.
  */
-public class TaskCommands {
+public class TaskCommands extends CommandHandler {
     /**
      * Orders pending tasks for display: dated tasks soonest first, then undated tasks.
      * Tasks with the same date keep the order they were logged in. Shared with {@code next}.
@@ -34,8 +32,6 @@ public class TaskCommands {
             .comparing((FollowUpTask task) -> task.getDueDate().orElse(LocalDate.MAX))
             .thenComparingInt(task -> Integer.parseInt(task.getTaskId().substring(1)));
 
-    /** Date format shown to the user, e.g. Tue 20-10-2026. */
-    static final DateTimeFormatter DISPLAY_DATE = DateTimeFormatter.ofPattern("EEE dd-MM-uuuu", Locale.ENGLISH);
 
     private static final Logger LOGGER = Logger.getLogger(TaskCommands.class.getName());
 
@@ -53,51 +49,27 @@ public class TaskCommands {
     /** A student ID such as S1, used to tell whether a task starts with the student it is for. */
     private static final Pattern STUDENT_ID = Pattern.compile("(?i)S[1-9]\\d*");
 
-    /** Date format typed by the user, e.g. 20-10-2026. STRICT rejects dates like 31-02-2026. */
-    private static final DateTimeFormatter INPUT_DATE = DateTimeFormatter.ofPattern("dd-MM-uuuu", Locale.ROOT)
-            .withResolverStyle(ResolverStyle.STRICT);
 
     private final TutorLedgerData data;
     /** Source of today's date; injected so tests can fix the date when checking OVERDUE. */
     private final Clock clock;
 
     public TaskCommands(TutorLedgerData data, Clock clock) {
+        super(COMMAND_WORDS);
         assert data != null : "TaskCommands needs a data store";
         assert clock != null : "TaskCommands needs a clock to know today's date";
         this.data = data;
         this.clock = clock;
     }
 
-    /** Returns true if the first word of the input is a follow-up task command. */
-    public static boolean handles(String input) {
-        if (input == null || input.isBlank()) {
-            return false;
-        }
-        String command = input.strip().split("\\s+", 2)[0].toLowerCase(Locale.ROOT);
-        return COMMAND_WORDS.contains(command);
-    }
-
-    /** Executes one task command and returns its display text, including validation errors. */
-    public String execute(String input) {
-        if (!handles(input)) {
-            return "Unknown command.";
-        }
-        String[] words = input.strip().split("\\s+", 2);
-        String command = words[0].toLowerCase(Locale.ROOT);
-        String arguments = words.length == 2 ? words[1].trim() : "";
-        LOGGER.log(Level.FINE, "Running task command {0} with arguments: {1}", new Object[]{command, arguments});
-        try {
-            return switch (command) {
-            case "task" -> addTask(arguments);
-            case "tasks" -> listTasks(arguments);
-            default -> markDone(arguments);
-            };
-        } catch (IllegalArgumentException exception) {
-            // A rejected command is the user's mistake and is already explained on screen, so it is only traced.
-            LOGGER.log(Level.FINE, "Rejected task command {0}: {1}",
-                    new Object[]{input.strip(), exception.getMessage()});
-            return "Error: " + exception.getMessage();
-        }
+    @Override
+    protected String run(CommandLine line) {
+        String arguments = line.arguments();
+        return switch (line.word()) {
+        case "task" -> addTask(arguments);
+        case "tasks" -> listTasks(arguments);
+        default -> markDone(arguments);
+        };
     }
 
     /** Handles {@code task [STUDENT_ID] DESCRIPTION [d/DUE_DATE]}. */
@@ -123,12 +95,12 @@ public class TaskCommands {
 
         FollowUpTask task = data.addTask(studentId, text, dueDate);
         assert !task.isDone() : "A newly logged task should be pending";
-        LOGGER.log(Level.INFO, "Logged follow-up task {0}", task.getTaskId());
+        LOGGER.log(Level.FINE, "Logged follow-up task {0}", task.getTaskId());
 
         StringBuilder output = new StringBuilder("Added " + task.getTaskId() + ": " + task.getDescription());
         List<String> details = new ArrayList<>();
-        task.getStudentId().ifPresent(id -> details.add("for " + label(data.getStudent(id))));
-        task.getDueDate().ifPresent(date -> details.add("by " + DISPLAY_DATE.format(date)));
+        task.getStudentId().ifPresent(id -> details.add("for " + Formats.studentLabel(data.getStudent(id))));
+        task.getDueDate().ifPresent(date -> details.add("by " + Formats.DISPLAY_DATE.format(date)));
         if (!details.isEmpty()) {
             output.append(System.lineSeparator()).append("  ").append(String.join(", ", details));
         }
@@ -151,7 +123,7 @@ public class TaskCommands {
         LOGGER.log(Level.FINE, "Found {0} pending task(s)", pending.size());
 
         String heading = pending.size() + (pending.size() == 1 ? " follow-up task" : " follow-up tasks")
-                + " pending" + (student == null ? "" : " for " + label(student));
+                + " pending" + (student == null ? "" : " for " + Formats.studentLabel(student));
         if (pending.isEmpty()) {
             return heading;
         }
@@ -173,7 +145,7 @@ public class TaskCommands {
         StringBuilder output = new StringBuilder(heading);
         for (FollowUpTask task : pending) {
             assert !task.isDone() : "Done tasks should have been filtered out";
-            String due = task.getDueDate().map(date -> "by " + DISPLAY_DATE.format(date)).orElse("no date");
+            String due = task.getDueDate().map(date -> "by " + Formats.DISPLAY_DATE.format(date)).orElse("no date");
             output.append(System.lineSeparator())
                     .append(String.format(rowFormat, task.getTaskId(), task.getDescription(), studentText(task), due)
                             .stripTrailing());
@@ -196,25 +168,21 @@ public class TaskCommands {
         // Tasks are immutable, so store a done copy under the same ID.
         data.replaceTask(task.asDone());
         assert data.getTask(task.getTaskId()).isDone() : "Stored task should now be done";
-        LOGGER.log(Level.INFO, "Marked task {0} as done", task.getTaskId());
+        LOGGER.log(Level.FINE, "Marked task {0} as done", task.getTaskId());
         return "Marked " + task.getTaskId() + " as done: " + task.getDescription();
     }
 
     /** Returns "S1 Amirah Binte Rahman" for a task linked to a student, or an empty string otherwise. */
     private String studentText(FollowUpTask task) {
-        return task.getStudentId().map(id -> label(data.getStudent(id))).orElse("");
+        return task.getStudentId().map(id -> Formats.studentLabel(data.getStudent(id))).orElse("");
     }
 
     private static LocalDate parseDate(String value) {
         try {
-            return LocalDate.parse(value, INPUT_DATE);
+            return LocalDate.parse(value, Formats.INPUT_DATE);
         } catch (DateTimeException exception) {
             throw new IllegalArgumentException("Due date must be a real date in DD-MM-YYYY format.", exception);
         }
     }
 
-    /** Formats a student as "S1 Amirah Binte Rahman". */
-    private static String label(Student student) {
-        return student.getStudentId() + " " + student.getName();
-    }
 }

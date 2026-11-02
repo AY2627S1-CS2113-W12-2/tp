@@ -3,13 +3,12 @@ package seedu.tutorledger;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static seedu.tutorledger.TestUtil.NL;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -18,8 +17,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 /** Checks US12's topic history, US22's topic search, date/attendance rules and read-only behaviour. */
 class TopicCommandsTest {
-    private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-10-23T10:00:00Z"), ZoneOffset.UTC);
-    private static final String NL = System.lineSeparator();
+    private static final Clock CLOCK = TestUtil.clockAt("2026-10-23T10:00:00Z");
 
     @TempDir
     Path tempDir;
@@ -37,14 +35,14 @@ class TopicCommandsTest {
 
     @Test
     void handles_acceptsOnlyTheTopicsCommandWord() {
-        assertTrue(TopicCommands.handles("  TOPICS s1 s/Math  "));
-        assertTrue(TopicCommands.handles("topics"));
+        assertTrue(commands.handles("  TOPICS s1 s/Math  "));
+        assertTrue(commands.handles("topics"));
         for (String input : List.of("", " ", "topic S1", "topicsExtra S1", "next S1", "view S1")) {
-            assertFalse(TopicCommands.handles(input), input);
-            assertEquals("Unknown topics command.", commands.execute(input));
+            assertFalse(commands.handles(input), input);
+            assertEquals("Unknown command.", commands.execute(input));
         }
-        assertFalse(TopicCommands.handles(null));
-        assertEquals("Unknown topics command.", commands.execute(null));
+        assertFalse(commands.handles(null));
+        assertEquals("Unknown command.", commands.execute(null));
     }
 
     @Test

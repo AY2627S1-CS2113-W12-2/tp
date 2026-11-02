@@ -63,8 +63,9 @@ final class ArgumentParser {
      *
      * <p>Inside a name, {@code d/o} is always part of the name when the command has no {@code d/} prefix.
      * {@code s/o} is harder, because {@code s/O Level Math} is a subject. It is kept in the name only when
-     * written with a lower-case "o", which no subject starts with, or when the name so far is in capitals,
-     * as in {@code RAVI S/O KUMAR}. Otherwise it starts a new value, as it did before names could hold it.
+     * written with a lower-case "o", which no subject starts with, or when the name is in capitals on both
+     * sides of it, as in {@code RAVI S/O KUMAR}. Otherwise it starts a new value, as it did before names could
+     * hold it, so {@code n/RAVI S/O Level Math} is RAVI with the subject O Level Math.
      *
      * @param text The part of the command that holds the prefixed values.
      * @param allowed The prefixes this command accepts, in lower case and without the slash.
@@ -74,7 +75,7 @@ final class ArgumentParser {
      * @throws IllegalArgumentException If the text has an unexpected prefix or a value with no prefix.
      */
     static Fields parseFields(String text, List<String> allowed, Set<String> freeText, Set<String> names) {
-        LOGGER.log(Level.INFO, "Parsing fields: text={0}, allowed={1}", new Object[]{text, allowed});
+        LOGGER.log(Level.FINE, "Parsing fields: text={0}, allowed={1}", new Object[]{text, allowed});
         assert text != null : "Callers pass an empty string, not null, when there are no values";
         // Matched keys are lower-cased letters, so an allowed prefix in any other form could never match.
         assert allowed != null && allowed.stream().allMatch(prefix -> prefix.matches("[a-z]+"))
@@ -122,7 +123,7 @@ final class ArgumentParser {
         }
         // Every prefix found is followed by a value (possibly blank), which single() relies on.
         assert values.values().stream().noneMatch(List::isEmpty) : "A prefix was recorded without its value";
-        LOGGER.log(Level.INFO, "Parsed fields result: {0}", values);
+        LOGGER.log(Level.FINE, "Parsed fields result: {0}", values);
         return new Fields(values);
     }
 
@@ -139,9 +140,15 @@ final class ArgumentParser {
         if (!isAllowedPrefix) {
             return true;
         }
-        String nameSoFar = text.substring(nameStart, start);
-        boolean isLowerCaseO = text.charAt(start + 2) == 'o';
-        return isLowerCaseO || nameSoFar.equals(nameSoFar.toUpperCase(Locale.ROOT));
+        if (text.charAt(start + 2) == 'o') {
+            return true;
+        }
+        // A name typed in capitals stays in capitals, as in RAVI S/O KUMAR, while a subject such as
+        // "O Level Math" does not. So the whole name, up to the next prefix, must be in capitals.
+        Matcher nextPrefix = PREFIX.matcher(text);
+        int nameEnd = nextPrefix.find(start + 2) ? nextPrefix.start() : text.length();
+        String name = text.substring(nameStart, nameEnd);
+        return name.equals(name.toUpperCase(Locale.ROOT));
     }
 
     /** The values typed for each prefix, keyed by the prefix in lower case. */
@@ -163,14 +170,14 @@ final class ArgumentParser {
          *
          * @throws IllegalArgumentException If the prefix is repeated, or is required but missing or blank.
          */
-        String single(String key, boolean required) {
-            LOGGER.log(Level.FINE, "Resolving single field for key {0} (required={1})", new Object[]{key, required});
+        String single(String key, boolean isRequired) {
+            LOGGER.log(Level.FINE, "Resolving single field for key {0} (required={1})", new Object[]{key, isRequired});
             List<String> entries = values(key);
             if (entries.size() > 1) {
                 throw new IllegalArgumentException("Give " + key + "/ only once.");
             }
             if (entries.isEmpty() || entries.getFirst().isBlank()) {
-                if (required) {
+                if (isRequired) {
                     throw new IllegalArgumentException("Give a non-blank " + key + "/ value.");
                 }
                 return null;

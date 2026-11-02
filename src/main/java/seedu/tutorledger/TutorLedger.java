@@ -1,6 +1,7 @@
 package seedu.tutorledger;
 
 import java.time.Clock;
+import java.util.List;
 import java.util.Scanner;
 import java.util.logging.Handler;
 import java.util.logging.Level;
@@ -50,20 +51,13 @@ public class TutorLedger {
     }
 
     /** Runs the command loop, optionally creating first-launch sample records when storage is absent. */
-    private static void run(Storage storage, boolean seedSampleData) {
+    private static void run(Storage storage, boolean shouldSeedSampleData) {
         assert storage != null : "The command loop needs a data file to load and save";
         configureLogging(Logger.getLogger(""));
         TutorLedgerData data = new TutorLedgerData();
         Clock clock = Clock.systemDefaultZone();
-        StudentCommands commands = new StudentCommands(data, clock);
-        HomeworkCommands homeworkCommands = new HomeworkCommands(data, clock);
-        PaymentCommands paymentCommands = new PaymentCommands(data, clock);
-        LessonCommands lessonCommands = new LessonCommands(data, clock);
-        TopicCommands topicCommands = new TopicCommands(data, clock);
-        ScoreCommands scoreCommands = new ScoreCommands(data, clock);
-        TaskCommands taskCommands = new TaskCommands(data, clock);
-        LessonFilterCommand filterCommand = new LessonFilterCommand(data);
-        StorageCommands storageCommands = new StorageCommands(data, storage, seedSampleData, clock);
+        StorageCommands storageCommands = new StorageCommands(data, storage, shouldSeedSampleData, clock);
+        List<CommandHandler> handlers = createHandlers(data, clock, storageCommands);
         CommandHistory history = new CommandHistory();
         System.out.println("TutorLedger student book. Type exit to close.");
         System.out.println(storageCommands.loadOnStartup());
@@ -79,35 +73,48 @@ public class TutorLedger {
                 break;
             }
             history.record(selected);
-            // save and reload manage the file themselves, so they are not followed by an automatic save.
-            // In particular, reload must not save, or lines it skipped would be erased before they are fixed.
-            if (StorageCommands.handles(line)) {
-                System.out.println(storageCommands.execute(line));
-                continue;
-            }
-            String before = storageCommands.snapshot();
-            // Each feature handler receives only the commands it owns.
-            if (PaymentCommands.handles(line)) {
-                System.out.println(paymentCommands.execute(line));
-            } else if (HomeworkCommands.handles(line)) {
-                System.out.println(homeworkCommands.execute(line));
-            } else if (LessonCommands.handles(line)) {
-                System.out.println(lessonCommands.execute(line));
-            } else if (TopicCommands.handles(line)) {
-                System.out.println(topicCommands.execute(line));
-            } else if (ScoreCommands.handles(line)) {
-                System.out.println(scoreCommands.execute(line));
-            } else if (TaskCommands.handles(line)) {
-                System.out.println(taskCommands.execute(line));
-            } else if (LessonFilterCommand.handles(line)) {
-                System.out.println(filterCommand.execute(line));
-            } else {
-                System.out.println(commands.execute(line));
-            }
-            String saveWarning = storageCommands.saveIfChanged(before);
-            if (!saveWarning.isEmpty()) {
-                System.out.println(saveWarning);
-            }
+            runCommand(line, handlers, storageCommands);
+        }
+    }
+
+    /**
+     * Creates every command handler, in the order they are offered input. Each handler owns different command
+     * words, except that {@code edit} and {@code delete} go to the lesson or homework handler only for an L or H
+     * ID. The student handler is last, because it takes everything else, including unknown words.
+     */
+    static List<CommandHandler> createHandlers(TutorLedgerData data, Clock clock,
+            StorageCommands storageCommands) {
+        return List.of(storageCommands,
+                new PaymentCommands(data, clock),
+                new HomeworkCommands(data, clock),
+                new LessonCommands(data, clock),
+                new TopicCommands(data, clock),
+                new ScoreCommands(data, clock),
+                new TaskCommands(data, clock),
+                new LessonFilterCommand(data),
+                new StudentCommands(data, clock));
+    }
+
+    /**
+     * Gives one command to the first handler that owns it, prints the result, and saves the data file if the
+     * command changed any records.
+     */
+    private static void runCommand(String line, List<CommandHandler> handlers, StorageCommands storageCommands) {
+        CommandHandler handler = handlers.stream()
+                .filter(candidate -> candidate.handles(line))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("The student handler accepts every command: " + line));
+        // save and reload manage the file themselves, so they are not followed by an automatic save.
+        // In particular, reload must not save, or lines it skipped would be erased before they are fixed.
+        if (!handler.shouldSaveAfterwards()) {
+            System.out.println(handler.execute(line));
+            return;
+        }
+        String before = storageCommands.snapshot();
+        System.out.println(handler.execute(line));
+        String saveWarning = storageCommands.saveIfChanged(before);
+        if (!saveWarning.isEmpty()) {
+            System.out.println(saveWarning);
         }
     }
 
@@ -125,7 +132,7 @@ public class TutorLedger {
             }
             String selected = history.recall(arguments);
             System.out.println("Selected command: " + selected);
-            if (!confirmRepeat(input)) {
+            if (!isRepeatConfirmed(input)) {
                 System.out.println("Repeat cancelled.");
                 return null;
             }
@@ -137,7 +144,7 @@ public class TutorLedger {
     }
 
     /** Reads confirmation only; replies never enter command dispatch or history. End-of-input cancels. */
-    private static boolean confirmRepeat(Scanner input) {
+    private static boolean isRepeatConfirmed(Scanner input) {
         while (true) {
             System.out.println("Run this command? (yes/no):");
             if (!input.hasNextLine()) {

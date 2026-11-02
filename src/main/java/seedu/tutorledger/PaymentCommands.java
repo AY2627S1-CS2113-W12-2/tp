@@ -1,7 +1,6 @@
 package seedu.tutorledger;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.Month;
@@ -16,22 +15,17 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
  * Parses and runs commands that update lesson payment status.
  */
-public class PaymentCommands {
-    private static final Logger LOGGER = Logger.getLogger(PaymentCommands.class.getName());
+public class PaymentCommands extends CommandHandler {
     private static final Set<String> COMMAND_WORDS = Set.of("mark", "pay", "unpaid", "owed", "fee_statement",
             "income");
     private static final Pattern MARK_FORMAT = Pattern.compile("(?i)(\\S+)\\s+(\\S+)");
     private static final Pattern INCOME_FORMAT = Pattern.compile("([0-9]{2})-([0-9]{4})|([0-9]{4})");
-    private static final DateTimeFormatter DISPLAY_DATE =
-            DateTimeFormatter.ofPattern("EEE dd-MM-uuuu", Locale.ENGLISH);
     private static final DateTimeFormatter DISPLAY_MONTH =
             DateTimeFormatter.ofPattern("MMMM uuuu", Locale.ENGLISH);
     private static final String SEPARATOR = "_".repeat(60);
@@ -44,47 +38,26 @@ public class PaymentCommands {
     }
 
     public PaymentCommands(TutorLedgerData data, Clock clock) {
+        super(COMMAND_WORDS);
         assert data != null : "PaymentCommands needs shared records";
         assert clock != null : "PaymentCommands needs a clock";
         this.data = data;
         this.clock = clock;
     }
 
-    /** Returns true if the input begins with a payment command. */
-    public static boolean handles(String input) {
-        if (input == null || input.isBlank()) {
-            return false;
-        }
-        String command = input.strip().split("\\s+", 2)[0].toLowerCase(Locale.ROOT);
-        return COMMAND_WORDS.contains(command);
-    }
-
-    /** Executes one payment command and returns its display text or a validation error. */
-    public String execute(String input) {
-        if (!handles(input)) {
-            return "Unknown payment command.";
-        }
-        String[] words = input.strip().split("\\s+", 2);
-        String command = words[0].toLowerCase(Locale.ROOT);
-        String arguments = words.length == 2 ? words[1].trim() : "";
-        LOGGER.log(Level.FINE, "Running payment command {0} with arguments: {1}",
-                new Object[]{command, arguments});
-        try {
-            return switch (command) {
-            case "unpaid" -> listUnpaid(arguments);
-            case "owed" -> listOwed(arguments);
-            case "fee_statement" -> feeStatement(arguments);
-            case "income" -> income(arguments);
-            case "pay" -> pay(arguments);
-            case "mark" -> mark(arguments);
-            // handles() lets only payment command words through, so reaching here means a word was missed above.
-            default -> throw new AssertionError("Unexpected payment command: " + command);
-            };
-        } catch (IllegalArgumentException exception) {
-            LOGGER.log(Level.FINE, "Payment command {0} rejected: {1}",
-                    new Object[]{command, exception.getMessage()});
-            return "Error: " + exception.getMessage();
-        }
+    @Override
+    protected String run(CommandLine line) {
+        String arguments = line.arguments();
+        return switch (line.word()) {
+        case "unpaid" -> listUnpaid(arguments);
+        case "owed" -> listOwed(arguments);
+        case "fee_statement" -> feeStatement(arguments);
+        case "income" -> income(arguments);
+        case "pay" -> pay(arguments);
+        case "mark" -> mark(arguments);
+        // handles() lets only payment command words through, so reaching here means a word was missed above.
+        default -> throw new AssertionError("Unexpected payment command: " + line.word());
+        };
     }
 
     /** Allocates a payment across the listed lessons in order, allowing the final lesson to be partial. */
@@ -101,7 +74,7 @@ public class PaymentCommands {
 
         if (amount.compareTo(totalOwed) > 0) {
             throw new IllegalArgumentException("Payment exceeds the selected lessons' outstanding balance ($"
-                    + formatMoney(totalOwed) + ").");
+                    + Formats.amount(totalOwed) + ").");
         }
 
         List<String> paidLessonIds = applyPayment(lessons, amount);
@@ -165,14 +138,9 @@ public class PaymentCommands {
 
     /** Formats a confirmation for the lessons that received the payment. */
     private static String paymentConfirmation(BigDecimal amount, List<String> paidLessonIds) {
-        return "Recorded payment of $" + formatMoney(amount) + " for "
+        return "Recorded payment of $" + Formats.amount(amount) + " for "
                 + paidLessonIds.size() + (paidLessonIds.size() == 1 ? " lesson: " : " lessons: ")
                 + String.join(", ", paidLessonIds) + ".";
-    }
-
-    private static String formatMoney(BigDecimal amount) {
-        assert amount.scale() <= 2 : "Payment amount has more than two decimal places: " + amount;
-        return amount.setScale(2, RoundingMode.UNNECESSARY).toPlainString();
     }
 
     private String mark(String arguments) {
@@ -199,7 +167,7 @@ public class PaymentCommands {
         List<Lesson> unpaidLessons = unpaidLessons(LocalDate.now(clock), selectedStudentId);
 
         int studentWidth = unpaidLessons.stream()
-                .map(lesson -> studentLabel(data.getStudent(lesson.getStudentId())).length())
+                .map(lesson -> Formats.studentLabel(data.getStudent(lesson.getStudentId())).length())
                 .max(Integer::compareTo)
                 .orElse(0);
         int subjectWidth = unpaidLessons.stream()
@@ -218,9 +186,9 @@ public class PaymentCommands {
             Student student = data.getStudent(lesson.getStudentId());
             output.append(System.lineSeparator())
                     .append(String.format(Locale.ROOT, rowFormat,
-                            lesson.getLessonId(), DISPLAY_DATE.format(lesson.getDate()),
-                            studentLabel(student), lesson.getSubject(),
-                            lesson.getAmountOwed().setScale(2, RoundingMode.UNNECESSARY).toPlainString()));
+                            lesson.getLessonId(), Formats.DISPLAY_DATE.format(lesson.getDate()),
+                            Formats.studentLabel(student), lesson.getSubject(),
+                            Formats.amount(lesson.getAmountOwed())));
         }
         output.append(System.lineSeparator()).append("       ").append(SEPARATOR);
         return output.toString();
@@ -251,8 +219,8 @@ public class PaymentCommands {
             for (Student student : owingStudents) {
                 OwedTotal total = totals.get(student.getStudentId());
                 output.append(System.lineSeparator())
-                        .append(studentLabel(student)).append("  $")
-                        .append(total.amount().setScale(2, RoundingMode.UNNECESSARY).toPlainString())
+                        .append(Formats.studentLabel(student)).append("  $")
+                        .append(Formats.amount(total.amount()))
                         .append("  (").append(total.lessonCount())
                         .append(total.lessonCount() == 1 ? " lesson)" : " lessons)");
             }
@@ -278,7 +246,7 @@ public class PaymentCommands {
 
         StringBuilder output = new StringBuilder("        ").append(SEPARATOR)
                 .append(System.lineSeparator())
-                .append("Payment history for ").append(studentLabel(student))
+                .append("Payment history for ").append(Formats.studentLabel(student))
                 .append(" (").append(lessons.size()).append(lessons.size() == 1 ? " lesson)" : " lessons)");
         if (lessons.isEmpty()) {
             output.append(System.lineSeparator()).append("No lesson payments found.");
@@ -286,11 +254,11 @@ public class PaymentCommands {
         for (Lesson lesson : lessons) {
             output.append(System.lineSeparator())
                     .append(String.format(Locale.ROOT, "%s  %s  %-20s  $%s  %s",
-                            lesson.getLessonId(), DISPLAY_DATE.format(lesson.getDate()), lesson.getSubject(),
-                            lesson.getFee().setScale(2, RoundingMode.UNNECESSARY).toPlainString(),
+                            lesson.getLessonId(), Formats.DISPLAY_DATE.format(lesson.getDate()), lesson.getSubject(),
+                            Formats.amount(lesson.getFee()),
                             lesson.getPaymentStatus() + (lesson.getAmountPaid().signum() > 0
                                     && !Lesson.PAYMENT_PAID.equals(lesson.getPaymentStatus())
-                                    ? " ($" + formatMoney(lesson.getAmountPaid()) + " paid)" : "")));
+                                    ? " ($" + Formats.amount(lesson.getAmountPaid()) + " paid)" : "")));
             if (lesson.isCancelled()) {
                 output.append(" [cancelled: ").append(lesson.getCancellationReason()).append("; not chargeable]");
             }
@@ -328,7 +296,7 @@ public class PaymentCommands {
         StringBuilder output = new StringBuilder("        ").append(SEPARATOR)
                 .append(System.lineSeparator())
                 .append("Income for ").append(DISPLAY_MONTH.format(month)).append(": $")
-                .append(total.setScale(2, RoundingMode.UNNECESSARY).toPlainString());
+                .append(Formats.amount(total));
         appendPayments(output, payments);
         output.append(System.lineSeparator()).append("       ").append(SEPARATOR);
         return output.toString();
@@ -355,7 +323,7 @@ public class PaymentCommands {
             BigDecimal total = payments.stream().map(Lesson::getAmountPaid).reduce(BigDecimal.ZERO, BigDecimal::add);
             output.append(System.lineSeparator())
                     .append(month.getDisplayName(TextStyle.FULL, Locale.ENGLISH))
-                    .append(": $").append(total.setScale(2, RoundingMode.UNNECESSARY).toPlainString());
+                    .append(": $").append(Formats.amount(total));
             appendPayments(output, payments);
         }
         output.append(System.lineSeparator()).append("       ").append(SEPARATOR);
@@ -378,27 +346,21 @@ public class PaymentCommands {
             Student student = data.getStudent(lesson.getStudentId());
             output.append(System.lineSeparator())
                     .append(String.format(Locale.ROOT, "  %s  %s  %s  %s  $%s",
-                            lesson.getLessonId(), DISPLAY_DATE.format(lesson.getDate()),
-                            studentLabel(student), lesson.getSubject(),
-                            lesson.getAmountPaid().setScale(2, RoundingMode.UNNECESSARY).toPlainString()));
+                            lesson.getLessonId(), Formats.DISPLAY_DATE.format(lesson.getDate()),
+                            Formats.studentLabel(student), lesson.getSubject(),
+                            Formats.amount(lesson.getAmountPaid())));
         }
     }
 
     private List<Lesson> unpaidLessons(LocalDate today, String studentId) {
         return data.getLessons().stream()
-                .filter(lesson -> !Lesson.PAYMENT_PAID.equalsIgnoreCase(lesson.getPaymentStatus()))
                 // A cancelled lesson did not take place, so there is nothing to charge for it.
-                .filter(lesson -> !lesson.isCancelled())
-                .filter(lesson -> !lesson.getDate().isAfter(today))
+                .filter(lesson -> lesson.isOwedOn(today))
                 .filter(lesson -> studentId == null || studentId.equalsIgnoreCase(lesson.getStudentId()))
                 .sorted(Comparator.comparing(Lesson::getDate)
                         .thenComparing(Lesson::getTime)
                         .thenComparing(Lesson::getLessonId))
                 .toList();
-    }
-
-    private static String studentLabel(Student student) {
-        return student.getStudentId() + " " + student.getName();
     }
 
     private record OwedTotal(BigDecimal amount, int lessonCount) {

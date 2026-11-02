@@ -8,9 +8,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
-import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneOffset;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -36,12 +34,12 @@ class StorageCommandsTest {
 
     @Test
     void handles_storageCommandWords_onlyThoseAreHandled() {
-        assertTrue(StorageCommands.handles("save"));
-        assertTrue(StorageCommands.handles("  SAVE backups/term1.txt"));
-        assertTrue(StorageCommands.handles("reload"));
-        assertFalse(StorageCommands.handles("saved"));
-        assertFalse(StorageCommands.handles(""));
-        assertFalse(StorageCommands.handles(null));
+        assertTrue(commands.handles("save"));
+        assertTrue(commands.handles("  SAVE backups/term1.txt"));
+        assertTrue(commands.handles("reload"));
+        assertFalse(commands.handles("saved"));
+        assertFalse(commands.handles(""));
+        assertFalse(commands.handles(null));
     }
 
     @Test
@@ -161,7 +159,7 @@ class StorageCommandsTest {
     @Test
     void loadOnStartup_withSampleSeeding_usesTheSharedClockForRelativeDates() {
         TutorLedgerData freshData = new TutorLedgerData();
-        Clock clock = Clock.fixed(Instant.parse("2030-03-10T10:00:00Z"), ZoneOffset.UTC);
+        Clock clock = TestUtil.clockAt("2030-03-10T10:00:00Z");
         StorageCommands seededCommands = new StorageCommands(freshData, new Storage(dataFile.toString()), true, clock);
 
         seededCommands.loadOnStartup();
@@ -235,7 +233,7 @@ class StorageCommandsTest {
 
     @Test
     void execute_notAStorageCommand_isRejected() {
-        assertEquals("Unknown storage command.", commands.execute("list"));
-        assertEquals("Unknown storage command.", commands.execute("   "));
+        assertEquals("Unknown command.", commands.execute("list"));
+        assertEquals("Unknown command.", commands.execute("   "));
     }
 }

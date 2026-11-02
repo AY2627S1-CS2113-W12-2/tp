@@ -18,8 +18,8 @@ activate Persistence
 Persistence --> Main : before
 deactivate Persistence
 note right of Main
-  PaymentCommands.handles(input) selects
-  the payment command handler.
+  The first handler whose handles(input)
+  is true, PaymentCommands, runs it.
 end note
 Main -> Commands : execute(input)
 activate Commands

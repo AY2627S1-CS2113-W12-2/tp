@@ -4,9 +4,6 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.DateTimeException;
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.time.format.ResolverStyle;
-import java.util.Locale;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -19,9 +16,6 @@ import java.util.logging.Logger;
 public class Score {
     private static final Logger LOGGER = Logger.getLogger(Score.class.getName());
 
-    /** Date format used when a score is created from text, e.g. 21-09-2026. */
-    private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd-MM-uuuu", Locale.ROOT)
-            .withResolverStyle(ResolverStyle.STRICT);
 
     /** Marks may have up to 2 decimal places, like a fee. */
     private static final String NUMBER_FORMAT = "\\d+(?:\\.\\d{1,2})?";
@@ -128,7 +122,7 @@ public class Score {
             throw new IllegalArgumentException("Date cannot be null.");
         }
         try {
-            return LocalDate.parse(value.strip(), DATE);
+            return LocalDate.parse(value.strip(), Formats.INPUT_DATE);
         } catch (DateTimeException exception) {
             throw new IllegalArgumentException("Date must be a real date in DD-MM-YYYY format.", exception);
         }

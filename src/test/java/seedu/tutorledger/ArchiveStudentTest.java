@@ -10,9 +10,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
-import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -22,7 +20,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 /** Checks US45's archive lifecycle, history preservation, scheduling boundaries and saved metadata. */
 class ArchiveStudentTest {
-    private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-10-23T10:00:00Z"), ZoneOffset.UTC);
+    private static final Clock CLOCK = TestUtil.clockAt("2026-10-23T10:00:00Z");
 
     @TempDir
     Path tempDir;

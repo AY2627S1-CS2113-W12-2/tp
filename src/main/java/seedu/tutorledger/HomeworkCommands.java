@@ -3,8 +3,6 @@ package seedu.tutorledger;
 import java.time.Clock;
 import java.time.DateTimeException;
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.time.format.ResolverStyle;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -20,7 +18,7 @@ import java.util.regex.Pattern;
  * Like {@link StudentCommands}, each command returns its display text, and validation problems
  * are reported as an "Error: ..." message instead of crashing the program.
  */
-public class HomeworkCommands {
+public class HomeworkCommands extends CommandHandler {
     private static final Logger LOGGER = Logger.getLogger(HomeworkCommands.class.getName());
 
     /** Command words this class understands, used by the main loop to route input here. */
@@ -35,68 +33,36 @@ public class HomeworkCommands {
      */
     private static final Pattern ASSIGN_FORMAT = Pattern.compile("(?i)(\\S+)\\s+(.+?)\\s+d/(\\S+)");
 
-    /** Date format typed by the user, e.g. 29-09-2026. STRICT rejects dates like 31-02-2026. */
-    private static final DateTimeFormatter INPUT_DATE = DateTimeFormatter.ofPattern("dd-MM-uuuu", Locale.ROOT)
-            .withResolverStyle(ResolverStyle.STRICT);
 
-    /** Date format shown to the user, e.g. Tue 29-09-2026. */
-    private static final DateTimeFormatter DISPLAY_DATE = DateTimeFormatter.ofPattern("EEE dd-MM-uuuu",
-            Locale.ENGLISH);
 
     private final TutorLedgerData data;
     /** Source of today's date; injected so tests can fix the date when checking OVERDUE. */
     private final Clock clock;
 
     public HomeworkCommands(TutorLedgerData data, Clock clock) {
+        super(COMMAND_WORDS);
         assert data != null : "HomeworkCommands needs a data store";
         assert clock != null : "HomeworkCommands needs a clock to know today's date";
         this.data = data;
         this.clock = clock;
     }
 
-    /**
-     * Returns true if the input is a homework command.
-     *
-     * <p>{@code edit} and {@code delete} are shared with students and lessons, so they count only when
-     * the ID after them starts with H, in the same way {@link LessonCommands} claims IDs starting with L.
-     */
-    public static boolean handles(String input) {
-        if (input == null || input.isBlank()) {
-            return false;
-        }
-        String[] words = input.strip().split("\\s+", 3);
-        String command = words[0].toLowerCase(Locale.ROOT);
-        if (COMMAND_WORDS.contains(command)) {
-            return true;
-        }
-        // "[^/]*" keeps a prefixed value from being mistaken for a homework ID.
-        return SHARED_COMMAND_WORDS.contains(command) && words.length > 1 && words[1].matches("(?i)H[^/]*");
+    /** Returns true for a homework command, or for {@code edit} and {@code delete} given a homework ID. */
+    @Override
+    boolean handles(String input) {
+        return super.handles(input) || isSharedWordWithId(input, SHARED_COMMAND_WORDS, "H");
     }
 
-    /** Executes one homework command and returns its display text, including validation errors. */
-    public String execute(String input) {
-        if (!handles(input)) {
-            return "Unknown command.";
-        }
-        String[] words = input.strip().split("\\s+", 2);
-        String command = words[0].toLowerCase(Locale.ROOT);
-        String arguments = words.length == 2 ? words[1].trim() : "";
-        LOGGER.log(Level.FINE, "Running homework command {0} with arguments: {1}",
-                new Object[]{command, arguments});
-        try {
-            return switch (command) {
-            case "assign" -> assign(arguments);
-            case "submit" -> submit(arguments);
-            case "edit" -> edit(arguments);
-            case "delete" -> delete(arguments);
-            default -> listOutstanding(arguments);
-            };
-        } catch (IllegalArgumentException exception) {
-            // Invalid user input is expected and already explained on screen, so it is only traced for debugging.
-            LOGGER.log(Level.FINE, "Rejected homework command {0}: {1}",
-                    new Object[]{input.strip(), exception.getMessage()});
-            return "Error: " + exception.getMessage();
-        }
+    @Override
+    protected String run(CommandLine line) {
+        String arguments = line.arguments();
+        return switch (line.word()) {
+        case "assign" -> assign(arguments);
+        case "submit" -> submit(arguments);
+        case "edit" -> edit(arguments);
+        case "delete" -> delete(arguments);
+        default -> listOutstanding(arguments);
+        };
     }
 
     /** Handles {@code assign STUDENT_ID DESCRIPTION d/DUE_DATE}. */
@@ -109,8 +75,8 @@ public class HomeworkCommands {
         Homework item = data.addHomework(matcher.group(1), matcher.group(2).trim(), dueDate);
         assert !item.isSubmitted() : "Newly assigned homework should start as outstanding";
         Student student = data.getStudent(item.getStudentId());
-        return "Assigned " + item.getHomeworkId() + " to " + studentLabel(student) + System.lineSeparator()
-                + "  " + item.getDescription() + ", due " + DISPLAY_DATE.format(item.getDueDate());
+        return "Assigned " + item.getHomeworkId() + " to " + Formats.studentLabel(student) + System.lineSeparator()
+                + "  " + item.getDescription() + ", due " + Formats.DISPLAY_DATE.format(item.getDueDate());
     }
 
     /** Handles {@code submit HOMEWORK_ID}. */
@@ -127,7 +93,7 @@ public class HomeworkCommands {
         assert data.getHomeworkById(item.getHomeworkId()).isSubmitted() : "Stored homework should now be submitted";
         Student student = data.getStudent(item.getStudentId());
         return "Marked " + item.getHomeworkId() + " as submitted: " + item.getDescription()
-                + " (" + studentLabel(student) + ")";
+                + " (" + Formats.studentLabel(student) + ")";
     }
 
     /**
@@ -151,8 +117,8 @@ public class HomeworkCommands {
         LOGGER.log(Level.FINE, "Edited {0} using prefixes {1}",
                 new Object[]{edited.getHomeworkId(), fields.fields().keySet()});
         Student student = data.getStudent(edited.getStudentId());
-        return "Edited " + edited.getHomeworkId() + " for " + studentLabel(student) + System.lineSeparator()
-                + "  " + edited.getDescription() + ", due " + DISPLAY_DATE.format(edited.getDueDate()) + ", "
+        return "Edited " + edited.getHomeworkId() + " for " + Formats.studentLabel(student) + System.lineSeparator()
+                + "  " + edited.getDescription() + ", due " + Formats.DISPLAY_DATE.format(edited.getDueDate()) + ", "
                 + edited.getSubmitStatus();
     }
 
@@ -164,8 +130,8 @@ public class HomeworkCommands {
         Homework item = data.deleteHomework(arguments);
         LOGGER.log(Level.FINE, "Deleted {0}", item.getHomeworkId());
         Student student = data.getStudent(item.getStudentId());
-        return "Deleted " + item.getHomeworkId() + " for " + studentLabel(student) + ": "
-                + item.getDescription() + ", due " + DISPLAY_DATE.format(item.getDueDate());
+        return "Deleted " + item.getHomeworkId() + " for " + Formats.studentLabel(student) + ": "
+                + item.getDescription() + ", due " + Formats.DISPLAY_DATE.format(item.getDueDate());
     }
 
     /** Handles {@code homework [STUDENT_ID]}: lists unsubmitted homework, due soonest first. */
@@ -191,7 +157,7 @@ public class HomeworkCommands {
         int descriptionWidth = 0;
         for (Homework item : outstanding) {
             idWidth = Math.max(idWidth, item.getHomeworkId().length());
-            studentWidth = Math.max(studentWidth, studentLabel(data.getStudent(item.getStudentId())).length());
+            studentWidth = Math.max(studentWidth, Formats.studentLabel(data.getStudent(item.getStudentId())).length());
             descriptionWidth = Math.max(descriptionWidth, item.getDescription().length());
         }
         String rowFormat = "  %-" + idWidth + "s  %-" + studentWidth + "s  %-" + descriptionWidth + "s  due %s";
@@ -200,8 +166,8 @@ public class HomeworkCommands {
         for (Homework item : outstanding) {
             assert !item.isSubmitted() : "Submitted homework should have been filtered out";
             String row = String.format(rowFormat, item.getHomeworkId(),
-                    studentLabel(data.getStudent(item.getStudentId())), item.getDescription(),
-                    DISPLAY_DATE.format(item.getDueDate()));
+                    Formats.studentLabel(data.getStudent(item.getStudentId())), item.getDescription(),
+                    Formats.DISPLAY_DATE.format(item.getDueDate()));
             output.append(System.lineSeparator()).append(row);
             if (item.getDueDate().isBefore(today)) {
                 output.append("  OVERDUE");
@@ -213,14 +179,10 @@ public class HomeworkCommands {
     /** Converts a DD-MM-YYYY date, rejecting impossible dates with a readable message. */
     private static LocalDate parseDate(String value) {
         try {
-            return LocalDate.parse(value, INPUT_DATE);
+            return LocalDate.parse(value, Formats.INPUT_DATE);
         } catch (DateTimeException exception) {
             throw new IllegalArgumentException("Due date must be a real date in DD-MM-YYYY format.", exception);
         }
     }
 
-    /** Formats a student as "S1 Amirah Binte Rahman". */
-    private static String studentLabel(Student student) {
-        return student.getStudentId() + " " + student.getName();
-    }
 }

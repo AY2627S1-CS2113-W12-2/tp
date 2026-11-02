@@ -6,8 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneOffset;
+import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
@@ -32,31 +31,34 @@ class CommandAliasesTest {
         assertNull(CommandAliases.expand(null));
     }
 
+    /** Returns the app's own handlers, in the order the command loop tries them; the student handler is last. */
+    private static List<CommandHandler> handlers() {
+        TutorLedgerData data = new TutorLedgerData();
+        Clock clock = TestUtil.clockAt("2026-09-21T10:00:00Z");
+        return TutorLedger.createHandlers(data, clock, new StorageCommands(data, new Storage("unused.txt")));
+    }
+
     @Test
     void all_noAliasIsAlreadyACommandWord() {
-        TutorLedgerData data = new TutorLedgerData();
-        StudentCommands studentCommands = new StudentCommands(data,
-                Clock.fixed(Instant.parse("2026-09-21T10:00:00Z"), ZoneOffset.UTC));
+        List<CommandHandler> handlers = handlers();
+        CommandHandler studentCommands = handlers.getLast();
         for (CommandAliases.Alias alias : CommandAliases.all()) {
             String word = alias.shortForm();
-            assertFalse(LessonCommands.handles(word), word);
-            assertFalse(PaymentCommands.handles(word), word);
-            assertFalse(HomeworkCommands.handles(word), word);
-            assertFalse(ScoreCommands.handles(word), word);
-            assertFalse(StorageCommands.handles(word), word);
+            for (CommandHandler handler : handlers.subList(0, handlers.size() - 1)) {
+                assertFalse(handler.handles(word), word + " is handled by " + handler.getClass().getSimpleName());
+            }
             assertFalse(CommandHistory.handles(word), word);
-            assertFalse(LessonFilterCommand.handles(word), word);
             assertTrue(studentCommands.execute(word).startsWith("Unknown command"), word);
         }
     }
 
     @Test
     void all_everyAliasLeadsToARealCommand() {
+        List<CommandHandler> handlers = handlers();
+        List<CommandHandler> featureHandlers = handlers.subList(0, handlers.size() - 1);
         for (CommandAliases.Alias alias : CommandAliases.all()) {
             String expanded = CommandAliases.expand(alias.shortForm());
-            boolean isHandled = LessonCommands.handles(expanded) || PaymentCommands.handles(expanded)
-                    || HomeworkCommands.handles(expanded) || ScoreCommands.handles(expanded)
-                    || LessonFilterCommand.handles(expanded)
+            boolean isHandled = featureHandlers.stream().anyMatch(handler -> handler.handles(expanded))
                     || expanded.equals("view") || expanded.equals("help");
             assertTrue(isHandled, alias.shortForm() + " -> " + expanded);
         }

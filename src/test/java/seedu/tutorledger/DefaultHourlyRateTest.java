@@ -9,8 +9,6 @@ import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -19,7 +17,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 /** Exercises US5 across commands, immutable records, payment totals and storage compatibility. */
 class DefaultHourlyRateTest {
-    private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-10-20T10:00:00Z"), ZoneOffset.UTC);
+    private static final Clock CLOCK = TestUtil.clockAt("2026-10-20T10:00:00Z");
     private static final String SLOT = " S1 d/20-10-2026 t/1600 s/E Math";
 
     @TempDir
