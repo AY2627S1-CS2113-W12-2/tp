@@ -52,15 +52,19 @@ class Storage {
   {static} +decode(lines: List<String>): LoadResult
 }
 
-TutorLedger --> "*" CommandHandler : handlers
+TutorLedger ..> CommandHandler : dispatches to handlers
 CommandHandler <|-- TaskCommands
-TutorLedger --> LessonCommands
+TutorLedger ..> LessonCommands
 TaskCommands --> TutorLedgerData
 LessonCommands --> TutorLedgerData
 LessonCommands ..> TaskCommands : uses DISPLAY_ORDER
 TutorLedgerData "1" *-- "*" FollowUpTask
 TutorLedgerData "1" *-- "*" Student
-FollowUpTask "*" ..> "0..1" Student : linked by ID
+FollowUpTask ..> Student : linked by ID
+note bottom of FollowUpTask
+  A task optionally stores one student ID.
+  It does not store a Student object reference.
+end note
 Storage ..> TutorLedgerData
 Storage ..> FollowUpTask : T lines
 @enduml
