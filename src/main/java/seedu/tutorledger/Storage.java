@@ -1,6 +1,7 @@
 package seedu.tutorledger;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -133,29 +134,8 @@ public class Storage {
         List<String> lines = new ArrayList<>(HEADER);
         lines.add(join("NEXT", "S" + data.getNextStudentNumber(), "L" + data.getNextLessonNumber(),
                 "H" + data.getNextHomeworkNumber(), "A" + data.getNextScoreNumber(), "T" + data.getNextTaskNumber()));
-        for (Student student : data.getStudents()) {
-            List<String> fields = new ArrayList<>(List.of("S", student.getStudentId(), student.getName(),
-                    student.getLevel(), student.getPhoneNumber()));
-            fields.addAll(student.getSubjects());
-            lines.add(join(fields.toArray(String[]::new)));
-            student.getDefaultHourlyRate().ifPresent(rate ->
-                    lines.add(join("R", student.getStudentId(), rate.toPlainString())));
-            if (student.isArchived()) {
-                lines.add(join("ARCHIVED", student.getStudentId()));
-            }
-            student.getAttentionReason().ifPresent(reason ->
-                    lines.add(join("FLAG", student.getStudentId(), reason)));
-        }
-        for (Lesson lesson : data.getLessons()) {
-            List<String> fields = new ArrayList<>(List.of("L", lesson.getLessonId(), lesson.getStudentId(),
-                    Formats.INPUT_DATE.format(lesson.getDate()), Formats.TIME.format(lesson.getTime()),
-                    lesson.getSubject(),
-                    lesson.getFee().toPlainString(),
-                    lesson.getAttendance().name().toLowerCase(Locale.ROOT).replace('_', ' '),
-                    lesson.getPaymentStatus(), lesson.getNotes(), lesson.getCancellationReason(),
-                    Integer.toString(lesson.getDurationMinutes()), lesson.getAmountPaid().toPlainString()));
-            lines.add(join(fields.toArray(String[]::new)));
-        }
+        data.getStudents().forEach(student -> lines.addAll(encodeStudent(student)));
+        data.getLessons().forEach(lesson -> lines.add(encodeLesson(lesson)));
         for (Homework item : data.getHomework()) {
             lines.add(join("H", item.getHomeworkId(), item.getStudentId(), Formats.INPUT_DATE.format(item.getDueDate()),
                     item.getSubmitStatus(), item.getDescription()));
@@ -183,6 +163,34 @@ public class Storage {
     }
 
     /**
+     * Returns a student's lines: the S line, then an R, ARCHIVED or FLAG line for each of those that applies.
+     * Rates, archiving and flags have their own lines, so the S line's subject list stays unambiguous.
+     */
+    private static List<String> encodeStudent(Student student) {
+        List<String> fields = new ArrayList<>(List.of("S", student.getStudentId(), student.getName(),
+                student.getLevel(), student.getPhoneNumber()));
+        fields.addAll(student.getSubjects());
+        List<String> lines = new ArrayList<>(List.of(join(fields.toArray(String[]::new))));
+        student.getDefaultHourlyRate().ifPresent(rate ->
+                lines.add(join("R", student.getStudentId(), rate.toPlainString())));
+        if (student.isArchived()) {
+            lines.add(join("ARCHIVED", student.getStudentId()));
+        }
+        student.getAttentionReason().ifPresent(reason -> lines.add(join("FLAG", student.getStudentId(), reason)));
+        return lines;
+    }
+
+    /** Returns a lesson's L line, with all 13 fields. */
+    private static String encodeLesson(Lesson lesson) {
+        return join("L", lesson.getLessonId(), lesson.getStudentId(),
+                Formats.INPUT_DATE.format(lesson.getDate()), Formats.TIME.format(lesson.getTime()),
+                lesson.getSubject(), lesson.getFee().toPlainString(),
+                lesson.getAttendance().name().toLowerCase(Locale.ROOT).replace('_', ' '),
+                lesson.getPaymentStatus(), lesson.getNotes(), lesson.getCancellationReason(),
+                Integer.toString(lesson.getDurationMinutes()), lesson.getAmountPaid().toPlainString());
+    }
+
+    /**
      * Rebuilds the records from the lines of a data file.
      *
      * <p>Students are read first, then rates, archive markers, flags, lessons, homework, scores and tasks, which
@@ -192,12 +200,36 @@ public class Storage {
         TutorLedgerData data = new TutorLedgerData();
         // Sorted by line number, so problems are reported in file order even though there are two passes.
         Map<Integer, String> problems = new TreeMap<>();
-        int[] savedNextIds = null;
         // The pre-merge hourly-rate branch used field 11 for minutes; upstream used it for a reason.
         // Only that branch's explicit header disambiguates old duration rows. Never guess from a numeric reason.
         boolean isLegacyDurationFormat = lines.stream()
                 .anyMatch(line -> line.strip().startsWith("#") && line.contains("| NOTES | MINUTES"));
 
+        NextIds savedNextIds = readStudentsAndNextIds(lines, data, problems);
+        readLinkedRecords(lines, data, problems, isLegacyDurationFormat);
+        if (savedNextIds != null) {
+            savedNextIds.applyTo(data);
+        }
+
+        List<String> problemLines = new ArrayList<>();
+        problems.forEach((lineNumber, reason) -> problemLines.add("Line " + lineNumber + ": " + reason));
+        // Each line is either read or reported, never both, so there cannot be more problems than lines.
+        assert problemLines.size() <= lines.size() : "More problems were reported than there are lines";
+        LOGGER.log(Level.FINE, "Decoded {0} lines: {1} students, {2} lessons, {3} homework, {4} scores, "
+                + "{5} skipped", new Object[]{lines.size(), data.getStudents().size(), data.getLessons().size(),
+                    data.getHomework().size(), data.getScores().size(), problemLines.size()});
+        return new LoadResult(data, problemLines);
+    }
+
+    /**
+     * Reads the student lines and the NEXT line, the first of the two passes, and checks every line's type.
+     * Problems are recorded against their line number.
+     *
+     * @return The saved ID counters, or null if the file has no NEXT line.
+     */
+    private static NextIds readStudentsAndNextIds(List<String> lines, TutorLedgerData data,
+            Map<Integer, String> problems) {
+        NextIds savedNextIds = null;
         for (int i = 0; i < lines.size(); i++) {
             List<String> fields = splitFields(lines.get(i));
             String type = fields.getFirst().toUpperCase(Locale.ROOT);
@@ -220,7 +252,15 @@ public class Storage {
                 problems.put(i + 1, exception.getMessage());
             }
         }
+        return savedNextIds;
+    }
 
+    /**
+     * Reads every line that belongs to a student, the second pass: rates, archive markers, flags, lessons,
+     * homework, scores and tasks. Problems are recorded against their line number.
+     */
+    private static void readLinkedRecords(List<String> lines, TutorLedgerData data, Map<Integer, String> problems,
+            boolean isLegacyDurationFormat) {
         Set<String> ratedStudents = new HashSet<>();
         Set<String> archivedStudents = new HashSet<>();
         Set<String> flaggedStudents = new HashSet<>();
@@ -228,46 +268,41 @@ public class Storage {
             List<String> fields = splitFields(lines.get(i));
             String type = fields.getFirst().toUpperCase(Locale.ROOT);
             try {
-                if (type.equals("R")) {
-                    importRate(fields, data, ratedStudents);
-                } else if (type.equals("ARCHIVED")) {
-                    importArchived(fields, data, archivedStudents);
-                } else if (type.equals("FLAG")) {
-                    importFlag(fields, data, flaggedStudents);
-                } else if (type.equals("L")) {
-                    data.importLesson(parseLesson(fields, data, isLegacyDurationFormat));
-                } else if (type.equals("H")) {
-                    data.importHomework(parseHomework(fields, data));
-                } else if (type.equals("A")) {
-                    data.importScore(parseScore(fields, data));
-                } else if (type.equals("T")) {
-                    data.importTask(parseTask(fields, data));
+                switch (type) {
+                case "R" -> importRate(fields, data, ratedStudents);
+                case "ARCHIVED" -> importArchived(fields, data, archivedStudents);
+                case "FLAG" -> importFlag(fields, data, flaggedStudents);
+                case "L" -> data.importLesson(parseLesson(fields, data, isLegacyDurationFormat));
+                case "H" -> data.importHomework(parseHomework(fields, data));
+                case "A" -> data.importScore(parseScore(fields, data));
+                case "T" -> data.importTask(parseTask(fields, data));
+                default -> {
+                    // Students, NEXT and unknown types were handled or reported in the first pass.
+                }
                 }
             } catch (IllegalArgumentException exception) {
                 problems.put(i + 1, exception.getMessage());
             }
         }
+    }
 
-        // Importing records already moved each counter past the highest ID in the file. The NEXT line
-        // can only move it further, to skip IDs of deleted records; it is never allowed to reuse an ID.
-        if (savedNextIds != null) {
-            data.setNextStudentNumber(Math.max(savedNextIds[0], data.getNextStudentNumber()));
-            data.setNextLessonNumber(Math.max(savedNextIds[1], data.getNextLessonNumber()));
-            data.setNextHomeworkNumber(Math.max(savedNextIds[2], data.getNextHomeworkNumber()));
-            // Files saved before scores existed have no score counter; 0 leaves the counter as it is.
-            data.setNextScoreNumber(Math.max(savedNextIds[3], data.getNextScoreNumber()));
-            // Likewise, files saved before follow-up tasks existed have no task counter.
-            data.setNextTaskNumber(Math.max(savedNextIds[4], data.getNextTaskNumber()));
+    /**
+     * The ID counters saved on the NEXT line. A score or task counter of 0 means the file was saved before
+     * that kind of record existed.
+     */
+    private record NextIds(int student, int lesson, int homework, int score, int task) {
+        /**
+         * Moves each counter forward to its saved value. Importing records already moved each counter past the
+         * highest ID in the file; the saved value can only move it further, to skip IDs of deleted records,
+         * and is never allowed to make an ID be reused.
+         */
+        void applyTo(TutorLedgerData data) {
+            data.setNextStudentNumber(Math.max(student, data.getNextStudentNumber()));
+            data.setNextLessonNumber(Math.max(lesson, data.getNextLessonNumber()));
+            data.setNextHomeworkNumber(Math.max(homework, data.getNextHomeworkNumber()));
+            data.setNextScoreNumber(Math.max(score, data.getNextScoreNumber()));
+            data.setNextTaskNumber(Math.max(task, data.getNextTaskNumber()));
         }
-
-        List<String> problemLines = new ArrayList<>();
-        problems.forEach((lineNumber, reason) -> problemLines.add("Line " + lineNumber + ": " + reason));
-        // Each line is either read or reported, never both, so there cannot be more problems than lines.
-        assert problemLines.size() <= lines.size() : "More problems were reported than there are lines";
-        LOGGER.log(Level.FINE, "Decoded {0} lines: {1} students, {2} lessons, {3} homework, {4} scores, "
-                + "{5} skipped", new Object[]{lines.size(), data.getStudents().size(), data.getLessons().size(),
-                    data.getHomework().size(), data.getScores().size(), problemLines.size()});
-        return new LoadResult(data, problemLines);
     }
 
     /**
@@ -275,7 +310,7 @@ public class Storage {
      * The score and task IDs are optional so that files saved before those records existed still load;
      * a missing one is read as 0.
      */
-    private static int[] parseNextIds(List<String> fields) {
+    private static NextIds parseNextIds(List<String> fields) {
         String usage = "A NEXT line must look like: NEXT | S1 | L1 | H1 | A1 | T1";
         if (fields.size() < 4 || fields.size() > 6) {
             throw new IllegalArgumentException(usage);
@@ -289,7 +324,7 @@ public class Storage {
             }
             numbers[i] = RecordIds.parseCounter(id, prefixes[i]);
         }
-        return numbers;
+        return new NextIds(numbers[0], numbers[1], numbers[2], numbers[3], numbers[4]);
     }
 
     private static Student parseStudent(List<String> fields) {
@@ -313,17 +348,17 @@ public class Storage {
                 fields.get(3), fields.get(4), fields.get(7), fields.get(6), fields.get(9))
                 .withPaymentStatus(fields.get(8));
         String reason = "";
-        if (fields.size() == LESSON_FIELD_COUNT + 2) {
+        // 12 fields add the cancellation reason and minutes; 13 also add the amount paid.
+        if (fields.size() >= LESSON_FIELD_COUNT + 2) {
             reason = fields.get(10);
             lesson = lesson.withDurationMinutes(Lesson.parseDuration(fields.get(11)));
-        } else if (fields.size() == LESSON_FIELD_COUNT + 3) {
-            reason = fields.get(10);
-            lesson = lesson.withDurationMinutes(Lesson.parseDuration(fields.get(11)));
+        }
+        if (fields.size() == LESSON_FIELD_COUNT + 3) {
             if (!fields.get(12).matches("\\d+(?:\\.\\d{1,2})?")) {
                 throw new IllegalArgumentException("Amount paid must be a non-negative dollar amount "
                         + "with at most 2 decimals.");
             }
-            lesson = lesson.withAmountPaid(new java.math.BigDecimal(fields.get(12)));
+            lesson = lesson.withAmountPaid(new BigDecimal(fields.get(12)));
         } else if (fields.size() == LESSON_FIELD_COUNT + 1) {
             if (isLegacyDurationFormat) {
                 lesson = lesson.withDurationMinutes(Lesson.parseDuration(fields.get(10)));

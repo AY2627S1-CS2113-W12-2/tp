@@ -125,64 +125,95 @@ public class StudentCommands extends CommandHandler {
      * attention first come first, and show the value each row was sorted by.
      */
     private String list(String arguments) {
-        String query = arguments;
-        String status = "active";
-        String sort = null;
-        int prefixStart = findListPrefix(arguments);
-        if (prefixStart >= 0) {
-            query = arguments.substring(0, prefixStart).trim();
-            ArgumentParser.Fields fields = ArgumentParser.parseFields(arguments.substring(prefixStart),
-                    List.of("status", "sort"));
-            status = fields.singleOr("status", status).toLowerCase(Locale.ROOT);
-            sort = fields.has("sort") ? fields.single("sort", true).toLowerCase(Locale.ROOT) : null;
-        }
-        if (!List.of("active", "archived", "all").contains(status)) {
-            throw new IllegalArgumentException("Use status/active, status/archived or status/all.");
-        }
-        if (sort != null && !List.of(SORT_OWED, SORT_LAST).contains(sort)) {
-            throw new IllegalArgumentException("Use sort/owed or sort/last.");
-        }
-        String selectedStatus = status;
-        List<Student> matches = new ArrayList<>(data.findStudents(query).stream()
-                .filter(student -> selectedStatus.equals("all")
-                        || student.isArchived() == selectedStatus.equals("archived"))
+        ListOptions options = ListOptions.parse(arguments);
+        List<Student> matches = new ArrayList<>(data.findStudents(options.query()).stream()
+                .filter(options::includes)
                 .toList());
-
-        // Both sorts read the lessons once, then sort by the per-student value. List.sort is stable, so
-        // students with equal values keep the ID order that findStudents returned.
-        LocalDate today = LocalDate.now(clock);
-        Map<String, BigDecimal> owed = SORT_OWED.equals(sort) ? amountsOwed(today) : Map.of();
-        Map<String, LocalDate> lastLessons = SORT_LAST.equals(sort) ? lastLessonDates(today) : Map.of();
-        if (SORT_OWED.equals(sort)) {
-            matches.sort(Comparator.comparing(
-                    (Student student) -> owed.getOrDefault(student.getStudentId(), BigDecimal.ZERO)).reversed());
-        } else if (SORT_LAST.equals(sort)) {
-            // A student with no past lesson has waited longest of all, so LocalDate.MIN puts them first.
-            matches.sort(Comparator.comparing(
-                    (Student student) -> lastLessons.getOrDefault(student.getStudentId(), LocalDate.MIN)));
-        }
-
-        String scope = status.equals("active") ? "" : " (" + status + ")";
-        String order = sort == null ? "" : SORT_OWED.equals(sort) ? ", most owed first"
-                : ", longest since last lesson first";
-        String heading = Formats.count(matches.size(), "student") + scope
-                + (query.isEmpty() ? "" : " match \"" + query + "\"") + order + ":";
-        StringBuilder result = new StringBuilder(heading);
+        Map<String, String> sortColumn = sortForList(matches, options.sort());
+        StringBuilder result = new StringBuilder(options.heading(matches.size()));
         for (Student student : matches) {
             result.append(System.lineSeparator()).append("  ").append(student.getStudentId()).append("  ")
                     .append(student.getName()).append(" (").append(student.getLevel()).append(")  ")
                     .append(subjectText(student)).append(student.isArchived() ? "  [archived]" : "")
-                    .append(student.isFlagged() ? "  [flagged]" : "");
-            if (SORT_OWED.equals(sort)) {
-                BigDecimal amount = owed.getOrDefault(student.getStudentId(), BigDecimal.ZERO);
-                result.append("  owes ").append(Formats.money(amount));
-            } else if (SORT_LAST.equals(sort)) {
-                LocalDate last = lastLessons.get(student.getStudentId());
-                result.append(last == null ? "  no past lessons"
-                        : "  last lesson " + last.format(Formats.DISPLAY_DATE));
-            }
+                    .append(student.isFlagged() ? "  [flagged]" : "")
+                    .append(sortColumn.getOrDefault(student.getStudentId(), ""));
         }
         return result.toString();
+    }
+
+    /**
+     * Sorts the students for {@code sort/owed} or {@code sort/last}, and returns the value each row was sorted
+     * by, as text to add to the row, keyed by student ID. Without a sort, the list keeps its ID order.
+     *
+     * <p>Both sorts read the lessons once, then sort by the per-student value. List.sort is stable, so students
+     * with equal values keep the ID order that findStudents returned.
+     */
+    private Map<String, String> sortForList(List<Student> students, String sort) {
+        LocalDate today = LocalDate.now(clock);
+        Map<String, String> column = new HashMap<>();
+        if (SORT_OWED.equals(sort)) {
+            Map<String, BigDecimal> owed = amountsOwed(today);
+            students.sort(Comparator.comparing(
+                    (Student student) -> owed.getOrDefault(student.getStudentId(), BigDecimal.ZERO)).reversed());
+            students.forEach(student -> column.put(student.getStudentId(), "  owes "
+                    + Formats.money(owed.getOrDefault(student.getStudentId(), BigDecimal.ZERO))));
+        } else if (SORT_LAST.equals(sort)) {
+            Map<String, LocalDate> lastLessons = lastLessonDates(today);
+            // A student with no past lesson has waited longest of all, so LocalDate.MIN puts them first.
+            students.sort(Comparator.comparing(
+                    (Student student) -> lastLessons.getOrDefault(student.getStudentId(), LocalDate.MIN)));
+            students.forEach(student -> {
+                LocalDate last = lastLessons.get(student.getStudentId());
+                column.put(student.getStudentId(), last == null ? "  no past lessons"
+                        : "  last lesson " + last.format(Formats.DISPLAY_DATE));
+            });
+        }
+        return column;
+    }
+
+    /**
+     * What {@code list [NAME] [status/STATUS] [sort/SORT]} asks for.
+     *
+     * @param query The name text to search for; empty to list everyone.
+     * @param status {@code active}, {@code archived} or {@code all}.
+     * @param sort {@code owed}, {@code last}, or null to keep ID order.
+     */
+    private record ListOptions(String query, String status, String sort) {
+        /** Reads the name query and the optional status/ and sort/ values, which come after the query. */
+        static ListOptions parse(String arguments) {
+            String query = arguments;
+            String status = "active";
+            String sort = null;
+            int prefixStart = findListPrefix(arguments);
+            if (prefixStart >= 0) {
+                query = arguments.substring(0, prefixStart).trim();
+                ArgumentParser.Fields fields = ArgumentParser.parseFields(arguments.substring(prefixStart),
+                        List.of("status", "sort"));
+                status = fields.singleOr("status", status).toLowerCase(Locale.ROOT);
+                sort = fields.has("sort") ? fields.single("sort", true).toLowerCase(Locale.ROOT) : null;
+            }
+            if (!List.of("active", "archived", "all").contains(status)) {
+                throw new IllegalArgumentException("Use status/active, status/archived or status/all.");
+            }
+            if (sort != null && !List.of(SORT_OWED, SORT_LAST).contains(sort)) {
+                throw new IllegalArgumentException("Use sort/owed or sort/last.");
+            }
+            return new ListOptions(query, status, sort);
+        }
+
+        /** Returns true if the student's archive state matches the requested status. */
+        boolean includes(Student student) {
+            return status.equals("all") || student.isArchived() == status.equals("archived");
+        }
+
+        /** Returns the heading, e.g. {@code 2 students (all) match "tan", most owed first:}. */
+        String heading(int count) {
+            String scope = status.equals("active") ? "" : " (" + status + ")";
+            String order = sort == null ? "" : SORT_OWED.equals(sort) ? ", most owed first"
+                    : ", longest since last lesson first";
+            return Formats.count(count, "student") + scope + (query.isEmpty() ? "" : " match \"" + query + "\"")
+                    + order + ":";
+        }
     }
 
     /**
@@ -408,74 +439,91 @@ public class StudentCommands extends CommandHandler {
         }
     }
 
+    /**
+     * Handles {@code view STUDENT_ID}: the student's profile, every lesson newest first, outstanding homework
+     * and the amount owed.
+     */
     private String view(String arguments) {
         Student student = data.getStudent(singleId(arguments));
         String id = student.getStudentId();
-        StringBuilder output = new StringBuilder(id + "  " + student.getName() + "  (" + student.getLevel()
-                + ")  " + student.getPhoneNumber());
-        if (student.isArchived()) {
-            output.append(System.lineSeparator()).append("Status: archived");
-        }
-        if (student.isFlagged()) {
-            output.append(System.lineSeparator()).append("Flagged: ").append(reasonText(student));
-        }
-        output.append(System.lineSeparator()).append("Subjects: ").append(subjectText(student));
-        output.append(System.lineSeparator()).append(rateText(student));
-        output.append(System.lineSeparator()).append("Lessons");
         List<Lesson> lessons = data.getLessons().stream()
                 .filter(lesson -> id.equalsIgnoreCase(lesson.getStudentId()))
                 .sorted(Comparator.comparing(Lesson::getDate).thenComparing(Lesson::getTime)
                         .thenComparing(Lesson::getLessonId).reversed())
                 .toList();
-        // A heading with nothing under it looks like missing output, so an empty section says none.
-        if (lessons.isEmpty()) {
-            output.append(System.lineSeparator()).append("  none");
-        }
-        LocalDate today = LocalDate.now(clock);
-        BigDecimal owed = BigDecimal.ZERO;
-        int unpaidCount = 0;
-        for (Lesson lesson : lessons) {
-            output.append(System.lineSeparator()).append("  ").append(lesson.getLessonId()).append("  ")
-                    .append(Formats.DISPLAY_DATE.format(lesson.getDate())).append(" ")
-                    .append(String.format(Locale.ROOT, "%02d%02d",
-                            lesson.getTime().getHour(), lesson.getTime().getMinute()))
-                    .append("  ").append(lesson.getSubject()).append("  ").append(Formats.money(lesson.getFee()))
-                    .append("  ").append(lesson.isCancelled() ? "cancelled"
-                            : lesson.getAttendance().name().toLowerCase(Locale.ROOT).replace('_', ' '))
-                    .append("  ").append(lesson.getPaymentStatus());
-            if (lesson.getAmountPaid().signum() > 0 && !lesson.getPaymentStatus().equals(Lesson.PAYMENT_PAID)) {
-                output.append("  ").append(Formats.money(lesson.getAmountPaid())).append(" paid, ")
-                        .append(Formats.money(lesson.getAmountOwed())).append(" remaining");
-            }
-            if (lesson.getDurationMinutes() != Lesson.DEFAULT_DURATION_MINUTES) {
-                output.append("  ").append(lesson.getDurationMinutes()).append(" min");
-            }
-            if (lesson.isCancelled()) {
-                output.append(System.lineSeparator()).append("       Reason: ").append(lesson.getCancellationReason());
-            }
-            if (!lesson.getNotes().isBlank()) {
-                output.append(System.lineSeparator()).append("       ").append(lesson.getNotes());
-            }
-            if (lesson.isOwedOn(today)) {
-                owed = owed.add(lesson.getAmountOwed());
-                unpaidCount++;
-            }
-        }
-        output.append(System.lineSeparator()).append("Outstanding homework");
         List<Homework> outstanding = data.getHomework().stream()
                 .filter(item -> id.equalsIgnoreCase(item.getStudentId()))
                 .filter(item -> !item.isSubmitted())
                 .sorted(Comparator.comparing(Homework::getDueDate).thenComparing(Homework::getHomeworkId))
                 .toList();
-        if (outstanding.isEmpty()) {
-            output.append(System.lineSeparator()).append("  none");
+
+        List<String> lines = new ArrayList<>(profileLines(student));
+        lines.add("Lessons");
+        lessons.forEach(lesson -> lines.addAll(lessonLines(lesson)));
+        // A heading with nothing under it looks like missing output, so an empty section says none.
+        if (lessons.isEmpty()) {
+            lines.add("  none");
         }
-        outstanding.forEach(item -> output.append(System.lineSeparator()).append("  ").append(item.getHomeworkId())
-                .append("  ").append(item.getDescription()).append("  due ")
-                .append(Formats.DISPLAY_DATE.format(item.getDueDate())));
-        output.append(System.lineSeparator()).append("Amount owed: ").append(Formats.money(owed))
-                .append(" (").append(unpaidCount).append(unpaidCount == 1 ? " lesson)" : " lessons)");
-        return output.toString();
+        lines.add("Outstanding homework");
+        outstanding.forEach(item -> lines.add("  " + item.getHomeworkId() + "  " + item.getDescription()
+                + "  due " + Formats.DISPLAY_DATE.format(item.getDueDate())));
+        if (outstanding.isEmpty()) {
+            lines.add("  none");
+        }
+        lines.add(owedLine(lessons));
+        return String.join(System.lineSeparator(), lines);
+    }
+
+    /** Returns the lines at the top of {@code view}: contact details, status, flag, subjects and rate. */
+    private static List<String> profileLines(Student student) {
+        List<String> lines = new ArrayList<>();
+        lines.add(student.getStudentId() + "  " + student.getName() + "  (" + student.getLevel() + ")  "
+                + student.getPhoneNumber());
+        if (student.isArchived()) {
+            lines.add("Status: archived");
+        }
+        if (student.isFlagged()) {
+            lines.add("Flagged: " + reasonText(student));
+        }
+        lines.add("Subjects: " + subjectText(student));
+        lines.add(rateText(student));
+        return lines;
+    }
+
+    /**
+     * Returns one lesson in {@code view}: a row with its slot, fee, attendance and payment, followed by its
+     * cancellation reason and notes, if any, on lines of their own.
+     */
+    private static List<String> lessonLines(Lesson lesson) {
+        String attendance = lesson.isCancelled() ? "cancelled"
+                : lesson.getAttendance().name().toLowerCase(Locale.ROOT).replace('_', ' ');
+        StringBuilder row = new StringBuilder("  " + lesson.getLessonId() + "  "
+                + Formats.DISPLAY_DATE.format(lesson.getDate()) + " " + Formats.TIME.format(lesson.getTime())
+                + "  " + lesson.getSubject() + "  " + Formats.money(lesson.getFee()) + "  " + attendance
+                + "  " + lesson.getPaymentStatus());
+        if (lesson.getAmountPaid().signum() > 0 && !lesson.getPaymentStatus().equals(Lesson.PAYMENT_PAID)) {
+            row.append("  ").append(Formats.money(lesson.getAmountPaid())).append(" paid, ")
+                    .append(Formats.money(lesson.getAmountOwed())).append(" remaining");
+        }
+        if (lesson.getDurationMinutes() != Lesson.DEFAULT_DURATION_MINUTES) {
+            row.append("  ").append(lesson.getDurationMinutes()).append(" min");
+        }
+        List<String> lines = new ArrayList<>(List.of(row.toString()));
+        if (lesson.isCancelled()) {
+            lines.add("       Reason: " + lesson.getCancellationReason());
+        }
+        if (!lesson.getNotes().isBlank()) {
+            lines.add("       " + lesson.getNotes());
+        }
+        return lines;
+    }
+
+    /** Returns the last line of {@code view}: the total owed for lessons up to today, and how many. */
+    private String owedLine(List<Lesson> lessons) {
+        LocalDate today = LocalDate.now(clock);
+        List<Lesson> owedLessons = lessons.stream().filter(lesson -> lesson.isOwedOn(today)).toList();
+        BigDecimal owed = owedLessons.stream().map(Lesson::getAmountOwed).reduce(BigDecimal.ZERO, BigDecimal::add);
+        return "Amount owed: " + Formats.money(owed) + " (" + Formats.count(owedLessons.size(), "lesson") + ")";
     }
 
     private static String details(Student student) {

@@ -99,18 +99,24 @@ public class ScoreCommands extends CommandHandler {
                 .append(score.getMarksText()).append(" (").append(percent(score.getPercentage())).append(") on ")
                 .append(Formats.DISPLAY_DATE.format(score.getDate()));
 
-        // Comparing with the test just before this one answers "is the student improving?" straight away.
-        List<Score> history = scoresOf(student.getStudentId());
+        return output.append(describeChangeFromPrevious(score)).toString();
+    }
+
+    /**
+     * Returns a line comparing the score with the student's test just before it, or nothing for their first
+     * test. Comparing with the previous test answers "is the student improving?" straight away.
+     */
+    private String describeChangeFromPrevious(Score score) {
+        List<Score> history = scoresOf(score.getStudentId());
         int position = history.indexOf(score);
         assert position >= 0 : "The score just recorded should be in the student's history";
-        if (position > 0) {
-            Score previous = history.get(position - 1);
-            output.append(System.lineSeparator()).append("  ")
-                    .append(describeChange(score.getPercentage().subtract(previous.getPercentage())))
-                    .append(" from ").append(previous.getTestName()).append(" (")
-                    .append(percent(previous.getPercentage())).append(")");
+        if (position == 0) {
+            return "";
         }
-        return output.toString();
+        Score previous = history.get(position - 1);
+        return System.lineSeparator() + "  "
+                + describeChange(score.getPercentage().subtract(previous.getPercentage()))
+                + " from " + previous.getTestName() + " (" + percent(previous.getPercentage()) + ")";
     }
 
     /** Handles {@code scores STUDENT_ID}: every score for one student, oldest first, with the trend. */
