@@ -44,10 +44,15 @@ handling changes of plan. I also wrote the first complete User Guide and set up 
   release JAR. Notes can now contain words such as `and/or`, `edit L3 a/none` clears attendance, `uncancel`
   undoes a cancellation, and homework can be edited and deleted. Overlapping lessons are rejected, not just
   lessons that start at the same time, and routine log messages no longer appear in the tutor's terminal.
-* **Bug fixes in the v2.1 features** ([PR #120](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/120)):
+* **Bug fixes in the v2.1 features** ([PR #120](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/120),
+  [PR #125](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/125)):
   names containing `s/o` or `d/o`, which are common in Singapore, were split into a name and a subject or
   rejected. They are now kept whole in `add`, `edit` and `list`. I also moved the first-launch sample lessons
   so that the Quick start's `lessons week` shows one on any day, not only on weekdays.
+  A code review of my fix showed that it broke subjects such as `s/O Level Math` typed after a name. The
+  follow-up keeps `s/o` in a name only when the "o" is lower case or the whole name is in capitals, which
+  restores those subjects without splitting names such as `RAVI S/O KUMAR` again. I also moved the rule into
+  one place, so the parser, `list` and the name check cannot disagree.
 * **Defensive programming and code quality** ([PR #75](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/75),
   [PR #94](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/94)):
   added assertions and debug logging to the lesson features, enabled assertions for `gradlew run`, and
