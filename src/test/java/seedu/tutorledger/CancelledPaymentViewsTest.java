@@ -1,6 +1,7 @@
 package seedu.tutorledger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -71,6 +72,62 @@ class CancelledPaymentViewsTest {
         data.deleteLesson("L5");
         assertTrue(new LessonFilterCommand(data).execute("filter")
                 .endsWith("Total fees (excluding cancelled lessons): $0.00"));
+    }
+
+    @Test
+    void studentView_preservesCancelledHistoryWithoutShowingABalance() {
+        TutorLedgerData data = sample();
+        String before = Storage.encode(data);
+        String output = new StudentCommands(data, TestUtil.clockAt("2026-11-02T10:00:00Z"))
+                .execute("view S1");
+
+        assertTrue(output.contains("$60.00  cancelled  unpaid [not chargeable]"), output);
+        assertTrue(output.contains("$60.00  cancelled  partial [not chargeable]  $25.00 paid"), output);
+        assertTrue(output.contains("$60.00  cancelled  paid [not chargeable]  $60.00 paid"), output);
+        assertTrue(output.contains("$0.00  cancelled  paid [not chargeable]"), output);
+        assertEquals(4, output.lines().filter(line -> line.contains("[not chargeable]")).count());
+        assertEquals(4, output.lines().filter(line -> line.contains("Reason: Sick")).count());
+        assertFalse(output.contains("remaining"), output);
+        assertTrue(output.endsWith("Amount owed: $40.00 (1 lesson)"), output);
+        assertEquals(before, Storage.encode(data));
+    }
+
+    @Test
+    void studentView_uncancellingRestoresActivePaymentWordingAndBalances() {
+        TutorLedgerData data = sample();
+        LessonCommands lessons = new LessonCommands(data, TestUtil.clockAt("2026-11-02T10:00:00Z"));
+        for (String id : List.of("L1", "L2", "L3", "L4")) {
+            assertFalse(lessons.execute("uncancel " + id).startsWith("Error:"));
+        }
+        String output = new StudentCommands(data, TestUtil.clockAt("2026-11-02T10:00:00Z"))
+                .execute("view S1");
+
+        assertTrue(output.contains("$60.00  not recorded  unpaid"), output);
+        assertTrue(output.contains("$60.00  not recorded  partial  $25.00 paid, $35.00 remaining"), output);
+        assertTrue(output.contains("$60.00  not recorded  paid"), output);
+        assertTrue(output.contains("$0.00  not recorded  paid"), output);
+        assertFalse(output.contains("[not chargeable]") || output.contains("Reason:"), output);
+        assertTrue(output.endsWith("Amount owed: $135.00 (3 lessons)"), output);
+        assertEquals(new BigDecimal("25"), data.getLesson("L2").getAmountPaid());
+        assertEquals(new BigDecimal("60"), data.getLesson("L3").getAmountPaid());
+    }
+
+    @Test
+    void studentView_afterRestartPreservesEveryPaymentStatusAndSavedBytes() throws IOException {
+        Path file = tempDir.resolve("student-view.txt");
+        TutorLedgerData data = sample();
+        new Storage(file.toString()).save(data);
+        Files.writeString(file, Files.readString(file) + "# Preserve this hand edit\n");
+        byte[] before = Files.readAllBytes(file);
+
+        String output = TutorLedgerCommandRoutingTest.runCommands(file, "view S1", "exit");
+
+        assertEquals(4, output.lines().filter(line -> line.contains("[not chargeable]")).count());
+        assertTrue(output.contains("partial [not chargeable]  $25.00 paid"), output);
+        assertTrue(output.contains("paid [not chargeable]  $60.00 paid"), output);
+        assertFalse(output.contains("remaining"), output);
+        assertArrayEquals(before, Files.readAllBytes(file));
+        assertEquals(Storage.encode(data), Storage.encode(new Storage(file.toString()).load().data()));
     }
 
     @Test
