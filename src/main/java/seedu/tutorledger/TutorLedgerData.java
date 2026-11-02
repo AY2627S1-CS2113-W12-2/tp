@@ -285,15 +285,15 @@ public class TutorLedgerData {
                 : "Replacement moved the lesson to another student";
         // Only a lesson that now takes up different time needs the check, so other edits are never blocked
         // by it. That covers a move, a longer or shorter lesson, and a cancellation being undone.
-        boolean takesNewTime = !existing.getStart().equals(lesson.getStart())
+        boolean isTimeChanged = !existing.getStart().equals(lesson.getStart())
                 || existing.getDurationMinutes() != lesson.getDurationMinutes()
                 || (existing.isCancelled() && !lesson.isCancelled());
-        if (takesNewTime) {
+        if (isTimeChanged) {
             ensureSlotFree(lesson);
         }
         lessons.put(existing.getLessonId().toUpperCase(Locale.ROOT), lesson);
         LOGGER.log(Level.FINE, "Lesson replaced: {0} (takes new time={1})",
-                new Object[]{lesson.getLessonId(), takesNewTime});
+                new Object[]{lesson.getLessonId(), isTimeChanged});
     }
 
     /** Removes a lesson and returns it, so the caller can report what was deleted. */

@@ -30,10 +30,10 @@ public class StorageCommands {
 
     private final TutorLedgerData data;
     private final Storage storage;
-    private final boolean seedSampleData;
+    private final boolean shouldSeedSampleData;
     private final Clock clock;
     /** Prevents a later data-changing command from overwriting a file that could not be read. */
-    private boolean automaticSavingEnabled = true;
+    private boolean isAutomaticSavingEnabled = true;
 
     /**
      * Creates the handler for the storage commands.
@@ -52,8 +52,8 @@ public class StorageCommands {
      * @param storage The data file that is saved to automatically.
      * @param seedSampleData Whether a missing file should be populated with first-launch sample records.
      */
-    public StorageCommands(TutorLedgerData data, Storage storage, boolean seedSampleData) {
-        this(data, storage, seedSampleData, Clock.systemDefaultZone());
+    public StorageCommands(TutorLedgerData data, Storage storage, boolean shouldSeedSampleData) {
+        this(data, storage, shouldSeedSampleData, Clock.systemDefaultZone());
     }
 
     /**
@@ -64,13 +64,13 @@ public class StorageCommands {
      * @param seedSampleData Whether a missing file should be populated with first-launch sample records.
      * @param clock Source of today's date for relative first-launch sample records.
      */
-    public StorageCommands(TutorLedgerData data, Storage storage, boolean seedSampleData, Clock clock) {
+    public StorageCommands(TutorLedgerData data, Storage storage, boolean shouldSeedSampleData, Clock clock) {
         assert data != null : "StorageCommands needs the records to save";
         assert storage != null : "StorageCommands needs a data file to save to";
         assert clock != null : "StorageCommands needs a clock for sample data";
         this.data = data;
         this.storage = storage;
-        this.seedSampleData = seedSampleData;
+        this.shouldSeedSampleData = shouldSeedSampleData;
         this.clock = clock;
     }
 
@@ -106,12 +106,12 @@ public class StorageCommands {
         try {
             Storage.LoadResult result = storage.load();
             data.replaceAllWith(result.data());
-            automaticSavingEnabled = true;
+            isAutomaticSavingEnabled = true;
             return "Loaded " + describeContents(data) + " from " + storage.getDisplayPath() + "."
                     + describeProblems(result.problems());
         } catch (NoSuchFileException exception) {
-            automaticSavingEnabled = true;
-            if (!seedSampleData) {
+            isAutomaticSavingEnabled = true;
+            if (!shouldSeedSampleData) {
                 LOGGER.log(Level.FINE, "No data file at startup; starting empty");
                 return "No saved data yet. TutorLedger will create " + storage.getDisplayPath()
                         + " when you add something.";
@@ -129,7 +129,7 @@ public class StorageCommands {
                         + " (" + describe(saveException) + ").";
             }
         } catch (IOException exception) {
-            automaticSavingEnabled = false;
+            isAutomaticSavingEnabled = false;
             LOGGER.log(Level.FINE, "Could not read data file at startup", exception);
             return "Could not read " + storage.getDisplayPath() + " (" + describe(exception) + ")."
                     + System.lineSeparator() + "Starting with no data.";
@@ -159,7 +159,7 @@ public class StorageCommands {
         if (snapshot().equals(snapshotBefore)) {
             return "";
         }
-        if (!automaticSavingEnabled) {
+        if (!isAutomaticSavingEnabled) {
             return "Warning: your change could not be saved to " + storage.getDisplayPath()
                     + " because automatic saving is disabled after the file could not be read."
                     + " Fix the file and run reload, or use save explicitly.";
@@ -180,7 +180,7 @@ public class StorageCommands {
         try {
             if (filePath.isEmpty()) {
                 storage.save(data);
-                automaticSavingEnabled = true;
+                isAutomaticSavingEnabled = true;
                 return "Saved " + describeContents(data) + System.lineSeparator()
                         + "to " + storage.getDisplayPath();
             }
@@ -205,12 +205,12 @@ public class StorageCommands {
             return "No data file found at " + storage.getDisplayPath() + "." + System.lineSeparator()
                     + "Your current data has not been changed.";
         } catch (IOException exception) {
-            automaticSavingEnabled = false;
+            isAutomaticSavingEnabled = false;
             return "Could not read " + storage.getDisplayPath() + " (" + describe(exception) + ")."
                     + System.lineSeparator() + "Your current data has not been changed.";
         }
         data.replaceAllWith(result.data());
-        automaticSavingEnabled = true;
+        isAutomaticSavingEnabled = true;
         // The file was just read in full, so saving now would write back exactly the records it gave.
         assert snapshot().equals(Storage.encode(result.data())) : "Reload did not copy every record";
         return "Reloaded " + storage.getDisplayPath() + System.lineSeparator()

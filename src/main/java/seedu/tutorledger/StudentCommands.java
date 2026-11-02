@@ -97,9 +97,9 @@ public class StudentCommands {
     /** Explains the difference between stored profiles and the default active-only list when needed. */
     private String studentCountText() {
         int total = data.getStudents().size();
-        long archived = data.getStudents().stream().filter(Student::isArchived).count();
-        String breakdown = archived == 0 ? "" : " in total (" + (total - archived)
-                + " active, " + archived + " archived)";
+        long archivedCount = data.getStudents().stream().filter(Student::isArchived).count();
+        String breakdown = archivedCount == 0 ? "" : " in total (" + (total - archivedCount)
+                + " active, " + archivedCount + " archived)";
         return "You now have " + count(total, "student") + breakdown + ".";
     }
 
@@ -233,18 +233,19 @@ public class StudentCommands {
     }
 
     /** Archives or restores a profile without changing its linked records or permanent ID. */
-    private String setArchived(String arguments, boolean archived) {
+    private String setArchived(String arguments, boolean shouldArchive) {
         Student student = data.getStudent(singleId(arguments));
-        if (student.isArchived() == archived) {
+        if (student.isArchived() == shouldArchive) {
             return student.getStudentId() + " " + student.getName() + " is already "
-                    + (archived ? "archived." : "active.");
+                    + (shouldArchive ? "archived." : "active.");
         }
-        data.replaceStudent(student.withArchived(archived));
+        data.replaceStudent(student.withArchived(shouldArchive));
         LOGGER.log(Level.FINE, "Student {0} archive state changed to {1}",
-                new Object[]{student.getStudentId(), archived});
-        return (archived ? "Archived " : "Restored ") + student.getStudentId() + ": " + student.getName()
+                new Object[]{student.getStudentId(), shouldArchive});
+        return (shouldArchive ? "Archived " : "Restored ") + student.getStudentId() + ": " + student.getName()
                 + " (" + student.getLevel() + ")." + System.lineSeparator()
-                + (archived ? "History is kept. Existing lessons are unchanged; restore before scheduling new ones."
+                + (shouldArchive
+                        ? "History is kept. Existing lessons are unchanged; restore before scheduling new ones."
                         : "The student is active again. History and existing lessons are unchanged.");
     }
 
@@ -347,8 +348,8 @@ public class StudentCommands {
             throw new IllegalArgumentException("Use: delete STUDENT_ID [confirm]");
         }
         Student student = data.getStudent(singleId(words[0]));
-        boolean confirmed = words.length == 2;
-        if (!confirmed) {
+        boolean isConfirmed = words.length == 2;
+        if (!isConfirmed) {
             // Every linked record is deleted with the student, so any of them is worth a warning first.
             LinkedRecords linked = countLinkedRecords(student.getStudentId());
             if (linked.total() > 0) {
@@ -356,7 +357,7 @@ public class StudentCommands {
             }
         }
         LOGGER.log(Level.FINE, "Deleting student {0}; explicitly confirmed: {1}",
-                new Object[]{student.getStudentId(), confirmed});
+                new Object[]{student.getStudentId(), isConfirmed});
         TutorLedgerData.Deletion removed = data.deleteStudent(student.getStudentId());
         String result = "Deleted " + student.getStudentId() + ": " + student.getName() + " (" + student.getLevel()
                 + ")" + System.lineSeparator() + "Also deleted " + count(removed.lessonCount(), "lesson") + " and "

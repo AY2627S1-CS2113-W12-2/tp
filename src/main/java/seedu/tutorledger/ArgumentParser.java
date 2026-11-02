@@ -163,14 +163,14 @@ final class ArgumentParser {
          *
          * @throws IllegalArgumentException If the prefix is repeated, or is required but missing or blank.
          */
-        String single(String key, boolean required) {
-            LOGGER.log(Level.FINE, "Resolving single field for key {0} (required={1})", new Object[]{key, required});
+        String single(String key, boolean isRequired) {
+            LOGGER.log(Level.FINE, "Resolving single field for key {0} (required={1})", new Object[]{key, isRequired});
             List<String> entries = values(key);
             if (entries.size() > 1) {
                 throw new IllegalArgumentException("Give " + key + "/ only once.");
             }
             if (entries.isEmpty() || entries.getFirst().isBlank()) {
-                if (required) {
+                if (isRequired) {
                     throw new IllegalArgumentException("Give a non-blank " + key + "/ value.");
                 }
                 return null;

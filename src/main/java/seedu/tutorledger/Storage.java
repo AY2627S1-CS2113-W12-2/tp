@@ -197,7 +197,7 @@ public class Storage {
         int[] savedNextIds = null;
         // The pre-merge hourly-rate branch used field 11 for minutes; upstream used it for a reason.
         // Only that branch's explicit header disambiguates old duration rows. Never guess from a numeric reason.
-        boolean legacyDurationFormat = lines.stream()
+        boolean isLegacyDurationFormat = lines.stream()
                 .anyMatch(line -> line.strip().startsWith("#") && line.contains("| NOTES | MINUTES"));
 
         for (int i = 0; i < lines.size(); i++) {
@@ -237,7 +237,7 @@ public class Storage {
                 } else if (type.equals("FLAG")) {
                     importFlag(fields, data, flaggedStudents);
                 } else if (type.equals("L")) {
-                    data.importLesson(parseLesson(fields, data, legacyDurationFormat));
+                    data.importLesson(parseLesson(fields, data, isLegacyDurationFormat));
                 } else if (type.equals("H")) {
                     data.importHomework(parseHomework(fields, data));
                 } else if (type.equals("A")) {
@@ -306,7 +306,7 @@ public class Storage {
     }
 
     /** Reads legacy rows with or without duration and partial-payment fields. */
-    private static Lesson parseLesson(List<String> fields, TutorLedgerData data, boolean legacyDurationFormat) {
+    private static Lesson parseLesson(List<String> fields, TutorLedgerData data, boolean isLegacyDurationFormat) {
         if (fields.size() < LESSON_FIELD_COUNT || fields.size() > LESSON_FIELD_COUNT + 3) {
             throw new IllegalArgumentException("A lesson line needs 10 to 13 fields but has " + fields.size() + ".");
         }
@@ -327,7 +327,7 @@ public class Storage {
             }
             lesson = lesson.withAmountPaid(new java.math.BigDecimal(fields.get(12)));
         } else if (fields.size() == LESSON_FIELD_COUNT + 1) {
-            if (legacyDurationFormat) {
+            if (isLegacyDurationFormat) {
                 lesson = lesson.withDurationMinutes(Lesson.parseDuration(fields.get(10)));
             } else {
                 reason = fields.get(10);

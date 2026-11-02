@@ -50,7 +50,7 @@ public class TutorLedger {
     }
 
     /** Runs the command loop, optionally creating first-launch sample records when storage is absent. */
-    private static void run(Storage storage, boolean seedSampleData) {
+    private static void run(Storage storage, boolean shouldSeedSampleData) {
         assert storage != null : "The command loop needs a data file to load and save";
         configureLogging(Logger.getLogger(""));
         TutorLedgerData data = new TutorLedgerData();
@@ -63,7 +63,7 @@ public class TutorLedger {
         ScoreCommands scoreCommands = new ScoreCommands(data, clock);
         TaskCommands taskCommands = new TaskCommands(data, clock);
         LessonFilterCommand filterCommand = new LessonFilterCommand(data);
-        StorageCommands storageCommands = new StorageCommands(data, storage, seedSampleData, clock);
+        StorageCommands storageCommands = new StorageCommands(data, storage, shouldSeedSampleData, clock);
         CommandHistory history = new CommandHistory();
         System.out.println("TutorLedger student book. Type exit to close.");
         System.out.println(storageCommands.loadOnStartup());
@@ -125,7 +125,7 @@ public class TutorLedger {
             }
             String selected = history.recall(arguments);
             System.out.println("Selected command: " + selected);
-            if (!confirmRepeat(input)) {
+            if (!isRepeatConfirmed(input)) {
                 System.out.println("Repeat cancelled.");
                 return null;
             }
@@ -137,7 +137,7 @@ public class TutorLedger {
     }
 
     /** Reads confirmation only; replies never enter command dispatch or history. End-of-input cancels. */
-    private static boolean confirmRepeat(Scanner input) {
+    private static boolean isRepeatConfirmed(Scanner input) {
         while (true) {
             System.out.println("Run this command? (yes/no):");
             if (!input.hasNextLine()) {

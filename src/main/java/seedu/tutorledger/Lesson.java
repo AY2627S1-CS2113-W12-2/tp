@@ -226,9 +226,9 @@ public class Lesson {
 
     /** Returns true once attendance has been recorded for this lesson. */
     public boolean isRecorded() {
-        boolean recorded = attendance != Attendance.NOT_RECORDED;
-        LOGGER.log(Level.FINE, "Lesson {0} recorded status: {1}", new Object[]{lessonId, recorded});
-        return recorded;
+        boolean hasAttendance = attendance != Attendance.NOT_RECORDED;
+        LOGGER.log(Level.FINE, "Lesson {0} recorded status: {1}", new Object[]{lessonId, hasAttendance});
+        return hasAttendance;
     }
 
     /**

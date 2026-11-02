@@ -101,9 +101,10 @@ public class Homework {
 
     /** Returns true if this homework has been handed in. */
     public boolean isSubmitted() {
-        boolean submitted = STATUS_SUBMITTED.equalsIgnoreCase(submitStatus);
-        LOGGER.log(Level.FINE, "Checking if homework {0} is submitted: {1}", new Object[]{homeworkId, submitted});
-        return submitted;
+        boolean hasBeenSubmitted = STATUS_SUBMITTED.equalsIgnoreCase(submitStatus);
+        LOGGER.log(Level.FINE, "Checking if homework {0} is submitted: {1}",
+                new Object[]{homeworkId, hasBeenSubmitted});
+        return hasBeenSubmitted;
     }
 
     /**
