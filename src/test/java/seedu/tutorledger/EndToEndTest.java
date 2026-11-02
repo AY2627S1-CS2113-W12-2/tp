@@ -387,4 +387,3 @@ class EndToEndTest {
         assertEquals(savedLines, Files.readAllLines(dataFile));
     }
 }
-

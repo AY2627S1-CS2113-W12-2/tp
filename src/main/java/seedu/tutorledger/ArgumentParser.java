@@ -23,15 +23,6 @@ final class ArgumentParser {
     /** A prefix is a run of letters followed by a slash, at the start of the text or after a space. */
     private static final Pattern PREFIX = Pattern.compile("(?i)(?<!\\S)([a-z]+)/");
 
-    /**
-     * The words "s/o" (son of) and "d/o" (daughter of), as in "Ravi s/o Kumar", followed by a space or the
-     * end of the text. They are common in Singapore names but look like the prefixes {@code s/} and {@code d/}.
-     */
-    private static final Pattern NAME_CONNECTOR = Pattern.compile("(?i)[sd]/o(?=\\s|$)");
-
-    /** The prefix whose value is a person's name, which may contain {@link #NAME_CONNECTOR} words. */
-    private static final String NAME_PREFIX = "n";
-
     /** Prevents instantiation, because this class only holds a static parsing method. */
     private ArgumentParser() {
     }
@@ -64,6 +55,25 @@ final class ArgumentParser {
      * @throws IllegalArgumentException If the text has an unexpected prefix or a value with no prefix.
      */
     static Fields parseFields(String text, List<String> allowed, Set<String> freeText) {
+        return parseFields(text, allowed, freeText, Set.of());
+    }
+
+    /**
+     * Separates prefixed values, also keeping the words "s/o" and "d/o" inside the values of name prefixes.
+     *
+     * <p>Inside a name, {@code d/o} is always part of the name when the command has no {@code d/} prefix.
+     * {@code s/o} is harder, because {@code s/O Level Math} is a subject. It is kept in the name only when
+     * written with a lower-case "o", which no subject starts with, or when the name so far is in capitals,
+     * as in {@code RAVI S/O KUMAR}. Otherwise it starts a new value, as it did before names could hold it.
+     *
+     * @param text The part of the command that holds the prefixed values.
+     * @param allowed The prefixes this command accepts, in lower case and without the slash.
+     * @param freeText The allowed prefixes whose values are free text.
+     * @param names The allowed prefixes whose values are people's names.
+     * @return The values found, grouped by prefix.
+     * @throws IllegalArgumentException If the text has an unexpected prefix or a value with no prefix.
+     */
+    static Fields parseFields(String text, List<String> allowed, Set<String> freeText, Set<String> names) {
         LOGGER.log(Level.INFO, "Parsing fields: text={0}, allowed={1}", new Object[]{text, allowed});
         assert text != null : "Callers pass an empty string, not null, when there are no values";
         // Matched keys are lower-cased letters, so an allowed prefix in any other form could never match.
@@ -71,6 +81,7 @@ final class ArgumentParser {
                 : "Allowed prefixes must be lower-case letters without the slash: " + allowed;
         assert freeText != null && allowed.containsAll(freeText)
                 : "Free-text prefixes must also be allowed: " + freeText;
+        assert names != null && allowed.containsAll(names) : "Name prefixes must also be allowed: " + names;
         Map<String, List<String>> values = new HashMap<>();
         Matcher matcher = PREFIX.matcher(text);
         int previousEnd = 0;
@@ -81,7 +92,8 @@ final class ArgumentParser {
             }
             String key = matcher.group(1).toLowerCase(Locale.ROOT);
             // Without this, "n/Ravi s/o Kumar" would store the name "Ravi" and a subject "o Kumar".
-            if (NAME_PREFIX.equals(previousKey) && isNameConnector(text, matcher.start())) {
+            if (previousKey != null && names.contains(previousKey)
+                    && isPartOfName(text, previousEnd, matcher.start(), allowed.contains(key))) {
                 LOGGER.log(Level.FINE, "Keeping {0}/o as part of the name", key);
                 continue;
             }
@@ -114,9 +126,22 @@ final class ArgumentParser {
         return new Fields(values);
     }
 
-    /** Returns whether an "s/o" or "d/o" word starts at the given index of the text. */
-    private static boolean isNameConnector(String text, int start) {
-        return NAME_CONNECTOR.matcher(text).region(start, text.length()).lookingAt();
+    /**
+     * Returns whether the "s/o" or "d/o" word at {@code start} belongs to the name that began at
+     * {@code nameStart}, rather than starting a new value.
+     *
+     * @param isAllowedPrefix Whether the word's letter is also a prefix this command accepts.
+     */
+    private static boolean isPartOfName(String text, int nameStart, int start, boolean isAllowedPrefix) {
+        if (!Student.isNameConnectorAt(text, start)) {
+            return false;
+        }
+        if (!isAllowedPrefix) {
+            return true;
+        }
+        String nameSoFar = text.substring(nameStart, start);
+        boolean isLowerCaseO = text.charAt(start + 2) == 'o';
+        return isLowerCaseO || nameSoFar.equals(nameSoFar.toUpperCase(Locale.ROOT));
     }
 
     /** The values typed for each prefix, keyed by the prefix in lower case. */

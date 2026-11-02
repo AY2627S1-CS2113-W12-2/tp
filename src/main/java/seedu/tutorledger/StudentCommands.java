@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
@@ -21,11 +22,10 @@ public class StudentCommands {
     /** Records rejected commands when debug logging is enabled. */
     private static final Logger LOGGER = Logger.getLogger(StudentCommands.class.getName());
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("EEE dd-MM-uuuu", Locale.ENGLISH);
-    /**
-     * Locates the first list prefix, leaving the preceding text as the existing free-text name query.
-     * An "s/o" or "d/o" word is part of a name, so {@code list ravi s/o} searches for it instead.
-     */
-    private static final Pattern LIST_PREFIX = Pattern.compile("(?i)(?<!\\S)(?![sd]/o(?:\\s|$))[a-z]+/");
+    /** Locates a list prefix, leaving the preceding text as the existing free-text name query. */
+    private static final Pattern LIST_PREFIX = Pattern.compile("(?i)(?<!\\S)[a-z]+/");
+    /** Prefixes whose values are names, which may contain "s/o" or "d/o". */
+    private static final Set<String> NAME_FIELDS = Set.of("n");
     /** {@code list sort/owed}: the students who owe the most come first. */
     private static final String SORT_OWED = "owed";
     /** {@code list sort/last}: the students whose last lesson was longest ago come first. */
@@ -77,7 +77,8 @@ public class StudentCommands {
      * instead of following {@code add} with a separate {@code subject} command.
      */
     private String add(String arguments) {
-        ArgumentParser.Fields fields = ArgumentParser.parseFields(arguments, List.of("n", "l", "p", "s", "r"));
+        ArgumentParser.Fields fields = ArgumentParser.parseFields(arguments, List.of("n", "l", "p", "s", "r"),
+                Set.of(), NAME_FIELDS);
         String name = fields.single("n", true);
         String level = fields.single("l", true);
         String phone = fields.single("p", true);
@@ -103,7 +104,7 @@ public class StudentCommands {
     }
 
     private String subject(String arguments) {
-        IdAndFields input = parseIdAndFields(arguments, List.of("s"));
+        IdAndFields input = parseIdAndFields(arguments, List.of("s"), Set.of());
         Student student = data.getStudent(input.id());
         List<String> additions = input.fields().values("s");
         if (additions.isEmpty() || additions.stream().anyMatch(String::isBlank)) {
@@ -129,10 +130,10 @@ public class StudentCommands {
         String query = arguments;
         String status = "active";
         String sort = null;
-        Matcher prefix = LIST_PREFIX.matcher(arguments);
-        if (prefix.find()) {
-            query = arguments.substring(0, prefix.start()).trim();
-            ArgumentParser.Fields fields = ArgumentParser.parseFields(arguments.substring(prefix.start()),
+        int prefixStart = findListPrefix(arguments);
+        if (prefixStart >= 0) {
+            query = arguments.substring(0, prefixStart).trim();
+            ArgumentParser.Fields fields = ArgumentParser.parseFields(arguments.substring(prefixStart),
                     List.of("status", "sort"));
             status = fields.singleOr("status", status).toLowerCase(Locale.ROOT);
             sort = fields.has("sort") ? fields.single("sort", true).toLowerCase(Locale.ROOT) : null;
@@ -183,6 +184,21 @@ public class StudentCommands {
             }
         }
         return result.toString();
+    }
+
+    /**
+     * Returns where the first {@code status/} or {@code sort/} style prefix starts, or -1 if there is none.
+     * An "s/o" or "d/o" word is part of the name being searched for, so {@code list ravi s/o} finds
+     * "Ravi s/o Kumar". {@code list} has no {@code s/} or {@code d/} prefix, so any case is accepted.
+     */
+    private static int findListPrefix(String arguments) {
+        Matcher prefix = LIST_PREFIX.matcher(arguments);
+        while (prefix.find()) {
+            if (!Student.isNameConnectorAt(arguments, prefix.start())) {
+                return prefix.start();
+            }
+        }
+        return -1;
     }
 
     /**
@@ -294,7 +310,7 @@ public class StudentCommands {
     }
 
     private String edit(String arguments) {
-        IdAndFields input = parseIdAndFields(arguments, List.of("n", "l", "p", "s", "r"));
+        IdAndFields input = parseIdAndFields(arguments, List.of("n", "l", "p", "s", "r"), NAME_FIELDS);
         if (input.fields().isEmpty()) {
             throw new IllegalArgumentException("Give at least one value to edit.");
         }
@@ -498,11 +514,11 @@ public class StudentCommands {
         return argument;
     }
 
-    private static IdAndFields parseIdAndFields(String arguments, List<String> allowed) {
+    private static IdAndFields parseIdAndFields(String arguments, List<String> allowed, Set<String> names) {
         String[] pieces = arguments.split("\\s+", 2);
         String id = singleId(pieces[0]);
         String remainder = pieces.length == 2 ? pieces[1] : "";
-        return new IdAndFields(id, ArgumentParser.parseFields(remainder, allowed));
+        return new IdAndFields(id, ArgumentParser.parseFields(remainder, allowed, Set.of(), names));
     }
 
     private record IdAndFields(String id, ArgumentParser.Fields fields) {
