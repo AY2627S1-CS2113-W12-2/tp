@@ -7,6 +7,7 @@ title Schedule with a default: 90 minutes at $60/hour
 
 participant ":LessonCommands" as Commands
 participant ":TutorLedgerData" as Data
+participant "Lesson" as LessonClass <<class>>
 participant "student:Student" as Student
 participant "lesson:Lesson" as Lesson
 
@@ -20,10 +21,10 @@ Commands --> Commands
 deactivate Commands
 Commands -> Data : addLesson(..., null, 90)
 activate Data
-Data -> Data : validateDuration(90)
-activate Data
-Data --> Data
-deactivate Data
+Data -> LessonClass : validateDuration(90)
+activate LessonClass
+LessonClass --> Data
+deactivate LessonClass
 Data -> Student : getDefaultHourlyRate()
 Student --> Data : 60
 Data -> Data : fee = 60 x 90 / 60\ntotal: 90.00

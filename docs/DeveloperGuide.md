@@ -38,7 +38,8 @@ java -ea -jar build/libs/tutorledger.jar
 
 The application prints `TutorLedger student book. Type exit to close.` Type `help` to see the commands
 and `exit` to close it. Data is saved under `data/tutorledger.txt`, relative to the working directory;
-use a separate empty directory for the manual-testing scenarios.
+use a separate test directory with an existing empty `data/tutorledger.txt` for scenarios that need fresh
+IDs (see [Appendix E](#appendix-e-instructions-for-manual-testing)). A missing file loads sample records.
 
 For IntelliJ IDEA, import the repository as a Gradle project and set both the project SDK and Gradle
 JVM to JDK 25. The shared **TutorLedger (assertions enabled)** run configuration in `.run/` enables
@@ -1034,8 +1035,11 @@ does not process money, deliver online lessons, or send messages to students and
 
 ## Appendix E: Instructions for manual testing
 
-Start each scenario with its own empty working directory and use Java 25 with assertions enabled:
-`java -ea -jar /absolute/path/to/tutorledger.jar`. This keeps student and record IDs reproducible.
+Start each scenario in a separate test working directory. **Before launching**, create a `data` directory
+and an empty file named `tutorledger.txt` inside it. Use Java 25 with assertions enabled:
+`java -ea -jar /absolute/path/to/tutorledger.jar`. The existing empty `data/tutorledger.txt` loads no
+records, so the first student is S1 and the first lesson is L1. A missing file instead creates sample
+records and consumes IDs. Only the first-launch sample-data tests below should begin with a missing file.
 Use dates before today for logged attendance and dates after today for upcoming lessons. The fixed
 examples below target the October 2026 release; adapt both input dates and expected dates when testing
 later. Back up any real data before testing deletion, reload or hand-edited files.
@@ -1098,7 +1102,8 @@ later. Back up any real data before testing deletion, reload or hand-edited file
 
 ### Lessons
 
-Use an empty working directory and Java 25 with `-ea`. The steps assume today is before 01-12-2026.
+Use a separate working directory with an existing empty `data/tutorledger.txt` and Java 25 with `-ea`.
+The steps assume today is before 01-12-2026.
 
 1. Run `add n/Amirah Tan l/Sec 3 p/91234567 s/A Math`, then
    `schedule S1 d/01-12-2026 t/1600 s/A Math f/60 w/3`.
@@ -1127,7 +1132,8 @@ Use an empty working directory and Java 25 with `-ea`. The steps assume today is
 
 ### Student deletion warnings
 
-Use an empty working directory and run the packaged application with Java 25 and `-ea`.
+Use a separate working directory with an existing empty `data/tutorledger.txt`. Run the packaged application
+with Java 25 and `-ea`.
 
 1. Run `add n/Alice Tan l/Pri5 p/91234567 s/Math r/60` and
    `add n/Bob Tan l/JC2 p/81234567 s/Math`.
@@ -1151,7 +1157,7 @@ Use an empty working directory and run the packaged application with Java 25 and
 
 ### Archiving students
 
-Use an empty working directory and Java 25 with `-ea`.
+Use a separate working directory with an existing empty `data/tutorledger.txt` and Java 25 with `-ea`.
 
 1. Add `add n/Alice Tan l/Pri5 p/91234567 s/Math r/60` and
    `add n/Bob Tan l/JC2 p/81234567 s/Math r/70`.
@@ -1171,7 +1177,7 @@ Use an empty working directory and Java 25 with `-ea`.
 
 ### Covered topics
 
-Use an empty working directory and Java 25 with `-ea`.
+Use a separate working directory with an existing empty `data/tutorledger.txt` and Java 25 with `-ea`.
 
 1. Run `add n/Alice Tan l/Pri5 p/91234567 s/Math s/Physics r/60` and
    `add n/Bob Tan l/JC2 p/81234567 s/Math r/70`.
@@ -1195,7 +1201,8 @@ Use an empty working directory and Java 25 with `-ea`.
 
 ### School levels
 
-Use an empty working directory and run the packaged application with Java 25 and `-ea`.
+Use a separate working directory with an existing empty `data/tutorledger.txt`. Run the packaged application
+with Java 25 and `-ea`.
 
 1. Run `add n/Alice Tan l/pRi6 p/91234567 s/Math r/40` and
    `add n/Bob Tan l/JC2 p/81234567`. Expected: S1 is `Pri 6` and S2 is `JC 2`.
@@ -1212,7 +1219,8 @@ Use an empty working directory and run the packaged application with Java 25 and
 
 ### Default hourly rates
 
-Use an empty working directory and run the packaged application with Java 25 and `-ea`.
+Use a separate working directory with an existing empty `data/tutorledger.txt`. Run the packaged application
+with Java 25 and `-ea`.
 
 1. Add a student: `add n/Amirah l/Sec 3 p/91234567 s/E Math r/60`.
    Expected: S1 is created with `Default hourly rate: $60.00/hour`.
@@ -1260,23 +1268,26 @@ counter to `S2147483647`: existing students remain readable, while `add` reports
 are available and leaves the file unchanged. The same range/capacity checks apply to L, H, A and T.
 
 1. Automatic save and restart
-   1. Start TutorLedger in an empty folder. Expected: a small set of synthetic sample records is loaded and
-      saved automatically.
+   1. For this first-launch test only, start TutorLedger in a separate folder with no `data/tutorledger.txt`.
+      Expected: a small set of synthetic sample records is loaded and saved automatically.
    1. Try `list`, `lessons week`, `next`, `homework S1`, `scores S1` and `tasks S1` before entering real records.
       Expected: `lessons week` shows at least one sample lesson on any day of the week, and `next` shows L2,
       which is tomorrow.
    1. Run `add n/Carol Tan l/Pri 5 p/87654321`, then `exit`.
    1. Start TutorLedger again. Expected: the sample records and Carol's record are loaded from the data file.
 1. Deleted IDs are not reused
-   1. Add two students (S1, S2), `delete S2`, then restart TutorLedger.
+   1. Start a separate session with an existing empty `data/tutorledger.txt`, as described at the start of
+      Appendix E. Add two students (S1, S2), `delete S2`, then restart TutorLedger.
    1. Add another student. Expected: it is given the ID S3, not S2.
 1. Hand-editing and `reload`
+   1. Use the sample-data folder from the automatic-save test, which contains students and lessons.
+      Start TutorLedger in that folder.
    1. Open `data/tutorledger.txt` and change a student's phone number, then run `reload`.
       Expected: `view` shows the new number.
    1. Change a lesson's date to `31-02-2026`, then run `reload`.
       Expected: that line is reported as skipped with its line number; all other records load.
-   1. To test a clean first launch, exit TutorLedger, empty `data/tutorledger.txt` without deleting the file,
-      then start TutorLedger again. Expected: an empty data set is loaded and sample records are not recreated.
+   1. To test restarting with an empty file, exit TutorLedger and empty `data/tutorledger.txt` without deleting
+      the file, then start TutorLedger again. Expected: an empty data set is loaded and sample records are not recreated.
       Deleting the file instead causes the first-launch sample records to be created again.
    1. While TutorLedger is running, move `data/tutorledger.txt` elsewhere, then run `reload`.
       Expected: `No data file found at data/tutorledger.txt.` and the current records are unchanged.
@@ -1314,7 +1325,7 @@ are available and leaves the file unchanged. The same range/capacity checks appl
 
 ### Attention flags
 
-1. Add `add n/Alice Tan l/Pri5 p/91234567` and `add n/Bob Tan l/JC2 p/81234567`, then
+1. Add `add n/Alice Tan l/Pri5 p/91234567 s/Math r/60` and `add n/Bob Tan l/JC2 p/81234567`, then
    `schedule S1 d/01-12-2026 t/1600 s/Math`.
 2. Run `flag S1 Weak at fractions`. Expected: a confirmation with the reason. `list` shows `[flagged]` only
    for Alice, `view S1` shows `Flagged: Weak at fractions`, and `next` shows the same line under her name.
@@ -1327,7 +1338,8 @@ are available and leaves the file unchanged. The same range/capacity checks appl
 
 ### Command history and confirmation
 
-1. In an empty working directory, add `add n/Alice Tan l/Pri5 p/91234567 s/Math`, then
+1. In a separate working directory with an existing empty `data/tutorledger.txt`, start TutorLedger,
+   add `add n/Alice Tan l/Pri5 p/91234567 s/Math`, then
    `log S1 d/06-10-2020 t/1600 s/Math f/40 a/present`. Exit and restart, leaving saved S1 and L1.
    `history` now reports `No commands in history.`
 2. Run `filter S1 from/01-01-2020 to/31-12-2020 pay/unpaid`, then `mark L1 paid`.
