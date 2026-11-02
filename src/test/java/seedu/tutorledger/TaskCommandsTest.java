@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static seedu.tutorledger.TestUtil.NL;
 
 import java.time.Clock;
+import java.time.LocalDate;
+import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -54,6 +56,45 @@ class TaskCommandsTest {
         assertTrue(commands.execute("task S1 Bring notes d/").contains("real date"));
         assertTrue(commands.execute("task S9 Bring notes").contains("No student found with ID S9"));
         assertTrue(data.getTasks().isEmpty());
+    }
+
+    @Test
+    void task_spacedCaseInsensitiveDate_parsesTheEntireFinalArgument() {
+        String output = commands.execute("task s1 Bring notes D/ 01-01-2020   ");
+        assertTrue(output.startsWith("Added T1: Bring notes"), output);
+        assertEquals(LocalDate.of(2020, 1, 1), data.getTask("T1").getDueDate().orElseThrow());
+        assertEquals("S1", data.getTask("T1").getStudentId().orElseThrow());
+        assertTrue(commands.execute("tasks").contains("OVERDUE"));
+
+        assertTrue(commands.execute("task Print calendar\td/\t29-02-2024").startsWith("Added T2:"));
+        assertEquals(LocalDate.of(2024, 2, 29), data.getTask("T2").getDueDate().orElseThrow());
+        assertTrue(data.getTask("T2").getStudentId().isEmpty());
+    }
+
+    @Test
+    void task_invalidFinalDate_preservesExistingRecordsAndNextId() {
+        commands.execute("task Keep this reminder");
+        String before = Storage.encode(data);
+        for (String suffix : List.of("", "   ", "31-02-2026", "29-02-2025", "tomorrow",
+                "01-01-2020 extra", "01-01-2020\nextra", "01-01-2020 d/")) {
+            String output = commands.execute("task S1 Bring notes d/" + suffix);
+            assertTrue(output.contains("real date"), output);
+            assertEquals(before, Storage.encode(data), suffix);
+        }
+        assertEquals("Added T2: Next reminder", commands.execute("task Next reminder"));
+    }
+
+    @Test
+    void task_lastStandaloneDate_preservesEmbeddedAndEarlierDateText() {
+        assertEquals("Added T1: Print and/or revise", commands.execute("task Print and/or revise"));
+        assertTrue(data.getTask("T1").getDueDate().isEmpty());
+        assertTrue(commands.execute("task S1 Explain d/ notation and/or examples D/ 01-01-2020")
+                .startsWith("Added T2: Explain d/ notation and/or examples"));
+        assertEquals("Explain d/ notation and/or examples", data.getTask("T2").getDescription());
+        assertEquals(LocalDate.of(2020, 1, 1), data.getTask("T2").getDueDate().orElseThrow());
+        assertTrue(commands.execute("task d/ notation d/01-01-2020").startsWith("Added T3: d/ notation"));
+        assertEquals("Added T4: Print xD/notes", commands.execute("task Print xD/notes"));
+        assertTrue(data.getTask("T4").getDueDate().isEmpty());
     }
 
     @Test

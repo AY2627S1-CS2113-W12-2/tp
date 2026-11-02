@@ -6,7 +6,6 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -41,10 +40,10 @@ public class TaskCommands extends CommandHandler {
     private static final String TASK_USAGE = "Use: task [STUDENT_ID] DESCRIPTION [d/DUE_DATE]";
 
     /**
-     * Splits {@code task} arguments into the text and an optional final {@code d/DUE_DATE}.
-     * Like {@code assign}, the date must come last, so the description may contain spaces and commas.
+     * Finds standalone date prefixes. Only the last one's entire suffix is parsed as a date;
+     * earlier prefixes remain description text, and embedded text such as {@code and/or} is ignored.
      */
-    private static final Pattern TASK_FORMAT = Pattern.compile("(?i)(.+?)(?:\\s+d/(\\S*))?");
+    private static final Pattern DUE_DATE_PREFIX = Pattern.compile("(?i)(?<!\\S)d/");
 
     /** A student ID such as S1, used to tell whether a task starts with the student it is for. */
     private static final Pattern STUDENT_ID = Pattern.compile("(?i)S[1-9]\\d*");
@@ -74,12 +73,14 @@ public class TaskCommands extends CommandHandler {
 
     /** Handles {@code task [STUDENT_ID] DESCRIPTION [d/DUE_DATE]}. */
     private String addTask(String arguments) {
-        Matcher matcher = TASK_FORMAT.matcher(arguments);
-        if (arguments.isEmpty() || !matcher.matches()) {
-            throw new IllegalArgumentException(TASK_USAGE);
+        Matcher prefix = DUE_DATE_PREFIX.matcher(arguments);
+        int dateStart = -1;
+        int dateEnd = -1;
+        while (prefix.find()) {
+            dateStart = prefix.start();
+            dateEnd = prefix.end();
         }
-        String text = matcher.group(1).strip();
-        LocalDate dueDate = matcher.group(2) == null ? null : parseDate(matcher.group(2));
+        String text = (dateStart < 0 ? arguments : arguments.substring(0, dateStart)).strip();
 
         // A first word that looks like a student ID says who the task is for; the rest is the description.
         String studentId = null;
@@ -89,9 +90,10 @@ public class TaskCommands extends CommandHandler {
             text = pieces.length == 2 ? pieces[1] : "";
         }
         // Without this check, "task d/20-10-2026" would log a task whose description is the date itself.
-        if (text.isBlank() || text.toLowerCase(Locale.ROOT).startsWith("d/")) {
+        if (text.isBlank()) {
             throw new IllegalArgumentException(TASK_USAGE);
         }
+        LocalDate dueDate = dateStart < 0 ? null : parseDate(arguments.substring(dateEnd).strip());
 
         FollowUpTask task = data.addTask(studentId, text, dueDate);
         assert !task.isDone() : "A newly logged task should be pending";
