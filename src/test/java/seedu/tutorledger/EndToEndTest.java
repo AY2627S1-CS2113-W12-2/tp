@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.regex.Pattern;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -345,4 +346,45 @@ class EndToEndTest {
         assertTrue(output.contains("  S1  Ann Ho (Sec 2)  none  [flagged]"), output);
         assertTrue(output.contains("  S1  Ann Ho (Sec 2)  Exam soon"), output);
     }
+
+    /**
+     * Checks the v2.1 student features together across a restart: names with s/o and d/o, flags with
+     * characters the data file escapes, both list sorts, and history, which is never saved.
+     */
+    @Test
+    void v21StudentFeatures_workTogetherAndSurviveARestart() throws IOException {
+        Path dataFile = tempDir.resolve("v21.txt");
+        String first = session(dataFile,
+                "add n/Ravi s/o Kumar l/Sec 1 p/91234567 s/Math r/50",
+                "add n/Priya d/o Raman l/Sec 2 p/81234567 s/Math r/40",
+                "log S1 d/05-10-2020 t/1600 s/Math f/50 a/present",
+                "log S2 d/12-10-2020 t/1600 s/Math f/90 a/present",
+                "pay S2 30 L2",
+                "flag S1 Fractions | ratios \\ exam soon",
+                "list sort/owed",
+                "repeat 7",
+                "y");
+
+        assertFalse(first.contains("Error"), first);
+        assertTrue(first.contains("Added S1: Ravi s/o Kumar (Sec 1), 91234567"), first);
+        String owedOrder = "2 students, most owed first:" + NL
+                + "  S2  Priya d/o Raman (Sec 2)  Math  owes $60.00" + NL
+                + "  S1  Ravi s/o Kumar (Sec 1)  Math  [flagged]  owes $50.00";
+        // The query runs once when typed and once more when repeated.
+        assertEquals(2, first.split(Pattern.quote(owedOrder), -1).length - 1, first);
+
+        List<String> savedLines = Files.readAllLines(dataFile);
+        String second = session(dataFile, "list ravi s/o", "list sort/last", "flagged", "history");
+
+        assertTrue(second.contains("1 student match \"ravi s/o\":" + NL
+                + "  S1  Ravi s/o Kumar (Sec 1)  Math  [flagged]"), second);
+        assertTrue(second.contains("  S1  Ravi s/o Kumar (Sec 1)  Math  [flagged]  last lesson Mon 05-10-2020" + NL
+                + "  S2  Priya d/o Raman (Sec 2)  Math  last lesson Mon 12-10-2020"), second);
+        assertTrue(second.contains("  S1  Ravi s/o Kumar (Sec 1)  Fractions | ratios \\ exam soon"), second);
+        // History belongs to one session, and the read-only session leaves the file as it was.
+        assertTrue(second.contains("Command history (3 commands)"), second);
+        assertFalse(second.contains("repeat"), second);
+        assertEquals(savedLines, Files.readAllLines(dataFile));
+    }
 }
+

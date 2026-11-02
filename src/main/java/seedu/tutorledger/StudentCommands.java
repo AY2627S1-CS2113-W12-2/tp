@@ -21,8 +21,11 @@ public class StudentCommands {
     /** Records rejected commands when debug logging is enabled. */
     private static final Logger LOGGER = Logger.getLogger(StudentCommands.class.getName());
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("EEE dd-MM-uuuu", Locale.ENGLISH);
-    /** Locates the first list prefix, leaving the preceding text as the existing free-text name query. */
-    private static final Pattern LIST_PREFIX = Pattern.compile("(?i)(?<!\\S)[a-z]+/");
+    /**
+     * Locates the first list prefix, leaving the preceding text as the existing free-text name query.
+     * An "s/o" or "d/o" word is part of a name, so {@code list ravi s/o} searches for it instead.
+     */
+    private static final Pattern LIST_PREFIX = Pattern.compile("(?i)(?<!\\S)(?![sd]/o(?:\\s|$))[a-z]+/");
     /** {@code list sort/owed}: the students who owe the most come first. */
     private static final String SORT_OWED = "owed";
     /** {@code list sort/last}: the students whose last lesson was longest ago come first. */

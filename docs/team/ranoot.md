@@ -44,6 +44,10 @@ handling changes of plan. I also wrote the first complete User Guide and set up 
   release JAR. Notes can now contain words such as `and/or`, `edit L3 a/none` clears attendance, `uncancel`
   undoes a cancellation, and homework can be edited and deleted. Overlapping lessons are rejected, not just
   lessons that start at the same time, and routine log messages no longer appear in the tutor's terminal.
+* **Bug fixes in the v2.1 features** ([PR #120](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/120)):
+  names containing `s/o` or `d/o`, which are common in Singapore, were split into a name and a subject or
+  rejected. They are now kept whole in `add`, `edit` and `list`. I also moved the first-launch sample lessons
+  so that the Quick start's `lessons week` shows one on any day, not only on weekdays.
 * **Defensive programming and code quality** ([PR #75](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/75),
   [PR #94](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/94)):
   added assertions and debug logging to the lesson features, enabled assertions for `gradlew run`, and
@@ -57,6 +61,10 @@ handling changes of plan. I also wrote the first complete User Guide and set up 
 * For the bug fixes and topic search, added tests for each fix and each search rule, plus end-to-end
   checks that run the real command loop across restarts. To confirm that the topic tests can fail, I
   broke the case-insensitive match on purpose and checked that they caught it.
+* For v2.1, tested the new features written by the whole team. I ran 16,000 random commands against the
+  release JAR and checked that every saved file reloads cleanly; no crashes were found. I then wrote tests
+  for the two bugs found, each failing before its fix, and an end-to-end test that runs flags, both list
+  sorts and command history together across a restart.
 
 ### Documentation
 

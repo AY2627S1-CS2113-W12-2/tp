@@ -178,4 +178,43 @@ class StudentCommandsTest {
                 + "  none" + newLine
                 + "Amount owed: $0.00 (0 lessons)", commands.execute("view S1"));
     }
+
+    /** Singapore names often contain s/o (son of) or d/o (daughter of), which look like prefixes. */
+    @Test
+    void addEditListAndView_namesWithSonOfOrDaughterOf_keepTheWholeName() {
+        String added = commands.execute("add n/Ravi s/o Kumar l/Sec 1 p/91234567 s/Math");
+        String daughter = commands.execute("add n/Priya d/o Raman l/Sec 2 p/81234567");
+
+        assertTrue(added.startsWith("Added S1: Ravi s/o Kumar (Sec 1), 91234567"), added);
+        assertEquals("Ravi s/o Kumar", data.getStudent("S1").getName());
+        assertEquals(List.of("Math"), data.getStudent("S1").getSubjects());
+        assertTrue(daughter.startsWith("Added S2: Priya d/o Raman (Sec 2)"), daughter);
+        assertTrue(commands.execute("list ravi s/o").contains("S1  Ravi s/o Kumar (Sec 1)  Math"));
+        assertTrue(commands.execute("list d/o sort/owed").contains("S2  Priya d/o Raman"));
+
+        String edited = commands.execute("edit S2 n/Priya D/O Raman Pillai");
+        assertTrue(edited.startsWith("Edited S2: Priya D/O Raman Pillai"), edited);
+        assertTrue(commands.execute("view S2").startsWith("S2  Priya D/O Raman Pillai"));
+    }
+
+    @Test
+    void add_sonOfWithoutAFollowingName_isRejectedWithoutAddingAnyone() {
+        String result = commands.execute("add n/Ravi s/o l/Sec 1 p/91234567");
+
+        assertTrue(result.startsWith("Error: Name must contain only letters"), result);
+        assertTrue(result.contains("s/o"), result);
+        assertTrue(data.getStudents().isEmpty());
+        assertTrue(commands.execute("add n/Ravi s/x Kumar l/Sec 1 p/91234567").contains("Subjects: x Kumar"));
+    }
+
+    @Test
+    void storage_namesWithSonOfOrDaughterOf_roundTrip() {
+        commands.execute("add n/Ravi s/o Kumar l/Sec 1 p/91234567");
+
+        Storage.LoadResult reloaded = Storage.decode(Storage.encode(data).lines().toList());
+
+        assertTrue(reloaded.problems().isEmpty(), reloaded.problems().toString());
+        assertEquals("Ravi s/o Kumar", reloaded.data().getStudent("S1").getName());
+    }
 }
+

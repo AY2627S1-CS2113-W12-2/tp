@@ -90,4 +90,31 @@ class ArgumentParserTest {
         assertThrows(IllegalArgumentException.class,
                 () -> ArgumentParser.parseFields("note/this and/or that", allowed));
     }
+
+    @Test
+    void parseFields_sonOfOrDaughterOfInsideName_keptInTheName() {
+        List<String> allowed = List.of("n", "l", "p", "s", "r");
+
+        ArgumentParser.Fields son = ArgumentParser.parseFields("n/Ravi s/o Kumar l/Sec 1 s/Math", allowed);
+        ArgumentParser.Fields daughter = ArgumentParser.parseFields("n/Priya D/O Raman p/91234567", allowed);
+
+        assertEquals("Ravi s/o Kumar", son.single("n", true));
+        assertEquals(List.of("Math"), son.values("s"));
+        assertEquals("Priya D/O Raman", daughter.single("n", true));
+        assertFalse(daughter.has("d"));
+    }
+
+    @Test
+    void parseFields_sonOfOutsideName_stillStartsASubject() {
+        List<String> allowed = List.of("n", "s");
+
+        // Only a name keeps s/o; elsewhere s/ is the subject prefix, even for a subject starting with "O".
+        ArgumentParser.Fields fields = ArgumentParser.parseFields("s/O Level Math n/Ravi", allowed);
+        ArgumentParser.Fields joined = ArgumentParser.parseFields("n/Ravi s/oral English", allowed);
+
+        assertEquals("O Level Math", fields.single("s", true));
+        assertEquals("Ravi", fields.single("n", true));
+        assertEquals("Ravi", joined.single("n", true));
+        assertEquals("oral English", joined.single("s", true));
+    }
 }

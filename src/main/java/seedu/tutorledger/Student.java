@@ -216,9 +216,10 @@ public class Student {
     private static String validateName(String name) {
         LOGGER.log(Level.FINE, "Validating name: {0}", name);
         requireNonNull(name, "Name");
-        if (!name.matches("\\p{L}+(?:[ '\\-]\\p{L}+)*")) {
-            throw new IllegalArgumentException(
-                    "Name must contain only letters, spaces, hyphens, or apostrophes.");
+        // Words are joined by a space, hyphen or apostrophe, or by " s/o " or " d/o " (son of, daughter of).
+        if (!name.matches("\\p{L}+(?:(?:[ '\\-]|(?i: [sd]/o ))\\p{L}+)*")) {
+            throw new IllegalArgumentException("Name must contain only letters, spaces, hyphens, or apostrophes."
+                    + " It may also contain s/o or d/o between words, as in Ravi s/o Kumar.");
         }
         return name;
     }
