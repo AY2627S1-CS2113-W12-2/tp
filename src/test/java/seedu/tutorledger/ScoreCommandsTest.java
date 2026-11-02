@@ -3,25 +3,22 @@ package seedu.tutorledger;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static seedu.tutorledger.TestUtil.NL;
 
 import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneOffset;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /** Checks the score, scores and progress commands. Today is fixed at Wed 14-10-2026. */
 class ScoreCommandsTest {
-    private static final String NL = System.lineSeparator();
-
     private TutorLedgerData data;
     private ScoreCommands commands;
 
     @BeforeEach
     void setUp() {
         data = new TutorLedgerData();
-        Clock clock = Clock.fixed(Instant.parse("2026-10-14T10:00:00Z"), ZoneOffset.UTC);
+        Clock clock = TestUtil.clockAt("2026-10-14T10:00:00Z");
         commands = new ScoreCommands(data, clock);
         data.addStudent("Amirah Binte Rahman", "Sec 3", "91234567");
         data.addStudent("Tan Wei Ming", "Sec 4", "81234567");
@@ -136,7 +133,7 @@ class ScoreCommandsTest {
         recordThreeScores();
         commands.execute("score S2 WA1 m/10/40");
 
-        Clock clock = Clock.fixed(Instant.parse("2026-10-14T10:00:00Z"), ZoneOffset.UTC);
+        Clock clock = TestUtil.clockAt("2026-10-14T10:00:00Z");
         StudentCommands students = new StudentCommands(data, clock);
         // Scores alone are enough to need confirmation, because they are deleted with the student.
         assertTrue(students.execute("delete S1").contains("3 scores."));

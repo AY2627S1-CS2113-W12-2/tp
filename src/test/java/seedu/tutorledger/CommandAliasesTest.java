@@ -6,8 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
@@ -36,7 +34,7 @@ class CommandAliasesTest {
     /** Returns the app's own handlers, in the order the command loop tries them; the student handler is last. */
     private static List<CommandHandler> handlers() {
         TutorLedgerData data = new TutorLedgerData();
-        Clock clock = Clock.fixed(Instant.parse("2026-09-21T10:00:00Z"), ZoneOffset.UTC);
+        Clock clock = TestUtil.clockAt("2026-09-21T10:00:00Z");
         return TutorLedger.createHandlers(data, clock, new StorageCommands(data, new Storage("unused.txt")));
     }
 

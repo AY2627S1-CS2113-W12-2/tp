@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static seedu.tutorledger.TestUtil.NL;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -15,8 +16,6 @@ import org.junit.jupiter.api.io.TempDir;
 
 /** Exercises confirmed replay through the real input loop, using only temporary tutoring records. */
 class CommandHistoryIntegrationTest {
-    private static final String NL = System.lineSeparator();
-
     @TempDir
     Path tempDir;
 

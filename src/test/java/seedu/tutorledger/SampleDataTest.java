@@ -6,9 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Clock;
 import java.time.DayOfWeek;
-import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneOffset;
 import java.time.temporal.TemporalAdjusters;
 
 import org.junit.jupiter.api.Test;
@@ -81,7 +79,7 @@ class SampleDataTest {
     @Test
     void quickStartCommands_onAWeekendFirstLaunch_showTheSampleLessons() {
         for (String instant : new String[]{"2026-11-07T22:00:00Z", "2026-11-08T22:00:00Z"}) {
-            Clock clock = Clock.fixed(Instant.parse(instant), ZoneOffset.UTC);
+            Clock clock = TestUtil.clockAt(instant);
             TutorLedgerData data = SampleData.create(LocalDate.now(clock));
             LessonCommands lessons = new LessonCommands(data, clock);
 

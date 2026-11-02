@@ -3,13 +3,11 @@ package seedu.tutorledger;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static seedu.tutorledger.TestUtil.NL;
 
 import java.math.BigDecimal;
-import java.time.Clock;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.time.ZoneOffset;
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -17,8 +15,6 @@ import org.junit.jupiter.api.Test;
 
 /** Checks the lesson commands against the examples and rules in the v1 user guide. */
 class LessonCommandsTest {
-    private static final String NEW_LINE = System.lineSeparator();
-
     private TutorLedgerData data;
     private LessonCommands commands;
 
@@ -32,7 +28,7 @@ class LessonCommandsTest {
                 .withDetails("Tan Wei Ming", "Sec 4", "98765432", List.of("Pure Chemistry")));
         // "Today" is Monday 21-09-2026, the same day the user guide examples assume.
         commands = new LessonCommands(data,
-                Clock.fixed(Instant.parse("2026-09-21T10:00:00Z"), ZoneOffset.UTC));
+                TestUtil.clockAt("2026-09-21T10:00:00Z"));
     }
 
     @Test
@@ -74,7 +70,7 @@ class LessonCommandsTest {
     void schedule_validLesson_storesItAndShowsTheSlot() {
         String output = commands.execute("schedule S1 d/22-09-2026 t/1600 s/A Math f/60");
 
-        assertEquals("Scheduled L1 for S1 Amirah Binte Rahman" + NEW_LINE
+        assertEquals("Scheduled L1 for S1 Amirah Binte Rahman" + NL
                 + "  Tue 22-09-2026 1600, A Math, $60.00", output);
         Lesson lesson = data.getLesson("L1");
         assertEquals("S1", lesson.getStudentId());
@@ -89,7 +85,7 @@ class LessonCommandsTest {
     void schedule_prefixesInAnyOrderAndCase_usesTheStudentsSpellingOfTheSubject() {
         String output = commands.execute("SCHEDULE s2 S/pure chemistry F/62.50 D/26-09-2026 T/0900");
 
-        assertEquals("Scheduled L1 for S2 Tan Wei Ming" + NEW_LINE
+        assertEquals("Scheduled L1 for S2 Tan Wei Ming" + NL
                 + "  Sat 26-09-2026 0900, Pure Chemistry, $62.50", output);
         assertEquals("Pure Chemistry", data.getLesson("L1").getSubject());
     }
@@ -165,10 +161,10 @@ class LessonCommandsTest {
     void lessons_week_listsMondayToSundayInTheOrderTheyHappen() {
         scheduleExampleWeek();
 
-        assertEquals("This week, Mon 21-09-2026 to Sun 27-09-2026: 4 lessons" + NEW_LINE
-                + "  L2  Tue 22-09-2026 1600  S1 Amirah Binte Rahman  A Math" + NEW_LINE
-                + "  L4  Thu 24-09-2026 1900  S4 Daniel Lim           E Math" + NEW_LINE
-                + "  L3  Sat 26-09-2026 0900  S2 Tan Wei Ming         Pure Chemistry" + NEW_LINE
+        assertEquals("This week, Mon 21-09-2026 to Sun 27-09-2026: 4 lessons" + NL
+                + "  L2  Tue 22-09-2026 1600  S1 Amirah Binte Rahman  A Math" + NL
+                + "  L4  Thu 24-09-2026 1900  S4 Daniel Lim           E Math" + NL
+                + "  L3  Sat 26-09-2026 0900  S2 Tan Wei Ming         Pure Chemistry" + NL
                 + "  L1  Sat 26-09-2026 1030  S3 Tan Wei Ling         Science",
                 commands.execute("lessons WEEK"));
     }
@@ -177,7 +173,7 @@ class LessonCommandsTest {
     void lessons_week_countsFromMondayEvenWhenTodayIsSunday() {
         scheduleExampleWeek();
         LessonCommands sundayCommands = new LessonCommands(data,
-                Clock.fixed(Instant.parse("2026-09-27T10:00:00Z"), ZoneOffset.UTC));
+                TestUtil.clockAt("2026-09-27T10:00:00Z"));
 
         String output = sundayCommands.execute("lessons week");
 
@@ -191,8 +187,8 @@ class LessonCommandsTest {
         commands.execute("schedule S2 d/21-09-2026 t/1800 s/Pure Chemistry f/62.50");
         commands.execute("schedule S1 d/21-09-2026 t/0930 s/E Math f/60");
 
-        assertEquals("Today, Mon 21-09-2026: 2 lessons" + NEW_LINE
-                + "  L8  Mon 21-09-2026 0930  S1 Amirah Binte Rahman  E Math" + NEW_LINE
+        assertEquals("Today, Mon 21-09-2026: 2 lessons" + NL
+                + "  L8  Mon 21-09-2026 0930  S1 Amirah Binte Rahman  E Math" + NL
                 + "  L7  Mon 21-09-2026 1800  S2 Tan Wei Ming         Pure Chemistry",
                 commands.execute("lessons"));
     }
@@ -204,7 +200,7 @@ class LessonCommandsTest {
                 commands.execute("lessons week"));
 
         commands.execute("schedule S1 d/21-09-2026 t/1600 s/A Math f/60");
-        assertTrue(commands.execute("lessons").startsWith("Today, Mon 21-09-2026: 1 lesson" + NEW_LINE));
+        assertTrue(commands.execute("lessons").startsWith("Today, Mon 21-09-2026: 1 lesson" + NL));
     }
 
     @Test
@@ -220,8 +216,8 @@ class LessonCommandsTest {
         String output = commands.execute(
                 "record L1 a/present note/Discriminant recap. Started simultaneous equations.");
 
-        assertEquals("Recorded L1 for S1 Amirah Binte Rahman (Mon 21-09-2026 1600)" + NEW_LINE
-                + "  Attendance: present" + NEW_LINE
+        assertEquals("Recorded L1 for S1 Amirah Binte Rahman (Mon 21-09-2026 1600)" + NL
+                + "  Attendance: present" + NL
                 + "  Notes: Discriminant recap. Started simultaneous equations.", output);
         Lesson lesson = data.getLesson("L1");
         assertEquals(Lesson.Attendance.PRESENT, lesson.getAttendance());
@@ -236,7 +232,7 @@ class LessonCommandsTest {
     void record_withoutNotes_showsOnlyAttendance() {
         commands.execute("schedule S1 d/20-09-2026 t/1600 s/A Math f/60");
 
-        assertEquals("Recorded L1 for S1 Amirah Binte Rahman (Sun 20-09-2026 1600)" + NEW_LINE
+        assertEquals("Recorded L1 for S1 Amirah Binte Rahman (Sun 20-09-2026 1600)" + NL
                 + "  Attendance: absent", commands.execute("RECORD l1 A/Absent"));
         assertEquals(Lesson.Attendance.ABSENT, data.getLesson("L1").getAttendance());
     }
@@ -300,7 +296,7 @@ class LessonCommandsTest {
     void edit_dateAndTime_movesTheLessonAndKeepsEverythingElse() {
         commands.execute("schedule S1 d/24-09-2026 t/1900 s/E Math f/55");
 
-        assertEquals("Edited L1 for S1 Amirah Binte Rahman" + NEW_LINE
+        assertEquals("Edited L1 for S1 Amirah Binte Rahman" + NL
                 + "  Fri 25-09-2026 1800, E Math, $55.00, not recorded, unpaid",
                 commands.execute("edit L1 d/25-09-2026 t/1800"));
         Lesson lesson = data.getLesson("L1");
@@ -315,7 +311,7 @@ class LessonCommandsTest {
         commands.execute("schedule S1 d/24-09-2026 t/1900 s/E Math f/55");
         data.updateLessonPaymentStatus("L1", Lesson.PAYMENT_PAID);
 
-        assertEquals("Edited L1 for S1 Amirah Binte Rahman" + NEW_LINE
+        assertEquals("Edited L1 for S1 Amirah Binte Rahman" + NL
                 + "  Thu 24-09-2026 1900, A Math, $62.50, not recorded, partial",
                 commands.execute("EDIT l1 S/a math F/62.50"));
         assertEquals("A Math", data.getLesson("L1").getSubject());
@@ -328,12 +324,12 @@ class LessonCommandsTest {
     void edit_feeReducedToPartialAmountPaid_marksTheLessonPaid() {
         commands.execute("schedule S1 d/24-09-2026 t/1900 s/E Math f/60");
         PaymentCommands paymentCommands = new PaymentCommands(data,
-                Clock.fixed(Instant.parse("2026-09-21T10:00:00Z"), ZoneOffset.UTC));
+                TestUtil.clockAt("2026-09-21T10:00:00Z"));
         assertEquals("Recorded payment of $40.00 for 1 lesson: L1.",
                 paymentCommands.execute("pay S1 40 L1"));
         assertEquals(Lesson.PAYMENT_PARTIAL, data.getLesson("L1").getPaymentStatus());
 
-        assertEquals("Edited L1 for S1 Amirah Binte Rahman" + NEW_LINE
+        assertEquals("Edited L1 for S1 Amirah Binte Rahman" + NL
                 + "  Thu 24-09-2026 1900, E Math, $40.00, not recorded, paid",
                 commands.execute("edit L1 f/40"));
         assertEquals(new BigDecimal("40"), data.getLesson("L1").getAmountPaid());
@@ -346,8 +342,8 @@ class LessonCommandsTest {
         commands.execute("schedule S1 d/21-09-2026 t/1600 s/A Math f/60");
         commands.execute("record L1 a/present note/Started vectors");
 
-        assertEquals("Edited L1 for S1 Amirah Binte Rahman" + NEW_LINE
-                + "  Mon 21-09-2026 1600, A Math, $60.00, late, unpaid" + NEW_LINE
+        assertEquals("Edited L1 for S1 Amirah Binte Rahman" + NL
+                + "  Mon 21-09-2026 1600, A Math, $60.00, late, unpaid" + NL
                 + "  Notes: Finished vectors", commands.execute("edit L1 a/late note/Finished vectors"));
 
         // A bare note/ clears the notes and leaves the attendance alone.
@@ -468,8 +464,8 @@ class LessonCommandsTest {
 
     @Test
     void schedule_weekly_addsOneLessonPerWeekWithConsecutiveIds() {
-        assertEquals("Scheduled 4 weekly lessons for S1 Amirah Binte Rahman: L1 to L4" + NEW_LINE
-                + "  Every Tue 1600, A Math, $60.00 each" + NEW_LINE
+        assertEquals("Scheduled 4 weekly lessons for S1 Amirah Binte Rahman: L1 to L4" + NL
+                + "  Every Tue 1600, A Math, $60.00 each" + NL
                 + "  From Tue 22-09-2026 to Tue 13-10-2026",
                 commands.execute("schedule S1 d/22-09-2026 t/1600 s/a math f/60 W/4"));
 
@@ -507,8 +503,8 @@ class LessonCommandsTest {
 
     @Test
     void log_pastLesson_addsItWithItsAttendanceAndNotes() {
-        assertEquals("Logged L1 for S1 Amirah Binte Rahman" + NEW_LINE
-                + "  Tue 15-09-2026 1600, A Math, $60.00, present" + NEW_LINE
+        assertEquals("Logged L1 for S1 Amirah Binte Rahman" + NL
+                + "  Tue 15-09-2026 1600, A Math, $60.00, present" + NL
                 + "  Notes: Discriminant recap",
                 commands.execute("LOG s1 d/15-09-2026 t/1600 s/a math f/60 a/Present note/Discriminant recap"));
 
@@ -522,7 +518,7 @@ class LessonCommandsTest {
 
     @Test
     void log_todayWithoutNotes_showsOnlyTheAttendance() {
-        assertEquals("Logged L1 for S2 Tan Wei Ming" + NEW_LINE
+        assertEquals("Logged L1 for S2 Tan Wei Ming" + NL
                 + "  Mon 21-09-2026 0900, Pure Chemistry, $62.50, absent",
                 commands.execute("log S2 d/21-09-2026 t/0900 s/Pure Chemistry f/62.50 a/absent"));
         assertEquals("", data.getLesson("L1").getNotes());
@@ -554,8 +550,8 @@ class LessonCommandsTest {
         commands.execute("schedule S1 d/22-09-2026 t/1600 s/A Math f/60");
         data.updateLessonPaymentStatus("L1", Lesson.PAYMENT_PAID);
 
-        assertEquals("Rescheduled L1 for S1 Amirah Binte Rahman" + NEW_LINE
-                + "  From: Tue 22-09-2026 1600" + NEW_LINE
+        assertEquals("Rescheduled L1 for S1 Amirah Binte Rahman" + NL
+                + "  From: Tue 22-09-2026 1600" + NL
                 + "  To:   Fri 25-09-2026 1800",
                 commands.execute("RESCHEDULE l1 D/25-09-2026 T/1800"));
 
@@ -624,7 +620,7 @@ class LessonCommandsTest {
     void cancel_upcomingLesson_keepsItMarkedCancelledWithTheReason() {
         commands.execute("schedule S1 d/22-09-2026 t/1600 s/A Math f/60");
 
-        assertEquals("Cancelled L1 for S1 Amirah Binte Rahman (Tue 22-09-2026 1600)" + NEW_LINE
+        assertEquals("Cancelled L1 for S1 Amirah Binte Rahman (Tue 22-09-2026 1600)" + NL
                 + "  Reason: Student sick", commands.execute("CANCEL l1 R/Student sick"));
 
         Lesson lesson = data.getLesson("L1");
@@ -639,8 +635,8 @@ class LessonCommandsTest {
         commands.execute("schedule S1 d/22-09-2026 t/1600 s/A Math f/60");
         data.updateLessonPaymentStatus("L1", Lesson.PAYMENT_PAID);
 
-        assertEquals("Cancelled L1 for S1 Amirah Binte Rahman (Tue 22-09-2026 1600)" + NEW_LINE
-                + "  Reason: Tutor unwell" + NEW_LINE
+        assertEquals("Cancelled L1 for S1 Amirah Binte Rahman (Tue 22-09-2026 1600)" + NL
+                + "  Reason: Tutor unwell" + NL
                 + "  This lesson has $60.00 paid, so refund or carry over that amount.",
                 commands.execute("cancel L1 r/Tutor unwell"));
     }
@@ -652,8 +648,8 @@ class LessonCommandsTest {
 
         assertTrue(commands.execute("schedule S2 d/21-09-2026 t/1600 s/Pure Chemistry f/62.50")
                 .startsWith("Scheduled L2"));
-        assertEquals("Today, Mon 21-09-2026: 2 lessons" + NEW_LINE
-                + "  L1  Mon 21-09-2026 1600  S1 Amirah Binte Rahman  A Math  (cancelled: Public holiday)" + NEW_LINE
+        assertEquals("Today, Mon 21-09-2026: 2 lessons" + NL
+                + "  L1  Mon 21-09-2026 1600  S1 Amirah Binte Rahman  A Math  (cancelled: Public holiday)" + NL
                 + "  L2  Mon 21-09-2026 1600  S2 Tan Wei Ming         Pure Chemistry",
                 commands.execute("lessons"));
     }
@@ -704,13 +700,13 @@ class LessonCommandsTest {
         data.addHomework("S1", "Vectors exercise", LocalDate.of(2026, 9, 20));
         data.putHomework(data.getHomeworkById("H4").asSubmitted());
 
-        assertEquals("Next lesson: L5, Tue 22-09-2026 1600" + NEW_LINE
-                + "  Student: S1 Amirah Binte Rahman (Sec 3)" + NEW_LINE
-                + "  Subject: A Math" + NEW_LINE
-                + "  Last topic: Discriminant recap (L1, Tue 15-09-2026)" + NEW_LINE
-                + "  Outstanding homework: 2" + NEW_LINE
-                + "    H2  Past paper Q3, due Fri 18-09-2026 (overdue)" + NEW_LINE
-                + "    H1  Worksheet 4A, due Fri 25-09-2026" + NEW_LINE
+        assertEquals("Next lesson: L5, Tue 22-09-2026 1600" + NL
+                + "  Student: S1 Amirah Binte Rahman (Sec 3)" + NL
+                + "  Subject: A Math" + NL
+                + "  Last topic: Discriminant recap (L1, Tue 15-09-2026)" + NL
+                + "  Outstanding homework: 2" + NL
+                + "    H2  Past paper Q3, due Fri 18-09-2026 (overdue)" + NL
+                + "    H1  Worksheet 4A, due Fri 25-09-2026" + NL
                 + "  Unpaid: 2 lessons, $120.00", commands.execute("next"));
     }
 
@@ -718,7 +714,7 @@ class LessonCommandsTest {
     void next_summaryIncludesPartialPaymentsOutstandingBalance() {
         commands.execute("log S1 d/15-09-2026 t/1600 s/A Math f/60 a/present");
         PaymentCommands paymentCommands = new PaymentCommands(data,
-                Clock.fixed(Instant.parse("2026-09-21T10:00:00Z"), ZoneOffset.UTC));
+                TestUtil.clockAt("2026-09-21T10:00:00Z"));
         assertEquals("Recorded payment of $40.00 for 1 lesson: L1.",
                 paymentCommands.execute("pay S1 40 L1"));
         commands.execute("schedule S1 d/22-09-2026 t/1600 s/A Math f/60");
@@ -733,11 +729,11 @@ class LessonCommandsTest {
         commands.execute("schedule S2 d/24-09-2026 t/1600 s/Pure Chemistry f/62.50");
         commands.execute("cancel L2 r/School camp");
 
-        assertEquals("Next lesson: L3, Thu 24-09-2026 1600" + NEW_LINE
-                + "  Student: S2 Tan Wei Ming (Sec 4)" + NEW_LINE
-                + "  Subject: Pure Chemistry" + NEW_LINE
-                + "  Last topic: none recorded yet" + NEW_LINE
-                + "  Outstanding homework: none" + NEW_LINE
+        assertEquals("Next lesson: L3, Thu 24-09-2026 1600" + NL
+                + "  Student: S2 Tan Wei Ming (Sec 4)" + NL
+                + "  Subject: Pure Chemistry" + NL
+                + "  Last topic: none recorded yet" + NL
+                + "  Outstanding homework: none" + NL
                 + "  Unpaid: none", commands.execute("next s2"));
     }
 
@@ -764,8 +760,8 @@ class LessonCommandsTest {
     void record_notesWithSlashWords_keepsThemAsText() {
         commands.execute("schedule S1 d/21-09-2026 t/0900 s/A Math f/60");
 
-        assertEquals("Recorded L1 for S1 Amirah Binte Rahman (Mon 21-09-2026 0900)" + NEW_LINE
-                + "  Attendance: present" + NEW_LINE
+        assertEquals("Recorded L1 for S1 Amirah Binte Rahman (Mon 21-09-2026 0900)" + NL
+                + "  Attendance: present" + NL
                 + "  Notes: Speed in km/h and/or m/s",
                 commands.execute("record L1 a/present note/Speed in km/h and/or m/s"));
         // A prefix the command accepts still starts a new value after the notes.
@@ -795,7 +791,7 @@ class LessonCommandsTest {
         commands.execute("schedule S1 d/21-09-2026 t/0900 s/A Math f/60");
         commands.execute("record L1 a/present");
 
-        assertEquals("Edited L1 for S1 Amirah Binte Rahman" + NEW_LINE
+        assertEquals("Edited L1 for S1 Amirah Binte Rahman" + NL
                 + "  Mon 21-09-2026 0900, A Math, $60.00, not recorded, unpaid",
                 commands.execute("edit L1 a/NONE"));
         assertFalse(data.getLesson("L1").isRecorded());
@@ -819,7 +815,7 @@ class LessonCommandsTest {
         commands.execute("schedule S1 d/22-09-2026 t/1600 s/A Math f/60");
         commands.execute("cancel L1 r/Student sick");
 
-        assertEquals("Uncancelled L1 for S1 Amirah Binte Rahman (Tue 22-09-2026 1600)" + NEW_LINE
+        assertEquals("Uncancelled L1 for S1 Amirah Binte Rahman (Tue 22-09-2026 1600)" + NL
                 + "  It was cancelled for: Student sick", commands.execute("UNCANCEL l1"));
         Lesson lesson = data.getLesson("L1");
         assertFalse(lesson.isCancelled());

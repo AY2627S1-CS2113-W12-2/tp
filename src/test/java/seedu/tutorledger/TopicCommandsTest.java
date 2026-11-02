@@ -3,13 +3,12 @@ package seedu.tutorledger;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static seedu.tutorledger.TestUtil.NL;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -18,8 +17,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 /** Checks US12's topic history, US22's topic search, date/attendance rules and read-only behaviour. */
 class TopicCommandsTest {
-    private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-10-23T10:00:00Z"), ZoneOffset.UTC);
-    private static final String NL = System.lineSeparator();
+    private static final Clock CLOCK = TestUtil.clockAt("2026-10-23T10:00:00Z");
 
     @TempDir
     Path tempDir;

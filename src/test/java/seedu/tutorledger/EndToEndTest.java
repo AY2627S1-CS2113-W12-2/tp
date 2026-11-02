@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static seedu.tutorledger.TestUtil.NL;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -24,8 +25,6 @@ import org.junit.jupiter.api.io.TempDir;
  * That keeps every result the same whatever day the tests are run.
  */
 class EndToEndTest {
-    private static final String NL = System.lineSeparator();
-
     @TempDir
     Path tempDir;
 
@@ -55,12 +54,12 @@ class EndToEndTest {
         return dataFile;
     }
 
-    @Test
-    void fullWorkflow_everyCommandWorksTogetherAndSurvivesRestarts() throws IOException {
-        Path dataFile = tempDir.resolve("tutorledger.txt");
-
-        // Session 1: a tutor sets up two students and uses every feature once.
-        String first = session(dataFile,
+    /**
+     * Runs the first session of the full workflow: a tutor sets up two students and uses every feature once.
+     * The tests below run it as their setup, then each checks one stage, so a failure points to that stage.
+     */
+    private static String runFullWorkflowSetup(Path dataFile) {
+        return session(dataFile,
                 "add n/Alice Tan l/Pri 5 p/91234567 s/Math r/40",
                 "add n/Bob Lee l/JC 2 p/81234567",
                 "subject S2 s/Chem",
@@ -102,6 +101,12 @@ class EndToEndTest {
                 "flag S1 Weak at fractions",
                 "archive S2",
                 "list status/all");
+    }
+
+    @Test
+    void fullWorkflow_firstSession_everyCommandWorksTogether() {
+        Path dataFile = tempDir.resolve("tutorledger.txt");
+        String first = runFullWorkflowSetup(dataFile);
 
         assertFalse(first.contains("Error"), first);
         assertFalse(first.contains("Unknown command"), first);
@@ -127,6 +132,12 @@ class EndToEndTest {
                 + "  T1  Bring worksheet  S1 Alice Tan  by Fri 09-01-2099"), first);
         assertTrue(first.contains("S1  Alice Tan (Pri 5)  Math  [flagged]"), first);
         assertTrue(first.contains("S2  Bob Lee (JC 2)  Chem  [archived]"), first);
+    }
+
+    @Test
+    void fullWorkflow_restartWithDisplayCommands_readsTheFileAndLeavesItUnchanged() throws IOException {
+        Path dataFile = tempDir.resolve("tutorledger.txt");
+        runFullWorkflowSetup(dataFile);
 
         // Session 2: only display commands, so everything must come back from the file, and the file
         // must not be rewritten (a tutor's hand edits would otherwise be lost).
@@ -145,6 +156,12 @@ class EndToEndTest {
         assertTrue(second.contains("S2  Bob Lee (JC 2)  Chem  [archived]"), second);
         assertFalse(second.contains("Error"), second);
         assertArrayEquals(savedAfterFirst, Files.readAllBytes(dataFile));
+    }
+
+    @Test
+    void fullWorkflow_restartWithChanges_deletesLinkedRecordsAndNeverReusesIds() throws IOException {
+        Path dataFile = tempDir.resolve("tutorledger.txt");
+        runFullWorkflowSetup(dataFile);
 
         // Session 3: changes after a restart, ending with a confirmed deletion.
         String third = session(dataFile, "unflag S1", "restore S2", "delete S1", "delete S1 confirm",
@@ -166,16 +183,23 @@ class EndToEndTest {
     }
 
     /**
-     * Equivalence partitioning over every command: each input below is invalid in a different way. Each one is
-     * run in its own session, so a failure names the exact command. Every one must print an error and leave
-     * the data file exactly as it was, because invalid input must never change a tutor's records.
+     * Runs each invalid command in its own session against a file saved by {@link #seededFile}, so a failure
+     * names the exact command. Every one must print an error and leave the data file exactly as it was,
+     * because invalid input must never change a tutor's records.
      */
-    @Test
-    void invalidInput_everyCommandShowsAnErrorAndLeavesTheFileUnchanged() throws IOException {
-        Path dataFile = seededFile("invalid.txt");
+    private void assertEveryCommandRejected(String fileName, String... invalidCommands) throws IOException {
+        Path dataFile = seededFile(fileName);
         byte[] before = Files.readAllBytes(dataFile);
-        List<String> invalidCommands = List.of(
-                // Students
+        for (String command : invalidCommands) {
+            String output = session(dataFile, command);
+            assertTrue(output.contains("Error:"), "Expected an error for: " + command + NL + output);
+            assertArrayEquals(before, Files.readAllBytes(dataFile), "The data file changed after: " + command);
+        }
+    }
+
+    @Test
+    void invalidInput_students_showErrorsAndLeaveTheFileUnchanged() throws IOException {
+        assertEveryCommandRejected("students.txt",
                 "add n/Alice Tan l/Pri 5 p/91234567",
                 "add n/Ann Ho l/Sec 6 p/91234567",
                 "add n/Ann Ho l/Sec 1 p/9123456",
@@ -200,8 +224,12 @@ class EndToEndTest {
                 "unflag S0",
                 "flagged now",
                 "delete S9",
-                "delete S1 yes",
-                // Lessons
+                "delete S1 yes");
+    }
+
+    @Test
+    void invalidInput_lessons_showErrorsAndLeaveTheFileUnchanged() throws IOException {
+        assertEveryCommandRejected("lessons.txt",
                 "schedule S1 d/31-02-2099 t/1600 s/Math",
                 "schedule S1 d/08-01-2099 t/2400 s/Math",
                 "schedule S1 d/08-01-2099 t/1600 s/Math dur/0",
@@ -228,40 +256,50 @@ class EndToEndTest {
                 "uncancel L2",
                 "edit L2 a/present",
                 "edit L1 dur/-1",
-                "delete L99",
-                // Homework
+                "delete L99");
+    }
+
+    @Test
+    void invalidInput_homework_showErrorsAndLeaveTheFileUnchanged() throws IOException {
+        assertEveryCommandRejected("homework.txt",
                 "assign S1 d/10-01-2099",
                 "assign S1 Essay d/30-02-2099",
                 "assign S9 Essay d/10-01-2099",
                 "submit H9",
                 "edit H1 status/maybe",
-                "delete H9",
-                // Payments
+                "delete H9");
+    }
+
+    @Test
+    void invalidInput_payments_showErrorsAndLeaveTheFileUnchanged() throws IOException {
+        assertEveryCommandRejected("payments.txt",
                 "mark L1 maybe",
                 "mark L99 paid",
                 "pay S1 -1 L1",
                 "pay S1 10",
                 "fee_statement",
                 "income 13-2020",
-                "income 20",
-                // Scores and progress
+                "income 20");
+    }
+
+    @Test
+    void invalidInput_scoresAndProgress_showErrorsAndLeaveTheFileUnchanged() throws IOException {
+        assertEveryCommandRejected("scoresAndProgress.txt",
                 "score S1 WA2 m/41/40",
                 "score S1 WA2 m/1/0",
                 "score S1 WA2 m/28",
                 "scores",
-                "progress S1 from/02-01-2020 to/01-01-2020",
-                // Follow-up tasks
+                "progress S1 from/02-01-2020 to/01-01-2020");
+    }
+
+    @Test
+    void invalidInput_followUpTasks_showErrorsAndLeaveTheFileUnchanged() throws IOException {
+        assertEveryCommandRejected("followUpTasks.txt",
                 "task",
                 "task S9 Call parents",
                 "done T9",
                 "done 1",
                 "tasks S1 S2");
-
-        for (String command : invalidCommands) {
-            String output = session(dataFile, command);
-            assertTrue(output.contains("Error:"), "Expected an error for: " + command + NL + output);
-            assertArrayEquals(before, Files.readAllBytes(dataFile), "The data file changed after: " + command);
-        }
     }
 
     @Test

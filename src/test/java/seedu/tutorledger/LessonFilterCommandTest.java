@@ -3,6 +3,7 @@ package seedu.tutorledger;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static seedu.tutorledger.TestUtil.NL;
 
 import java.util.List;
 
@@ -11,8 +12,6 @@ import org.junit.jupiter.api.Test;
 
 /** Checks that {@code filter} combines its filters and rejects invalid values without changing anything. */
 class LessonFilterCommandTest {
-    private static final String NEW_LINE = System.lineSeparator();
-
     private TutorLedgerData data;
     private LessonFilterCommand command;
 
@@ -41,10 +40,10 @@ class LessonFilterCommandTest {
 
     @Test
     void execute_noFilters_listsEveryLessonEarliestFirstWithTotal() {
-        String expected = "3 lessons (all lessons)" + NEW_LINE
-                + "  L1  Tue 01-09-2026 1600  S1 Amirah Binte Rahman  E Math     $55.50  unpaid" + NEW_LINE
-                + "  L2  Tue 08-09-2026 0900  S2 Tan Wei Ming         Chemistry  $70.00  paid" + NEW_LINE
-                + "  L3  Tue 22-09-2026 1600  S1 Amirah Binte Rahman  A Math     $60.00  unpaid" + NEW_LINE
+        String expected = "3 lessons (all lessons)" + NL
+                + "  L1  Tue 01-09-2026 1600  S1 Amirah Binte Rahman  E Math     $55.50  unpaid" + NL
+                + "  L2  Tue 08-09-2026 0900  S2 Tan Wei Ming         Chemistry  $70.00  paid" + NL
+                + "  L3  Tue 22-09-2026 1600  S1 Amirah Binte Rahman  A Math     $60.00  unpaid" + NL
                 + "Total fees: $185.50";
         assertEquals(expected, command.execute("filter"));
     }
@@ -68,8 +67,8 @@ class LessonFilterCommandTest {
     @Test
     void execute_allFiltersCombined_mustMatchEveryFilter() {
         String output = command.execute("FILTER S1 PAY/UNPAID from/02-09-2026");
-        assertEquals("1 lesson (S1 Amirah Binte Rahman, from Wed 02-09-2026, unpaid)" + NEW_LINE
-                + "  L3  Tue 22-09-2026 1600  S1 Amirah Binte Rahman  A Math  $60.00  unpaid" + NEW_LINE
+        assertEquals("1 lesson (S1 Amirah Binte Rahman, from Wed 02-09-2026, unpaid)" + NL
+                + "  L3  Tue 22-09-2026 1600  S1 Amirah Binte Rahman  A Math  $60.00  unpaid" + NL
                 + "Total fees: $60.00", output);
     }
 

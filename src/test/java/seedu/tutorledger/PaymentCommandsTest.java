@@ -4,10 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneOffset;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -22,7 +18,7 @@ class PaymentCommandsTest {
         data.putLesson(new Lesson("L37", "S1", "Pure Chemistry", "22-09-2026", "1600",
                 "present", "62.50", "Started vectors"));
         commands = new PaymentCommands(data,
-                Clock.fixed(Instant.parse("2026-09-21T10:00:00Z"), ZoneOffset.UTC));
+                TestUtil.clockAt("2026-09-21T10:00:00Z"));
     }
 
     @Test

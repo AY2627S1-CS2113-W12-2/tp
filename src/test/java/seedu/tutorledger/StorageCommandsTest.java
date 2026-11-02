@@ -8,9 +8,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
-import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneOffset;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -161,7 +159,7 @@ class StorageCommandsTest {
     @Test
     void loadOnStartup_withSampleSeeding_usesTheSharedClockForRelativeDates() {
         TutorLedgerData freshData = new TutorLedgerData();
-        Clock clock = Clock.fixed(Instant.parse("2030-03-10T10:00:00Z"), ZoneOffset.UTC);
+        Clock clock = TestUtil.clockAt("2030-03-10T10:00:00Z");
         StorageCommands seededCommands = new StorageCommands(freshData, new Storage(dataFile.toString()), true, clock);
 
         seededCommands.loadOnStartup();

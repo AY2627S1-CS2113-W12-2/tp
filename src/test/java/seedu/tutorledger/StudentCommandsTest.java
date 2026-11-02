@@ -7,9 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
 import java.time.Clock;
-import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneOffset;
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -23,7 +21,7 @@ class StudentCommandsTest {
     @BeforeEach
     void setUp() {
         data = new TutorLedgerData();
-        Clock clock = Clock.fixed(Instant.parse("2026-09-21T10:00:00Z"), ZoneOffset.UTC);
+        Clock clock = TestUtil.clockAt("2026-09-21T10:00:00Z");
         commands = new StudentCommands(data, clock);
     }
 

@@ -5,9 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Clock;
-import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneOffset;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,7 +18,7 @@ class HomeworkCommandsTest {
     @BeforeEach
     void setUp() {
         data = new TutorLedgerData();
-        Clock clock = Clock.fixed(Instant.parse("2026-09-21T10:00:00Z"), ZoneOffset.UTC);
+        Clock clock = TestUtil.clockAt("2026-09-21T10:00:00Z");
         commands = new HomeworkCommands(data, clock);
         data.addStudent("Amirah Binte Rahman", "Sec 3", "91234567");
         data.addStudent("Tan Wei Ming", "Sec 4", "81234567");
