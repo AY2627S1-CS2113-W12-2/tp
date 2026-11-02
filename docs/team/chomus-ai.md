@@ -71,7 +71,7 @@ I also helped the team integrate cross-cutting features, improve build reliabili
   extend with lessons, homework, scores and payment records.
 * **Cross-feature integration:** maintained compatibility between payment state, lesson changes, storage
   and command routing as teammates added recurring lessons, hourly rates, archiving and follow-up tasks.
-  This included integrating the lesson changes ([PR #79](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/79))
+  This included integrating the lesson changes ([PR #90](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/90))
   and follow-up tasks ([PR #96](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/96)).
 * **Team quality and release support:** added end-to-end command-routing coverage
   ([PR #108](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/108)), fixed a Checkstyle/build failure
@@ -81,7 +81,7 @@ I also helped the team integrate cross-cutting features, improve build reliabili
 ### Review and mentoring contributions
 
 * Reviewed and helped integrate teammates' work where it crossed shared payment, storage or command-routing
-  code, including lesson changes ([PR #79](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/79)), follow-up
+  code, including lesson changes, follow-up
   tasks ([PR #96](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/96)), Developer Guide review fixes
   ([PR #111](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/111)), and confirmed command history
   ([PR #118](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/118)).
