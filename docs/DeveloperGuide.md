@@ -1228,7 +1228,9 @@ Use an empty working directory and run the packaged application with Java 25 and
 1. Automatic save and restart
    1. Start TutorLedger in an empty folder. Expected: a small set of synthetic sample records is loaded and
       saved automatically.
-   1. Try `list`, `lessons`, `homework S1`, `scores S1` and `tasks S1` before entering real records.
+   1. Try `list`, `lessons week`, `next`, `homework S1`, `scores S1` and `tasks S1` before entering real records.
+      Expected: `lessons week` shows at least one sample lesson on any day of the week, and `next` shows L2,
+      which is tomorrow.
    1. Run `add n/Carol Tan l/Pri 5 p/87654321`, then `exit`.
    1. Start TutorLedger again. Expected: the sample records and Carol's record are loaded from the data file.
 1. Deleted IDs are not reused
@@ -1242,6 +1244,8 @@ Use an empty working directory and run the packaged application with Java 25 and
    1. To test a clean first launch, exit TutorLedger, empty `data/tutorledger.txt` without deleting the file,
       then start TutorLedger again. Expected: an empty data set is loaded and sample records are not recreated.
       Deleting the file instead causes the first-launch sample records to be created again.
+   1. While TutorLedger is running, move `data/tutorledger.txt` elsewhere, then run `reload`.
+      Expected: `No data file found at data/tutorledger.txt.` and the current records are unchanged.
 1. Backups
    1. Run `save backups/test.txt`. Expected: the file and the `backups` folder are created.
 

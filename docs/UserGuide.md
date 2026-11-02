@@ -41,7 +41,8 @@ your own tutoring work.
    exploring them:
    * `list` lists the sample students.
    * `view S1` shows Amirah's subjects, lesson history and homework.
-   * `lessons week` lists the sample lessons in the current week.
+   * `lessons week` lists the sample lessons in the current week. One sample lesson was yesterday and the other is
+     tomorrow, so at least one of them is always in the current week.
    * `next` shows the next sample lesson and its preparation details.
 1. Add your first real student. The sample records already use `S1` and `S2`, so this student receives `S3`:
    * `add n/Carol Tan l/Pri 5 p/87654321`
@@ -84,7 +85,7 @@ An ID is never reused, even after its item is deleted.
 
 | Value            | Prefix  | Accepted input                                                                  | Example              |
 |------------------|---------|---------------------------------------------------------------------------------|----------------------|
-| `NAME`           | `n/`    | Letters, with single spaces, hyphens or apostrophes between them.               | `n/Tan Wei Ming`     |
+| `NAME`           | `n/`    | Letters, with single spaces, hyphens or apostrophes between them. `s/o` and `d/o` may join two words, as in `Ravi s/o Kumar`. | `n/Tan Wei Ming`     |
 | `LEVEL`          | `l/`    | `Pri 1`–`Pri 6`, `Sec 1`–`Sec 5`, or `JC 1`–`JC 2`. Case is ignored; the space is optional. | `l/Pri5`, `l/JC 2` |
 | `PHONE_NUMBER`   | `p/`    | Exactly 8 digits. Siblings may share a number.                                  | `p/91234567`         |
 | `SUBJECT`        | `s/`    | The subject as you normally write it. Not case-sensitive.                       | `s/Pure Chemistry`   |
@@ -132,6 +133,9 @@ Format: `add n/NAME l/LEVEL p/PHONE_NUMBER [s/SUBJECT]… [r/RATE]`
   one line. A subject repeated in a different case (such as `s/E Math s/e math`) is only added once.
 * A student with the same name (ignoring case) and phone number as an existing student is not added, since they
   are almost certainly the same person.
+* A name may contain `s/o` (son of) or `d/o` (daughter of), in any case. Inside `n/`, these words are part of
+  the name, not the `s/` subject prefix, so `add n/Ravi s/o Kumar l/Sec 1 p/91234567 s/Math` adds Ravi s/o Kumar
+  with the subject Math. The same applies to `edit` and to searching with `list ravi s/o`.
 
 Examples:
 
@@ -140,6 +144,7 @@ Examples:
 * `add n/Amirah Binte Rahman l/Sec 3 p/91234567 s/E Math s/A Math`
 * `add n/Alice Tan l/Pri5 p/82345678 s/Math` adds a primary-school student.
 * `add n/Bob Tan l/JC 2 p/92345678 s/H2 Math` adds a junior-college student.
+* `add n/Priya d/o Raman l/Sec 2 p/81234567` adds a student whose name contains `d/o`.
 
 Example output:
 
