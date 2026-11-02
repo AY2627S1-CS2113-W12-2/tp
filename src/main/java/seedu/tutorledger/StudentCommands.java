@@ -208,7 +208,7 @@ public class StudentCommands {
     private Map<String, BigDecimal> amountsOwed(LocalDate today) {
         Map<String, BigDecimal> totals = new HashMap<>();
         for (Lesson lesson : data.getLessons()) {
-            if (hasTakenPlace(lesson, today) && !Lesson.PAYMENT_PAID.equalsIgnoreCase(lesson.getPaymentStatus())) {
+            if (lesson.isOwedOn(today)) {
                 totals.merge(lesson.getStudentId().toUpperCase(Locale.ROOT), lesson.getAmountOwed(), BigDecimal::add);
             }
         }
@@ -219,17 +219,12 @@ public class StudentCommands {
     private Map<String, LocalDate> lastLessonDates(LocalDate today) {
         Map<String, LocalDate> latest = new HashMap<>();
         for (Lesson lesson : data.getLessons()) {
-            if (hasTakenPlace(lesson, today)) {
+            if (lesson.hasTakenPlaceBy(today)) {
                 latest.merge(lesson.getStudentId().toUpperCase(Locale.ROOT), lesson.getDate(),
                         (first, second) -> first.isAfter(second) ? first : second);
             }
         }
         return latest;
-    }
-
-    /** A lesson has taken place if it was not cancelled and is dated today or earlier, as in {@code owed}. */
-    private static boolean hasTakenPlace(Lesson lesson, LocalDate today) {
-        return !lesson.isCancelled() && !lesson.getDate().isAfter(today);
     }
 
     /** Archives or restores a profile without changing its linked records or permanent ID. */
@@ -460,10 +455,7 @@ public class StudentCommands {
             if (!lesson.getNotes().isBlank()) {
                 output.append(System.lineSeparator()).append("       ").append(lesson.getNotes());
             }
-            // A cancelled lesson did not take place, so it is not owed.
-            boolean isOwed = !lesson.isCancelled() && !lesson.getDate().isAfter(today)
-                    && !lesson.getPaymentStatus().equalsIgnoreCase(Lesson.PAYMENT_PAID);
-            if (isOwed) {
+            if (lesson.isOwedOn(today)) {
                 owed = owed.add(lesson.getAmountOwed());
                 unpaidCount++;
             }

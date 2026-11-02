@@ -364,8 +364,7 @@ public class LessonCommands {
         LocalDate today = LocalDate.now(clock);
         List<Lesson> unpaid = data.getLessons().stream()
                 .filter(lesson -> lesson.getStudentId().equals(student.getStudentId()))
-                .filter(lesson -> lesson.getAmountOwed().signum() > 0)
-                .filter(lesson -> !lesson.isCancelled() && !lesson.getDate().isAfter(today))
+                .filter(lesson -> lesson.isOwedOn(today))
                 .toList();
         if (unpaid.isEmpty()) {
             return "none";

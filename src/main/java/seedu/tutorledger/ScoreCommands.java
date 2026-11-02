@@ -179,8 +179,8 @@ public class ScoreCommands {
         List<Lesson> lessons = data.getLessons().stream()
                 .filter(lesson -> id.equals(lesson.getStudentId()))
                 // A cancelled lesson was never going to be attended, so it does not count either way.
-                .filter(lesson -> !lesson.isCancelled())
-                .filter(lesson -> isWithin(lesson.getDate(), from, to) && !lesson.getDate().isAfter(today))
+                .filter(lesson -> lesson.hasTakenPlaceBy(today))
+                .filter(lesson -> isWithin(lesson.getDate(), from, to))
                 .toList();
         List<Score> periodScores = scoresOf(id).stream()
                 .filter(score -> isWithin(score.getDate(), from, to))

@@ -224,6 +224,29 @@ public class Lesson {
         return !cancellationReason.isEmpty();
     }
 
+    /**
+     * Returns true if the lesson has taken place by the given day: it was not cancelled and is dated that day
+     * or earlier. Every summary of past lessons (owed, unpaid, progress, topics, last lesson) uses this rule.
+     *
+     * @param today The day to judge by, usually today.
+     */
+    public boolean hasTakenPlaceBy(LocalDate today) {
+        return !isCancelled() && !date.isAfter(today);
+    }
+
+    /**
+     * Returns true if the student still owes money for this lesson on the given day: it has taken place and
+     * is not fully paid. A future lesson is never owed, even if it is unpaid.
+     *
+     * @param today The day to judge by, usually today.
+     */
+    public boolean isOwedOn(LocalDate today) {
+        boolean isOwed = hasTakenPlaceBy(today) && !PAYMENT_PAID.equals(paymentStatus);
+        // The payment status is worked out from the balance, so an owed lesson always has money left to pay.
+        assert !isOwed || getAmountOwed().signum() > 0 : "Lesson " + lessonId + " is owed but has no balance";
+        return isOwed;
+    }
+
     /** Returns true once attendance has been recorded for this lesson. */
     public boolean isRecorded() {
         boolean hasAttendance = attendance != Attendance.NOT_RECORDED;

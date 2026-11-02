@@ -98,7 +98,7 @@ public class TopicCommands {
     private String listTopics(Query query) {
         LocalDate today = LocalDate.now(clock);
         List<Lesson> lessons = data.getLessons().stream()
-                .filter(lesson -> !lesson.isCancelled() && !lesson.getDate().isAfter(today))
+                .filter(lesson -> lesson.hasTakenPlaceBy(today))
                 .filter(lesson -> lesson.getAttendance() == Lesson.Attendance.PRESENT
                         || lesson.getAttendance() == Lesson.Attendance.LATE)
                 .filter(lesson -> !lesson.getNotes().isBlank())
