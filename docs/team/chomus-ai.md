@@ -41,12 +41,12 @@ I also worked on command routing, diagnostics, build reliability and first-launc
   fixed a Checkstyle issue in payment-command handling that caused the Gradle build to fail, with related
   command-routing updates and tests.
 * **Payment validation and refactoring**
-  ([implementation commit](https://github.com/AY2627S1-CS2113-W12-2/tp/commit/33f4288)):
+  ([PR #110](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/110)):
   separated payment parsing, validation, allocation and confirmation formatting, ensuring invalid requests
   are rejected before lesson records are changed. Documented the validation and allocation behavior in the
   Developer Guide.
 * **First-launch sample data** ([issue #13](https://github.com/AY2627S1-CS2113-W12-2/tp/issues/13),
-  [implementation commit](https://github.com/AY2627S1-CS2113-W12-2/tp/commit/cfd5e4a)):
+  [PR #119](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/119)):
   added a small synthetic dataset for new users, including students, lessons, a homework item, a score and
   a follow-up task. The dataset is loaded and persisted only when no data file exists; existing data files
   remain authoritative.

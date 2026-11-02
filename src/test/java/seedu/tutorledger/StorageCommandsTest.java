@@ -7,6 +7,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -151,6 +155,30 @@ class StorageCommandsTest {
         assertTrue(output.startsWith(expectedPrefix), output);
         assertEquals(2, freshData.getStudents().size());
         assertTrue(Files.exists(dataFile));
+    }
+
+    @Test
+    void loadOnStartup_withSampleSeeding_usesTheSharedClockForRelativeDates() {
+        TutorLedgerData freshData = new TutorLedgerData();
+        Clock clock = Clock.fixed(Instant.parse("2030-03-10T10:00:00Z"), ZoneOffset.UTC);
+        StorageCommands seededCommands = new StorageCommands(freshData, new Storage(dataFile.toString()), true, clock);
+
+        seededCommands.loadOnStartup();
+
+        assertEquals(LocalDate.of(2030, 3, 3), freshData.getLesson("L1").getDate());
+        assertEquals(LocalDate.of(2030, 3, 12), freshData.getLesson("L2").getDate());
+    }
+
+    @Test
+    void loadOnStartup_existingEmptyFile_doesNotSeedSampleData() throws IOException {
+        Files.createDirectories(dataFile.getParent());
+        Files.writeString(dataFile, "");
+        TutorLedgerData freshData = new TutorLedgerData();
+        StorageCommands seededCommands = new StorageCommands(freshData, new Storage(dataFile.toString()), true);
+
+        assertEquals("Loaded 0 students, 0 lessons and 0 homework items from " + dataFile + ".",
+                seededCommands.loadOnStartup());
+        assertTrue(freshData.getStudents().isEmpty());
     }
 
     @Test

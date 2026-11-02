@@ -63,7 +63,7 @@ public class TutorLedger {
         ScoreCommands scoreCommands = new ScoreCommands(data, clock);
         TaskCommands taskCommands = new TaskCommands(data, clock);
         LessonFilterCommand filterCommand = new LessonFilterCommand(data);
-        StorageCommands storageCommands = new StorageCommands(data, storage, seedSampleData);
+        StorageCommands storageCommands = new StorageCommands(data, storage, seedSampleData, clock);
         CommandHistory history = new CommandHistory();
         System.out.println("TutorLedger student book. Type exit to close.");
         System.out.println(storageCommands.loadOnStartup());

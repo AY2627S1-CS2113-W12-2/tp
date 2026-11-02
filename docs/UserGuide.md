@@ -37,12 +37,16 @@ your own tutoring work.
    [Releases page](https://github.com/AY2627S1-CS2113-W12-2/tp/releases).
 1. Put the file in the folder you want TutorLedger to keep its data in.
 1. Open a terminal in that folder and run `java -jar TutorLedger.jar`.
-1. Type a command and press Enter. Some commands to try:
-   * `add n/Amirah Binte Rahman l/Sec 3 p/91234567` adds a student, who is given the ID `S1`.
-   * `subject S1 s/E Math s/A Math` gives that student two subjects.
-   * `schedule S1 d/20-10-2026 t/1600 s/A Math f/60` schedules a lesson.
-   * `view S1` shows everything about the student.
-   * `help` lists every command.
+1. On a first launch, TutorLedger loads and saves two sample students and their related records. Start by
+   exploring them:
+   * `list` lists the sample students.
+   * `view S1` shows Amirah's subjects, lesson history and homework.
+   * `lessons week` lists the sample lessons in the current week.
+   * `next` shows the next sample lesson and its preparation details.
+1. Add your first real student. The sample records already use `S1` and `S2`, so this student receives `S3`:
+   * `add n/Carol Tan l/Pri 5 p/87654321`
+   * `subject S3 s/Math`
+1. Type `help` to see every command.
 1. When you are finished, type `exit`. Your data is saved after every change, so nothing is lost.
 
 ## Notes about the command format
@@ -114,6 +118,9 @@ particular current date so that past and upcoming lessons are easy to distinguis
 #### Adding a student: `add`
 
 Adds a student to TutorLedger and gives them a student ID.
+
+The examples in this section use an empty data file. On a first launch with sample data, `S1` and `S2` are
+already in use, so the next student you add receives `S3`.
 
 Format: `add n/NAME l/LEVEL p/PHONE_NUMBER [s/SUBJECT]… [r/RATE]`
 
@@ -1237,6 +1244,22 @@ Loaded 2 students, 2 lessons and 1 homework item from data/tutorledger.txt.
 If a change cannot be written to the file (for example, because the folder is read-only), TutorLedger shows a
 `Warning:` after the command. The change is kept while TutorLedger is open, but is lost when you exit unless a
 later save succeeds.
+
+#### Starting with a clean file
+
+The first launch creates sample records only when `data/tutorledger.txt` does not exist. To start with no sample
+records, exit TutorLedger and create or open `data/tutorledger.txt`, remove all its contents, and save it as an
+empty file. Start TutorLedger again; an existing empty file is loaded as empty and is not replaced with samples.
+
+Alternatively, keep the permanent ID sequence and remove the samples from inside TutorLedger with:
+
+```
+delete S1 confirm
+delete S2 confirm
+```
+
+These deletions also remove the sample lessons, homework, score and follow-up task. They cannot be undone, so run
+`save backups/before-clear.txt` first if you want a copy.
 
 #### Saving the data: `save`
 

@@ -3,13 +3,15 @@ package seedu.tutorledger;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.time.LocalDate;
+
 import org.junit.jupiter.api.Test;
 
 /** Verifies that the first-launch data is small, valid and useful for trying the commands. */
 class SampleDataTest {
     @Test
     void create_containsLinkedRecordsForMainFeatures() {
-        TutorLedgerData data = SampleData.create();
+        TutorLedgerData data = SampleData.create(LocalDate.of(2026, 11, 2));
 
         assertEquals(2, data.getStudents().size());
         assertEquals(2, data.getLessons().size());
@@ -25,12 +27,23 @@ class SampleDataTest {
 
     @Test
     void create_returnsIndependentDataSets() {
-        TutorLedgerData first = SampleData.create();
-        TutorLedgerData second = SampleData.create();
+        LocalDate today = LocalDate.of(2026, 11, 2);
+        TutorLedgerData first = SampleData.create(today);
+        TutorLedgerData second = SampleData.create(today);
 
         first.deleteStudent("S2");
 
         assertEquals(2, second.getStudents().size());
         assertEquals(2, second.getLessons().size());
+    }
+
+    @Test
+    void create_placesRecordsRelativeToToday() {
+        LocalDate today = LocalDate.of(2030, 3, 10);
+        TutorLedgerData data = SampleData.create(today);
+
+        assertEquals(today.minusDays(7), data.getLesson("L1").getDate());
+        assertEquals(today.plusDays(2), data.getLesson("L2").getDate());
+        assertEquals(today.plusDays(7), data.getHomeworkById("H1").getDueDate());
     }
 }

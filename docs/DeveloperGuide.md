@@ -1239,8 +1239,9 @@ Use an empty working directory and run the packaged application with Java 25 and
       Expected: `view` shows the new number.
    1. Change a lesson's date to `31-02-2026`, then run `reload`.
       Expected: that line is reported as skipped with its line number; all other records load.
-   1. Delete `data/tutorledger.txt`, then run `reload`.
-      Expected: `No data file found...` and the current data is unchanged.
+   1. To test a clean first launch, exit TutorLedger, empty `data/tutorledger.txt` without deleting the file,
+      then start TutorLedger again. Expected: an empty data set is loaded and sample records are not recreated.
+      Deleting the file instead causes the first-launch sample records to be created again.
 1. Backups
    1. Run `save backups/test.txt`. Expected: the file and the `backups` folder are created.
 

@@ -6,6 +6,8 @@ import java.nio.file.FileSystemException;
 import java.nio.file.InvalidPathException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.time.Clock;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -29,6 +31,7 @@ public class StorageCommands {
     private final TutorLedgerData data;
     private final Storage storage;
     private final boolean seedSampleData;
+    private final Clock clock;
 
     /**
      * Creates the handler for the storage commands.
@@ -48,11 +51,25 @@ public class StorageCommands {
      * @param seedSampleData Whether a missing file should be populated with first-launch sample records.
      */
     public StorageCommands(TutorLedgerData data, Storage storage, boolean seedSampleData) {
+        this(data, storage, seedSampleData, Clock.systemDefaultZone());
+    }
+
+    /**
+     * Creates the handler with the clock used by the other command handlers.
+     *
+     * @param data The records to save, and to replace on reload.
+     * @param storage The data file that is saved to automatically.
+     * @param seedSampleData Whether a missing file should be populated with first-launch sample records.
+     * @param clock Source of today's date for relative first-launch sample records.
+     */
+    public StorageCommands(TutorLedgerData data, Storage storage, boolean seedSampleData, Clock clock) {
         assert data != null : "StorageCommands needs the records to save";
         assert storage != null : "StorageCommands needs a data file to save to";
+        assert clock != null : "StorageCommands needs a clock for sample data";
         this.data = data;
         this.storage = storage;
         this.seedSampleData = seedSampleData;
+        this.clock = clock;
     }
 
     /** Returns true if the first word of the input is a storage command. */
@@ -96,7 +113,7 @@ public class StorageCommands {
                         + " when you add something.";
             }
             LOGGER.log(Level.FINE, "No data file at startup; loading sample data");
-            data.replaceAllWith(SampleData.create());
+            data.replaceAllWith(SampleData.create(LocalDate.now(clock)));
             try {
                 storage.save(data);
                 return "No saved data yet. Loaded sample data (" + describeContents(data) + ") and saved it to "
