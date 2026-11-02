@@ -23,7 +23,7 @@ import java.util.stream.Collectors;
  * Like {@link StudentCommands}, each command returns its display text, and validation problems
  * are reported as an "Error: ..." message instead of crashing the program.
  */
-public class LessonCommands {
+public class LessonCommands extends CommandHandler {
     /**
      * Records each lesson command and its outcome at FINE level, so the trace only appears when
      * debug logging is enabled and never clutters the tutor's screen.
@@ -76,62 +76,36 @@ public class LessonCommands {
      * @param clock The source of today's date.
      */
     public LessonCommands(TutorLedgerData data, Clock clock) {
+        super(COMMAND_WORDS);
         assert data != null : "LessonCommands needs the records to work on";
         assert clock != null : "LessonCommands needs a clock to know today's date";
         this.data = data;
         this.clock = clock;
     }
 
-    /**
-     * Returns true if the input is a lesson command.
-     *
-     * <p>{@code edit} and {@code delete} are shared with students, so they count only when the ID
-     * after them starts with L. This is how the user guide tells the two apart: {@code edit L42 ...}
-     * changes a lesson, while {@code edit S1 ...} is left for {@link StudentCommands}.
-     */
-    public static boolean handles(String input) {
-        if (input == null || input.isBlank()) {
-            return false;
-        }
-        String[] words = input.strip().split("\\s+", 3);
-        String command = words[0].toLowerCase(Locale.ROOT);
-        if (COMMAND_WORDS.contains(command)) {
-            return true;
-        }
-        // "[^/]*" keeps a prefixed value such as l/Sec 4 from being mistaken for a lesson ID.
-        return SHARED_COMMAND_WORDS.contains(command) && words.length > 1 && words[1].matches("(?i)L[^/]*");
+    /** Returns true for a lesson command, or for {@code edit} and {@code delete} given a lesson ID. */
+    @Override
+    boolean handles(String input) {
+        return super.handles(input) || isSharedWordWithId(input, SHARED_COMMAND_WORDS, "L");
     }
 
-    /** Executes one lesson command and returns its display text, including validation errors. */
-    public String execute(String input) {
-        if (!handles(input)) {
-            return "Unknown command.";
-        }
-        String[] words = input.strip().split("\\s+", 2);
-        String command = words[0].toLowerCase(Locale.ROOT);
-        String arguments = words.length == 2 ? words[1].trim() : "";
-        LOGGER.log(Level.FINE, "Running lesson command {0} with arguments: {1}", new Object[]{command, arguments});
-        try {
-            return switch (command) {
-            case "schedule" -> schedule(arguments);
-            case "log" -> log(arguments);
-            case "lessons" -> listLessons(arguments);
-            case "next" -> showNext(arguments);
-            case "record" -> record(arguments);
-            case "reschedule" -> reschedule(arguments);
-            case "cancel" -> cancel(arguments);
-            case "uncancel" -> uncancel(arguments);
-            case "edit" -> edit(arguments);
-            case "delete" -> delete(arguments);
-            // handles() lets only lesson command words through, so reaching here means a word was missed above.
-            default -> throw new AssertionError("Unexpected lesson command: " + command);
-            };
-        } catch (IllegalArgumentException exception) {
-            // A rejected command is the user's mistake, not a bug, so it is only traced for debugging.
-            LOGGER.log(Level.FINE, "Lesson command {0} rejected: {1}",
-                    new Object[]{command, exception.getMessage()});
-            return "Error: " + exception.getMessage();
-        }
+    @Override
+    protected String run(CommandLine line) {
+        String arguments = line.arguments();
+        return switch (line.word()) {
+        case "schedule" -> schedule(arguments);
+        case "log" -> log(arguments);
+        case "lessons" -> listLessons(arguments);
+        case "next" -> showNext(arguments);
+        case "record" -> record(arguments);
+        case "reschedule" -> reschedule(arguments);
+        case "cancel" -> cancel(arguments);
+        case "uncancel" -> uncancel(arguments);
+        case "edit" -> edit(arguments);
+        case "delete" -> delete(arguments);
+        // handles() lets only lesson command words through, so reaching here means a word was missed above.
+        default -> throw new AssertionError("Unexpected lesson command: " + line.word());
+        };
     }
 
     /** Schedules single or weekly lessons with an optional fee override and billing duration. */

@@ -172,10 +172,10 @@ class TaskCommandsTest {
 
     @Test
     void handles_onlyTaskCommandWords() {
-        assertTrue(TaskCommands.handles("TASK Bring notes"));
-        assertTrue(TaskCommands.handles("tasks"));
-        assertTrue(TaskCommands.handles("done T1"));
-        assertFalse(TaskCommands.handles("homework"));
-        assertFalse(TaskCommands.handles(" "));
+        assertTrue(commands.handles("TASK Bring notes"));
+        assertTrue(commands.handles("tasks"));
+        assertTrue(commands.handles("done T1"));
+        assertFalse(commands.handles("homework"));
+        assertFalse(commands.handles(" "));
     }
 }

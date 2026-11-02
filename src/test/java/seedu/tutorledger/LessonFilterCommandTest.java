@@ -31,12 +31,12 @@ class LessonFilterCommandTest {
 
     @Test
     void handles_filterWordInAnyCase_trueOnlyForFilter() {
-        assertTrue(LessonFilterCommand.handles("filter"));
-        assertTrue(LessonFilterCommand.handles("  FILTER S1 pay/paid"));
-        assertFalse(LessonFilterCommand.handles("filters"));
-        assertFalse(LessonFilterCommand.handles("lessons week"));
-        assertFalse(LessonFilterCommand.handles("   "));
-        assertFalse(LessonFilterCommand.handles(null));
+        assertTrue(command.handles("filter"));
+        assertTrue(command.handles("  FILTER S1 pay/paid"));
+        assertFalse(command.handles("filters"));
+        assertFalse(command.handles("lessons week"));
+        assertFalse(command.handles("   "));
+        assertFalse(command.handles(null));
     }
 
     @Test

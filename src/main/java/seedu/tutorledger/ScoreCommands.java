@@ -24,7 +24,7 @@ import java.util.regex.Pattern;
  * Like the other command classes, each command returns its display text, and validation problems
  * are reported as an "Error: ..." message instead of crashing the program.
  */
-public class ScoreCommands {
+public class ScoreCommands extends CommandHandler {
     private static final Logger LOGGER = Logger.getLogger(ScoreCommands.class.getName());
 
     /** Command words this class understands, used by the main loop to route input here. */
@@ -47,42 +47,21 @@ public class ScoreCommands {
     private final Clock clock;
 
     public ScoreCommands(TutorLedgerData data, Clock clock) {
+        super(COMMAND_WORDS);
         assert data != null : "ScoreCommands needs a data store";
         assert clock != null : "ScoreCommands needs a clock to know today's date";
         this.data = data;
         this.clock = clock;
     }
 
-    /** Returns true if the first word of the input is a score or progress command. */
-    public static boolean handles(String input) {
-        if (input == null || input.isBlank()) {
-            return false;
-        }
-        String command = input.strip().split("\\s+", 2)[0].toLowerCase(Locale.ROOT);
-        return COMMAND_WORDS.contains(command);
-    }
-
-    /** Executes one command and returns its display text, including validation errors. */
-    public String execute(String input) {
-        if (!handles(input)) {
-            return "Unknown command.";
-        }
-        String[] words = input.strip().split("\\s+", 2);
-        String command = words[0].toLowerCase(Locale.ROOT);
-        String arguments = words.length == 2 ? words[1].trim() : "";
-        LOGGER.log(Level.FINE, "Running score command {0} with arguments: {1}", new Object[]{command, arguments});
-        try {
-            return switch (command) {
-            case "score" -> score(arguments);
-            case "scores" -> listScores(arguments);
-            default -> progress(arguments);
-            };
-        } catch (IllegalArgumentException exception) {
-            // A rejected command is the user's mistake and is already explained on screen, so it is only traced.
-            LOGGER.log(Level.FINE, "Rejected score command {0}: {1}",
-                    new Object[]{input.strip(), exception.getMessage()});
-            return "Error: " + exception.getMessage();
-        }
+    @Override
+    protected String run(CommandLine line) {
+        String arguments = line.arguments();
+        return switch (line.word()) {
+        case "score" -> score(arguments);
+        case "scores" -> listScores(arguments);
+        default -> progress(arguments);
+        };
     }
 
     /** Handles {@code score STUDENT_ID TEST_NAME m/MARKS/TOTAL [d/DATE]}. */

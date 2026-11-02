@@ -9,7 +9,6 @@ import java.nio.file.Path;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -21,7 +20,7 @@ import java.util.logging.Logger;
  * <p>Like the other command classes, each method returns the text to show, and problems are
  * reported as messages instead of crashing the program.
  */
-public class StorageCommands {
+public class StorageCommands extends CommandHandler {
     /** Traces storage commands and file errors at FINE level, shown only when debug logging is enabled. */
     private static final Logger LOGGER = Logger.getLogger(StorageCommands.class.getName());
 
@@ -65,6 +64,7 @@ public class StorageCommands {
      * @param clock Source of today's date for relative first-launch sample records.
      */
     public StorageCommands(TutorLedgerData data, Storage storage, boolean shouldSeedSampleData, Clock clock) {
+        super(COMMAND_WORDS);
         assert data != null : "StorageCommands needs the records to save";
         assert storage != null : "StorageCommands needs a data file to save to";
         assert clock != null : "StorageCommands needs a clock for sample data";
@@ -74,26 +74,16 @@ public class StorageCommands {
         this.clock = clock;
     }
 
-    /** Returns true if the first word of the input is a storage command. */
-    public static boolean handles(String input) {
-        if (input == null || input.isBlank()) {
-            return false;
-        }
-        String command = input.strip().split("\\s+", 2)[0].toLowerCase(Locale.ROOT);
-        return COMMAND_WORDS.contains(command);
+    @Override
+    protected String run(CommandLine line) {
+        // Words typed after reload are ignored, as the user guide says.
+        return line.word().equals("save") ? save(line.arguments()) : reload();
     }
 
-    /** Executes one storage command and returns its display text. */
-    public String execute(String input) {
-        if (!handles(input)) {
-            return "Unknown storage command.";
-        }
-        String[] words = input.strip().split("\\s+", 2);
-        String command = words[0].toLowerCase(Locale.ROOT);
-        String arguments = words.length == 2 ? words[1].trim() : "";
-        LOGGER.log(Level.FINE, "Running storage command {0} with arguments: {1}", new Object[]{command, arguments});
-        // Words typed after reload are ignored, as the user guide says.
-        return command.equals("save") ? save(arguments) : reload();
+    /** Returns false: save and reload manage the file themselves, and reload must never be followed by a save. */
+    @Override
+    boolean shouldSaveAfterwards() {
+        return false;
     }
 
     /**

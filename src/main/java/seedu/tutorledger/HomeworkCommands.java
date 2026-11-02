@@ -18,7 +18,7 @@ import java.util.regex.Pattern;
  * Like {@link StudentCommands}, each command returns its display text, and validation problems
  * are reported as an "Error: ..." message instead of crashing the program.
  */
-public class HomeworkCommands {
+public class HomeworkCommands extends CommandHandler {
     private static final Logger LOGGER = Logger.getLogger(HomeworkCommands.class.getName());
 
     /** Command words this class understands, used by the main loop to route input here. */
@@ -40,55 +40,29 @@ public class HomeworkCommands {
     private final Clock clock;
 
     public HomeworkCommands(TutorLedgerData data, Clock clock) {
+        super(COMMAND_WORDS);
         assert data != null : "HomeworkCommands needs a data store";
         assert clock != null : "HomeworkCommands needs a clock to know today's date";
         this.data = data;
         this.clock = clock;
     }
 
-    /**
-     * Returns true if the input is a homework command.
-     *
-     * <p>{@code edit} and {@code delete} are shared with students and lessons, so they count only when
-     * the ID after them starts with H, in the same way {@link LessonCommands} claims IDs starting with L.
-     */
-    public static boolean handles(String input) {
-        if (input == null || input.isBlank()) {
-            return false;
-        }
-        String[] words = input.strip().split("\\s+", 3);
-        String command = words[0].toLowerCase(Locale.ROOT);
-        if (COMMAND_WORDS.contains(command)) {
-            return true;
-        }
-        // "[^/]*" keeps a prefixed value from being mistaken for a homework ID.
-        return SHARED_COMMAND_WORDS.contains(command) && words.length > 1 && words[1].matches("(?i)H[^/]*");
+    /** Returns true for a homework command, or for {@code edit} and {@code delete} given a homework ID. */
+    @Override
+    boolean handles(String input) {
+        return super.handles(input) || isSharedWordWithId(input, SHARED_COMMAND_WORDS, "H");
     }
 
-    /** Executes one homework command and returns its display text, including validation errors. */
-    public String execute(String input) {
-        if (!handles(input)) {
-            return "Unknown command.";
-        }
-        String[] words = input.strip().split("\\s+", 2);
-        String command = words[0].toLowerCase(Locale.ROOT);
-        String arguments = words.length == 2 ? words[1].trim() : "";
-        LOGGER.log(Level.FINE, "Running homework command {0} with arguments: {1}",
-                new Object[]{command, arguments});
-        try {
-            return switch (command) {
-            case "assign" -> assign(arguments);
-            case "submit" -> submit(arguments);
-            case "edit" -> edit(arguments);
-            case "delete" -> delete(arguments);
-            default -> listOutstanding(arguments);
-            };
-        } catch (IllegalArgumentException exception) {
-            // Invalid user input is expected and already explained on screen, so it is only traced for debugging.
-            LOGGER.log(Level.FINE, "Rejected homework command {0}: {1}",
-                    new Object[]{input.strip(), exception.getMessage()});
-            return "Error: " + exception.getMessage();
-        }
+    @Override
+    protected String run(CommandLine line) {
+        String arguments = line.arguments();
+        return switch (line.word()) {
+        case "assign" -> assign(arguments);
+        case "submit" -> submit(arguments);
+        case "edit" -> edit(arguments);
+        case "delete" -> delete(arguments);
+        default -> listOutstanding(arguments);
+        };
     }
 
     /** Handles {@code assign STUDENT_ID DESCRIPTION d/DUE_DATE}. */

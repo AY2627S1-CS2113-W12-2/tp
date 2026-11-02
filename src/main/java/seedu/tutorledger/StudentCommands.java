@@ -16,7 +16,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /** Parses student commands, including the optional default hourly rate (US5). */
-public class StudentCommands {
+public class StudentCommands extends CommandHandler {
     /** Records rejected commands when debug logging is enabled. */
     private static final Logger LOGGER = Logger.getLogger(StudentCommands.class.getName());
     /** Locates a list prefix, leaving the preceding text as the existing free-text name query. */
@@ -31,41 +31,42 @@ public class StudentCommands {
     private final Clock clock;
 
     public StudentCommands(TutorLedgerData data, Clock clock) {
+        super(Set.of("add", "subject", "view", "list", "edit", "delete", "archive", "restore", "flag", "unflag",
+                "flagged", "help"));
         assert data != null : "StudentCommands needs shared records";
         assert clock != null : "StudentCommands needs a clock";
         this.data = data;
         this.clock = clock;
     }
 
-    /** Executes one command and returns its display text, including validation errors. */
-    public String execute(String input) {
-        if (input == null || input.isBlank()) {
-            return "Enter a command.";
-        }
-        String[] words = input.strip().split("\\s+", 2);
-        String command = words[0].toLowerCase(Locale.ROOT);
-        String arguments = words.length == 2 ? words[1].trim() : "";
-        try {
-            return switch (command) {
-            case "add" -> add(arguments);
-            case "subject" -> subject(arguments);
-            case "view" -> view(arguments);
-            case "list" -> list(arguments);
-            case "edit" -> edit(arguments);
-            case "delete" -> delete(arguments);
-            case "archive" -> setArchived(arguments, true);
-            case "restore" -> setArchived(arguments, false);
-            case "flag" -> flag(arguments);
-            case "unflag" -> unflag(arguments);
-            case "flagged" -> listFlagged(arguments);
-            case "help" -> HelpCommand.getHelpText();
-            default -> "Unknown command: " + words[0] + ".";
-            };
-        } catch (IllegalArgumentException exception) {
-            LOGGER.log(Level.FINE, "Student command {0} rejected: {1}",
-                    new Object[]{command, exception.getMessage()});
-            return "Error: " + exception.getMessage();
-        }
+    /**
+     * Returns true for any input, because this handler is the last one tried: it runs the student commands and
+     * answers blank input and unknown command words.
+     */
+    @Override
+    boolean handles(String input) {
+        return true;
+    }
+
+    @Override
+    protected String run(CommandLine line) {
+        String arguments = line.arguments();
+        return switch (line.word()) {
+        case "" -> "Enter a command.";
+        case "add" -> add(arguments);
+        case "subject" -> subject(arguments);
+        case "view" -> view(arguments);
+        case "list" -> list(arguments);
+        case "edit" -> edit(arguments);
+        case "delete" -> delete(arguments);
+        case "archive" -> setArchived(arguments, true);
+        case "restore" -> setArchived(arguments, false);
+        case "flag" -> flag(arguments);
+        case "unflag" -> unflag(arguments);
+        case "flagged" -> listFlagged(arguments);
+        case "help" -> HelpCommand.getHelpText();
+        default -> "Unknown command: " + line.typedWord() + ".";
+        };
     }
 
     /**

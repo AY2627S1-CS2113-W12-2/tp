@@ -289,17 +289,17 @@ class PaymentCommandsTest {
         assertTrue(commands.execute("income 13-2026").startsWith("Error: MONTH"));
         assertTrue(commands.execute("income 0000").startsWith("Error: YEAR"));
         assertTrue(commands.execute("income 2026 extra").startsWith("Error: Use: income"));
-        assertTrue(PaymentCommands.handles("income 2026"));
+        assertTrue(commands.handles("income 2026"));
     }
 
     @Test
     void handlesUnpaidButRejectsExtraArguments() {
-        assertTrue(PaymentCommands.handles("unpaid"));
-        assertTrue(PaymentCommands.handles("UNPAID s1"));
+        assertTrue(commands.handles("unpaid"));
+        assertTrue(commands.handles("UNPAID s1"));
         assertTrue(commands.execute("unpaid S1 extra").startsWith("Error:"));
-        assertTrue(PaymentCommands.handles("owed"));
+        assertTrue(commands.handles("owed"));
         assertTrue(commands.execute("owed S1").startsWith("Error:"));
-        assertTrue(PaymentCommands.handles("fee_statement S1"));
+        assertTrue(commands.handles("fee_statement S1"));
     }
 
     @Test

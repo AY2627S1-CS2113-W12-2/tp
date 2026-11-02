@@ -15,16 +15,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
  * Parses and runs commands that update lesson payment status.
  */
-public class PaymentCommands {
-    private static final Logger LOGGER = Logger.getLogger(PaymentCommands.class.getName());
+public class PaymentCommands extends CommandHandler {
     private static final Set<String> COMMAND_WORDS = Set.of("mark", "pay", "unpaid", "owed", "fee_statement",
             "income");
     private static final Pattern MARK_FORMAT = Pattern.compile("(?i)(\\S+)\\s+(\\S+)");
@@ -41,47 +38,26 @@ public class PaymentCommands {
     }
 
     public PaymentCommands(TutorLedgerData data, Clock clock) {
+        super(COMMAND_WORDS);
         assert data != null : "PaymentCommands needs shared records";
         assert clock != null : "PaymentCommands needs a clock";
         this.data = data;
         this.clock = clock;
     }
 
-    /** Returns true if the input begins with a payment command. */
-    public static boolean handles(String input) {
-        if (input == null || input.isBlank()) {
-            return false;
-        }
-        String command = input.strip().split("\\s+", 2)[0].toLowerCase(Locale.ROOT);
-        return COMMAND_WORDS.contains(command);
-    }
-
-    /** Executes one payment command and returns its display text or a validation error. */
-    public String execute(String input) {
-        if (!handles(input)) {
-            return "Unknown payment command.";
-        }
-        String[] words = input.strip().split("\\s+", 2);
-        String command = words[0].toLowerCase(Locale.ROOT);
-        String arguments = words.length == 2 ? words[1].trim() : "";
-        LOGGER.log(Level.FINE, "Running payment command {0} with arguments: {1}",
-                new Object[]{command, arguments});
-        try {
-            return switch (command) {
-            case "unpaid" -> listUnpaid(arguments);
-            case "owed" -> listOwed(arguments);
-            case "fee_statement" -> feeStatement(arguments);
-            case "income" -> income(arguments);
-            case "pay" -> pay(arguments);
-            case "mark" -> mark(arguments);
-            // handles() lets only payment command words through, so reaching here means a word was missed above.
-            default -> throw new AssertionError("Unexpected payment command: " + command);
-            };
-        } catch (IllegalArgumentException exception) {
-            LOGGER.log(Level.FINE, "Payment command {0} rejected: {1}",
-                    new Object[]{command, exception.getMessage()});
-            return "Error: " + exception.getMessage();
-        }
+    @Override
+    protected String run(CommandLine line) {
+        String arguments = line.arguments();
+        return switch (line.word()) {
+        case "unpaid" -> listUnpaid(arguments);
+        case "owed" -> listOwed(arguments);
+        case "fee_statement" -> feeStatement(arguments);
+        case "income" -> income(arguments);
+        case "pay" -> pay(arguments);
+        case "mark" -> mark(arguments);
+        // handles() lets only payment command words through, so reaching here means a word was missed above.
+        default -> throw new AssertionError("Unexpected payment command: " + line.word());
+        };
     }
 
     /** Allocates a payment across the listed lessons in order, allowing the final lesson to be partial. */

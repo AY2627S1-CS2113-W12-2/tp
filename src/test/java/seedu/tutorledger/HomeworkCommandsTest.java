@@ -79,21 +79,22 @@ class HomeworkCommandsTest {
 
     @Test
     void handlesOnlyHomeworkCommandWords() {
-        assertTrue(HomeworkCommands.handles("ASSIGN S1 x d/01-01-2027"));
-        assertTrue(HomeworkCommands.handles("homework"));
-        assertFalse(HomeworkCommands.handles("add n/Tan l/Sec 1 p/91234567"));
+        assertTrue(commands.handles("ASSIGN S1 x d/01-01-2027"));
+        assertTrue(commands.handles("homework"));
+        assertFalse(commands.handles("add n/Tan l/Sec 1 p/91234567"));
     }
 
     @Test
     void handles_editOrDeleteWithHomeworkId_trueOnlyForHomework() {
-        assertTrue(HomeworkCommands.handles("edit H1 d/30-09-2026"));
-        assertTrue(HomeworkCommands.handles("DELETE h3"));
-        assertFalse(HomeworkCommands.handles("edit S1 n/Tan Wei Ming"));
-        assertFalse(HomeworkCommands.handles("delete L1"));
-        assertFalse(HomeworkCommands.handles("edit"));
+        assertTrue(commands.handles("edit H1 d/30-09-2026"));
+        assertTrue(commands.handles("DELETE h3"));
+        assertFalse(commands.handles("edit S1 n/Tan Wei Ming"));
+        assertFalse(commands.handles("delete L1"));
+        assertFalse(commands.handles("edit"));
         // h/ would be a prefix, not a homework ID.
-        assertFalse(HomeworkCommands.handles("edit h/x"));
-        assertFalse(LessonCommands.handles("edit H1 d/30-09-2026"));
+        assertFalse(commands.handles("edit h/x"));
+        LessonCommands lessons = new LessonCommands(new TutorLedgerData(), Clock.systemDefaultZone());
+        assertFalse(lessons.handles("edit H1 d/30-09-2026"));
     }
 
     @Test

@@ -269,8 +269,9 @@ class StudentDeletionWarningTest {
     @Test
     void delete_lessonRoutingStillDeletesOnlyTheLesson() {
         addHistory("S1", "15-09-2026");
-        assertFalse(LessonCommands.handles("delete S1 confirm"));
-        assertTrue(LessonCommands.handles("delete L1"));
+        LessonCommands lessons = new LessonCommands(data, CLOCK);
+        assertFalse(lessons.handles("delete S1 confirm"));
+        assertTrue(lessons.handles("delete L1"));
 
         String output = new LessonCommands(data, CLOCK).execute("delete L1");
 

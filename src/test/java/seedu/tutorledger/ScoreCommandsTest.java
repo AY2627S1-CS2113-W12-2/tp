@@ -153,11 +153,11 @@ class ScoreCommandsTest {
 
     @Test
     void handles_onlyScoreCommandWords() {
-        assertTrue(ScoreCommands.handles("SCORE S1 WA1 m/1/2"));
-        assertTrue(ScoreCommands.handles("scores S1"));
-        assertTrue(ScoreCommands.handles("progress S1"));
-        assertFalse(ScoreCommands.handles("record L1 a/present"));
-        assertFalse(ScoreCommands.handles(" "));
+        assertTrue(commands.handles("SCORE S1 WA1 m/1/2"));
+        assertTrue(commands.handles("scores S1"));
+        assertTrue(commands.handles("progress S1"));
+        assertFalse(commands.handles("record L1 a/present"));
+        assertFalse(commands.handles(" "));
     }
 
     /** Adds an S1 A Math lesson at 1600 on {@code date}, recording attendance if it is not null. */

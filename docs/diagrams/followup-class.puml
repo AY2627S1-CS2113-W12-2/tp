@@ -9,11 +9,16 @@ hide empty members
 
 class TutorLedger
 
+abstract class CommandHandler {
+  ~handles(input: String): boolean
+  ~execute(input: String): String
+  #{abstract} run(line: CommandLine): String
+}
+
 class TaskCommands {
   -clock: Clock
   {static} ~DISPLAY_ORDER: Comparator<FollowUpTask>
-  {static} +handles(input: String): boolean
-  +execute(input: String): String
+  #run(line: CommandLine): String
 }
 
 class LessonCommands {
@@ -47,7 +52,8 @@ class Storage {
   {static} +decode(lines: List<String>): LoadResult
 }
 
-TutorLedger --> TaskCommands
+TutorLedger --> "*" CommandHandler : handlers
+CommandHandler <|-- TaskCommands
 TutorLedger --> LessonCommands
 TaskCommands --> TutorLedgerData
 LessonCommands --> TutorLedgerData

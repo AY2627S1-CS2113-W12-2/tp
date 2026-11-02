@@ -37,14 +37,14 @@ class TopicCommandsTest {
 
     @Test
     void handles_acceptsOnlyTheTopicsCommandWord() {
-        assertTrue(TopicCommands.handles("  TOPICS s1 s/Math  "));
-        assertTrue(TopicCommands.handles("topics"));
+        assertTrue(commands.handles("  TOPICS s1 s/Math  "));
+        assertTrue(commands.handles("topics"));
         for (String input : List.of("", " ", "topic S1", "topicsExtra S1", "next S1", "view S1")) {
-            assertFalse(TopicCommands.handles(input), input);
-            assertEquals("Unknown topics command.", commands.execute(input));
+            assertFalse(commands.handles(input), input);
+            assertEquals("Unknown command.", commands.execute(input));
         }
-        assertFalse(TopicCommands.handles(null));
-        assertEquals("Unknown topics command.", commands.execute(null));
+        assertFalse(commands.handles(null));
+        assertEquals("Unknown command.", commands.execute(null));
     }
 
     @Test

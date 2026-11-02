@@ -37,36 +37,36 @@ class LessonCommandsTest {
 
     @Test
     void handles_lessonCommandWords_trueInAnyCase() {
-        assertTrue(LessonCommands.handles("schedule S1 d/22-09-2026 t/1600 s/A Math f/60"));
-        assertTrue(LessonCommands.handles("  SCHEDULE"));
-        assertTrue(LessonCommands.handles("lessons"));
-        assertTrue(LessonCommands.handles("Lessons week"));
-        assertTrue(LessonCommands.handles("record L1 a/present"));
+        assertTrue(commands.handles("schedule S1 d/22-09-2026 t/1600 s/A Math f/60"));
+        assertTrue(commands.handles("  SCHEDULE"));
+        assertTrue(commands.handles("lessons"));
+        assertTrue(commands.handles("Lessons week"));
+        assertTrue(commands.handles("record L1 a/present"));
     }
 
     @Test
     void handles_sharedCommandWord_trueOnlyWithALessonId() {
-        assertTrue(LessonCommands.handles("edit L42 d/25-09-2026"));
-        assertTrue(LessonCommands.handles("EDIT l42 f/55"));
+        assertTrue(commands.handles("edit L42 d/25-09-2026"));
+        assertTrue(commands.handles("EDIT l42 f/55"));
         // Still a lesson command when the ID is malformed, so the error can describe a lesson ID.
-        assertTrue(LessonCommands.handles("edit Lx f/55"));
-        assertTrue(LessonCommands.handles("delete L44"));
-        assertTrue(LessonCommands.handles("Delete l44"));
+        assertTrue(commands.handles("edit Lx f/55"));
+        assertTrue(commands.handles("delete L44"));
+        assertTrue(commands.handles("Delete l44"));
 
-        assertFalse(LessonCommands.handles("edit S1 l/Sec 4"));
-        assertFalse(LessonCommands.handles("edit"));
-        assertFalse(LessonCommands.handles("delete S5"));
-        assertFalse(LessonCommands.handles("delete"));
+        assertFalse(commands.handles("edit S1 l/Sec 4"));
+        assertFalse(commands.handles("edit"));
+        assertFalse(commands.handles("delete S5"));
+        assertFalse(commands.handles("delete"));
         // l/ is the student level prefix, not a lesson ID.
-        assertFalse(LessonCommands.handles("edit l/Sec 4"));
+        assertFalse(commands.handles("edit l/Sec 4"));
     }
 
     @Test
     void handles_otherInput_false() {
-        assertFalse(LessonCommands.handles("add n/Tan Wei Ming l/Sec 3 p/91234567"));
-        assertFalse(LessonCommands.handles("mark L1 paid"));
-        assertFalse(LessonCommands.handles(""));
-        assertFalse(LessonCommands.handles(null));
+        assertFalse(commands.handles("add n/Tan Wei Ming l/Sec 3 p/91234567"));
+        assertFalse(commands.handles("mark L1 paid"));
+        assertFalse(commands.handles(""));
+        assertFalse(commands.handles(null));
         assertEquals("Unknown command.", commands.execute("view S1"));
     }
 
@@ -459,11 +459,11 @@ class LessonCommandsTest {
 
     @Test
     void handles_v2CommandWords_trueInAnyCase() {
-        assertTrue(LessonCommands.handles("log S1 d/15-09-2026 t/1600 s/A Math f/60 a/present"));
-        assertTrue(LessonCommands.handles("next"));
-        assertTrue(LessonCommands.handles("NEXT S1"));
-        assertTrue(LessonCommands.handles("reschedule L1 d/25-09-2026"));
-        assertTrue(LessonCommands.handles("Cancel L1 r/Student sick"));
+        assertTrue(commands.handles("log S1 d/15-09-2026 t/1600 s/A Math f/60 a/present"));
+        assertTrue(commands.handles("next"));
+        assertTrue(commands.handles("NEXT S1"));
+        assertTrue(commands.handles("reschedule L1 d/25-09-2026"));
+        assertTrue(commands.handles("Cancel L1 r/Student sick"));
     }
 
     @Test
@@ -844,7 +844,7 @@ class LessonCommandsTest {
     void uncancel_invalidInput_changesNothing() {
         commands.execute("schedule S1 d/22-09-2026 t/1600 s/A Math f/60");
 
-        assertTrue(LessonCommands.handles("uncancel L1"));
+        assertTrue(commands.handles("uncancel L1"));
         assertEquals("Error: L1 is not cancelled.", commands.execute("uncancel L1"));
         assertEquals("Error: Use: uncancel LESSON_ID", commands.execute("uncancel L1 now"));
         assertEquals("Error: Lesson ID must look like L1.", commands.execute("uncancel"));
