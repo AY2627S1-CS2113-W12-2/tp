@@ -1143,6 +1143,9 @@ Format: `progress STUDENT_ID [from/DATE] [to/DATE]`
 * Attendance counts lessons in the period that have already taken place. Arriving late counts as attending.
   Lessons whose attendance has not been recorded are listed separately and do not affect the rate.
 * Scores are those dated within the period, with their average and trend.
+  The average gives every test equal weight: it averages the original `marks / total marks` ratios,
+  converts the result to a percentage, then rounds once to one decimal place (half up).
+  For example, 18/20 and 20/30 average to 78.3%, even though the individual scores display as 90.0% and 66.7%.
 
 Examples:
 
@@ -1186,9 +1189,12 @@ Format: `task [STUDENT_ID] DESCRIPTION [d/DUE_DATE]`
 
 * If the first word is a student ID, the task is linked to that student. Their pending tasks are then shown by
   [`next`](#preparing-for-the-next-lesson-next) before their lesson.
-* `DESCRIPTION` is everything after the student ID (if any) and before the last `d/`, so it may contain spaces
-  and commas.
-* `d/DUE_DATE` is optional and must come last. It may be in the past.
+* `DESCRIPTION` is everything after the student ID (if any) and before the last standalone `d/` marker
+  (case-insensitive), so it may contain spaces, commas, `and/or` and earlier `d/` text.
+* `d/DUE_DATE` is optional and must come last. It may be in the past. Spaces around the date are allowed,
+  for example `task Bring notes d/ 01-01-2020`. Everything after the final marker must be a real date in
+  `DD-MM-YYYY` format. An empty date, an impossible date or trailing words cause an error without adding
+  a task or using an ID.
 
 Examples:
 
@@ -1324,8 +1330,10 @@ the file into TutorLedger again after editing it, without restarting.
 
 Format: `reload`
 
-* Replaces the data TutorLedger is currently showing with the contents of `data/tutorledger.txt`. Nothing is
-  lost by doing this, because every change you made in TutorLedger was already saved to that file.
+* Replaces the data TutorLedger is currently showing with the contents of `data/tutorledger.txt`, discarding
+  any unsaved changes in memory. Automatic saving normally keeps the file up to date, but a failed save
+  can leave newer changes only in memory. Before reloading after a failed save, use
+  `save /path/to/writable-folder/recovery.txt` to save a copy to a writable location and check that it succeeds.
 * A line that is not in the format TutorLedger expects is skipped, and its line number and the reason are
   shown so you can fix it.
 * If a student's line is skipped, the lines for that student's lessons and homework are skipped too, because
@@ -1362,7 +1370,7 @@ Your current data has not been changed.
 NEXT | S3 | L2 | H2 | A2 | T3
 S | S1 | Amirah Binte Rahman | Sec 3 | 91234567 | E Math | A Math
 FLAG | S1 | Struggling with vectors
-L | L1 | S1 | 15-09-2026 | 1600 | A Math | 60 | present | paid | Quadratics \| discriminant
+L | L1 | S1 | 15-09-2026 | 1600 | A Math | 60 | present | paid | Quadratics \| discriminant |  | 60 | 60
 H | H1 | S1 | 29-09-2026 | outstanding | Worksheet 4A
 A | A1 | S1 | 07-09-2026 | 28 | 40 | WA1
 T | T1 | pending | 16-10-2026 | S1 | Bring Worksheet 4B
@@ -1386,6 +1394,10 @@ T | T2 | done |  |  | Print term calendar
   to an older version.
 * New lesson lines have thirteen fields: the cancellation reason comes before duration and amount paid.
   For an active 90-minute lesson with $20 received, end the line with `NOTES |  | 90 | 20`.
+  In these records, **amount paid determines payment status**: zero received is unpaid, an amount between
+  zero and the fee is partial, and an amount equal to the fee is paid. Changing only the status field does
+  not change the payment; edit the final amount-paid field consistently too. A zero-fee lesson is paid
+  with zero received and adds no income. Amount paid must be between zero and the fee.
   Old eleven-field cancellation and twelve-field duration lines remain accepted. Free lessons from older
   files are loaded as paid without adding income.
 * If you saved data with the earlier hourly-rate branch, keep its generated `NOTES | MINUTES` header
@@ -1406,6 +1418,15 @@ T | T2 | done |  |  | Print term calendar
 * Lines may be in any order, and spaces around `|` do not matter.
 * The `NEXT` line stops the IDs of deleted items from being given out again. If it is missing or too low,
   TutorLedger works out safe values from the IDs in the file.
+
+Consistent thirteen-field lesson examples (assuming S1 exists):
+
+```text
+L | L1 | S1 | 15-09-2026 | 1600 | A Math | 60 | present | unpaid |  |  | 60 | 0
+L | L2 | S1 | 16-09-2026 | 1600 | A Math | 60 | present | partial |  |  | 60 | 20
+L | L3 | S1 | 17-09-2026 | 1600 | A Math | 60 | present | paid |  |  | 60 | 60
+L | L4 | S1 | 18-09-2026 | 1600 | A Math | 0 | present | paid |  |  | 60 | 0
+```
 
 > **Caution:** If you edit the data file while TutorLedger is open and then run a command that changes data
 > without running `reload` first, TutorLedger saves over your edits. A skipped line is also removed from the
