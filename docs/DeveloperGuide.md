@@ -712,8 +712,10 @@ An edit below the amount received is rejected. Free lessons are always settled a
 outstanding-balance views: they include non-cancelled lessons dated today or earlier with a
 remaining balance, including partial payments, and report the amount still owed.
 `fee_statement` intentionally shows the full stored history, including paid, future and cancelled
-lessons. A cancellation therefore remains visible in the history, even though it is excluded from the
-amounts due.
+lessons. Cancelled statement rows append `[cancelled: REASON; not chargeable]`, preserving their saved
+fee and payment amounts without presenting them as ordinary charges. The lesson filter excludes cancelled
+records whenever `pay/` is specified. Without `pay/`, it retains labelled cancellation rows but excludes
+their fees from the explicitly labelled total. These views never modify the saved records.
 
 `pay STUDENT_ID AMOUNT LESSON_ID [LESSON_ID...]` separates amount parsing, lesson validation, allocation and
 confirmation formatting into focused steps. Before changing any lesson, it checks that the amount is positive
@@ -1222,6 +1224,11 @@ Use an empty working directory and run the packaged application with Java 25 and
    missing/extra arguments and a student-not-found error for S99.
 5. Run `mark L1 paid`, then `fee_statement S1`. Expected: L1 now shows as paid. Exit and restart TutorLedger,
    then run the statement again; the paid status and saved fee should be unchanged.
+6. In a separate empty data file, add Alice with Math, schedule a $60 lesson dated `01-01-2020`, allocate
+   $25 with `pay`, and cancel it with reason `Sick`. Expected: `filter S1 pay/unpaid` has no matches,
+   while `filter S1` and `fee_statement S1` label the retained row `[cancelled: Sick; not chargeable]`.
+   The filter total excludes the $60 fee; the statement preserves the $25 payment. Restart and repeat:
+   the labels and amounts remain. Uncancel the lesson: it reappears in the partial/unpaid filters.
 
 ### Saving and loading data
 
