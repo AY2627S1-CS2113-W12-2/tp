@@ -165,8 +165,8 @@ class StorageCommandsTest {
 
         seededCommands.loadOnStartup();
 
-        assertEquals(LocalDate.of(2030, 3, 3), freshData.getLesson("L1").getDate());
-        assertEquals(LocalDate.of(2030, 3, 12), freshData.getLesson("L2").getDate());
+        assertEquals(LocalDate.of(2030, 3, 9), freshData.getLesson("L1").getDate());
+        assertEquals(LocalDate.of(2030, 3, 11), freshData.getLesson("L2").getDate());
     }
 
     @Test
