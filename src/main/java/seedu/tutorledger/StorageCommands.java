@@ -32,6 +32,8 @@ public class StorageCommands {
     private final Storage storage;
     private final boolean seedSampleData;
     private final Clock clock;
+    /** Prevents a later data-changing command from overwriting a file that could not be read. */
+    private boolean automaticSavingEnabled = true;
 
     /**
      * Creates the handler for the storage commands.
@@ -104,9 +106,11 @@ public class StorageCommands {
         try {
             Storage.LoadResult result = storage.load();
             data.replaceAllWith(result.data());
+            automaticSavingEnabled = true;
             return "Loaded " + describeContents(data) + " from " + storage.getDisplayPath() + "."
                     + describeProblems(result.problems());
         } catch (NoSuchFileException exception) {
+            automaticSavingEnabled = true;
             if (!seedSampleData) {
                 LOGGER.log(Level.FINE, "No data file at startup; starting empty");
                 return "No saved data yet. TutorLedger will create " + storage.getDisplayPath()
@@ -125,6 +129,7 @@ public class StorageCommands {
                         + " (" + describe(saveException) + ").";
             }
         } catch (IOException exception) {
+            automaticSavingEnabled = false;
             LOGGER.log(Level.FINE, "Could not read data file at startup", exception);
             return "Could not read " + storage.getDisplayPath() + " (" + describe(exception) + ")."
                     + System.lineSeparator() + "Starting with no data.";
@@ -154,6 +159,11 @@ public class StorageCommands {
         if (snapshot().equals(snapshotBefore)) {
             return "";
         }
+        if (!automaticSavingEnabled) {
+            return "Warning: your change could not be saved to " + storage.getDisplayPath()
+                    + " because automatic saving is disabled after the file could not be read."
+                    + " Fix the file and run reload, or use save explicitly.";
+        }
         LOGGER.log(Level.FINE, "Data changed, saving automatically");
         try {
             storage.save(data);
@@ -170,6 +180,7 @@ public class StorageCommands {
         try {
             if (filePath.isEmpty()) {
                 storage.save(data);
+                automaticSavingEnabled = true;
                 return "Saved " + describeContents(data) + System.lineSeparator()
                         + "to " + storage.getDisplayPath();
             }
@@ -194,10 +205,12 @@ public class StorageCommands {
             return "No data file found at " + storage.getDisplayPath() + "." + System.lineSeparator()
                     + "Your current data has not been changed.";
         } catch (IOException exception) {
+            automaticSavingEnabled = false;
             return "Could not read " + storage.getDisplayPath() + " (" + describe(exception) + ")."
                     + System.lineSeparator() + "Your current data has not been changed.";
         }
         data.replaceAllWith(result.data());
+        automaticSavingEnabled = true;
         // The file was just read in full, so saving now would write back exactly the records it gave.
         assert snapshot().equals(Storage.encode(result.data())) : "Reload did not copy every record";
         return "Reloaded " + storage.getDisplayPath() + System.lineSeparator()

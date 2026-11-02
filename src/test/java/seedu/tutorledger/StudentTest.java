@@ -1,11 +1,13 @@
 package seedu.tutorledger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
@@ -64,6 +66,13 @@ class StudentTest {
     void rejectsInvalidName() {
         assertThrows(IllegalArgumentException.class,
                 () -> new Student("S123", "Tan Wei 3", "Sec 3", "91234567"));
+    }
+
+    @Test
+    void acceptsVeryLongNameWithoutOverflowingTheStack() {
+        String longName = String.join(" ", Collections.nCopies(2_000, "A"));
+
+        assertDoesNotThrow(() -> new Student("S123", longName, "Sec 3", "91234567"));
     }
 
     @Test
