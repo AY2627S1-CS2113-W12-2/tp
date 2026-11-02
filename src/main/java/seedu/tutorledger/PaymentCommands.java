@@ -291,6 +291,9 @@ public class PaymentCommands {
                             lesson.getPaymentStatus() + (lesson.getAmountPaid().signum() > 0
                                     && !Lesson.PAYMENT_PAID.equals(lesson.getPaymentStatus())
                                     ? " ($" + formatMoney(lesson.getAmountPaid()) + " paid)" : "")));
+            if (lesson.isCancelled()) {
+                output.append(" [cancelled: ").append(lesson.getCancellationReason()).append("; not chargeable]");
+            }
         }
         output.append(System.lineSeparator()).append("       ").append(SEPARATOR);
         return output.toString();

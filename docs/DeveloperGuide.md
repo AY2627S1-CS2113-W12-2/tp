@@ -93,6 +93,13 @@ User-input checks use ordinary conditionals and exceptions, so they remain activ
 are disabled. Assertions check internal assumptions, such as preserving record identities and advancing
 ID counters after successful insertion.
 
+`RecordIds` validates numeric suffixes before a store collection is changed. Records and map keys keep
+string IDs; supported record numbers are 1 through 2147483646. Validation calculates the successor
+before insertion, so a rejected import leaves both the collection and its counter unchanged. All five
+record types use the same rule. Counters can reach 2147483647 as an exhausted value; creation checks
+capacity first, and a weekly schedule reserves capacity for its whole batch before inserting anything.
+This prevents both integer overflow and partially applied imports or schedules.
+
 Records are immutable: edits create validated copies, and the store replaces the original only after
 the relevant checks pass. The automatic-save flow described above then persists the changed store.
 The implementation sections below explain checks and persistence rules specific to each feature.
@@ -132,6 +139,8 @@ T | T1 | pending | 16-10-2026 | S1 | Bring Worksheet 4B
 
 * The `NEXT` line saves the ID counters. Without it, deleting the newest student and restarting would
   hand the deleted student's ID to the next new student, breaking the rule that IDs are never reused.
+  Positive counter values through 2147483647 are supported, including ten-digit values. A malformed
+  `NEXT` line is rejected as a whole; optional score/task counters in older files remain supported.
 * A `|` or `\` inside a value is escaped as `\|` or `\\`, so notes and subjects can contain any text.
 * Values are written in the same format the user types them (e.g. `DD-MM-YYYY`), so a hand-edited file
   uses the rules users already know.
@@ -712,8 +721,10 @@ An edit below the amount received is rejected. Free lessons are always settled a
 outstanding-balance views: they include non-cancelled lessons dated today or earlier with a
 remaining balance, including partial payments, and report the amount still owed.
 `fee_statement` intentionally shows the full stored history, including paid, future and cancelled
-lessons. A cancellation therefore remains visible in the history, even though it is excluded from the
-amounts due.
+lessons. Cancelled statement rows append `[cancelled: REASON; not chargeable]`, preserving their saved
+fee and payment amounts without presenting them as ordinary charges. The lesson filter excludes cancelled
+records whenever `pay/` is specified. Without `pay/`, it retains labelled cancellation rows but excludes
+their fees from the explicitly labelled total. These views never modify the saved records.
 
 `pay STUDENT_ID AMOUNT LESSON_ID [LESSON_ID...]` separates amount parsing, lesson validation, allocation and
 confirmation formatting into focused steps. Before changing any lesson, it checks that the amount is positive
@@ -1222,8 +1233,21 @@ Use an empty working directory and run the packaged application with Java 25 and
    missing/extra arguments and a student-not-found error for S99.
 5. Run `mark L1 paid`, then `fee_statement S1`. Expected: L1 now shows as paid. Exit and restart TutorLedger,
    then run the statement again; the paid status and saved fee should be unchanged.
+6. In a separate empty data file, add Alice with Math, schedule a $60 lesson dated `01-01-2020`, allocate
+   $25 with `pay`, and cancel it with reason `Sick`. Expected: `filter S1 pay/unpaid` has no matches,
+   while `filter S1` and `fee_statement S1` label the retained row `[cancelled: Sick; not chargeable]`.
+   The filter total excludes the $60 fee; the statement preserves the $25 payment. Restart and repeat:
+   the labels and amounts remain. Uncancel the lesson: it reappears in the partial/unpaid filters.
 
 ### Saving and loading data
+
+To check ID rejection, use a separate test folder with an existing `data/tutorledger.txt` containing
+`S | S1 | Bob Tan | Pri6 | 98765432` and `S | S2147483648 | Alice Tan | Pri5 | 91234567` on separate lines.
+Start the application: only Bob loads, and Alice's row is reported with a supported-range error.
+`list` must work, `view S2147483648` must report an unknown student, and `save` must omit Alice's row.
+Restart: there is no skipped-row warning. For counter exhaustion, set a test file's student `NEXT`
+counter to `S2147483647`: existing students remain readable, while `add` reports that no more S IDs
+are available and leaves the file unchanged. The same range/capacity checks apply to L, H, A and T.
 
 1. Automatic save and restart
    1. Start TutorLedger in an empty folder. Expected: a small set of synthetic sample records is loaded and

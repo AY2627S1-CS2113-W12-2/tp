@@ -81,6 +81,11 @@ wherever the item is listed. Commands use the ID to say which item you mean.
 
 An ID is never reused, even after its item is deleted.
 
+IDs remain text such as `S123`. Their numeric part must be between 1 and 2147483646; larger IDs in a
+hand-edited data file are reported and skipped completely. The saved `NEXT` counters can reach
+2147483647, which means that no further IDs of that type are available. Creation is then rejected
+without changing records; a weekly schedule is rejected as a whole if there are too few IDs left.
+
 **Values.**
 
 | Value            | Prefix  | Accepted input                                                                  | Example              |
@@ -549,8 +554,11 @@ Format: `filter [STUDENT_ID] [from/DATE] [to/DATE] [pay/STATUS]`
 * `STUDENT_ID` lists only that student's lessons. It must come straight after `filter`.
 * `from/DATE` and `to/DATE` list only lessons on or after, and on or before, those dates. Both dates are
   included. `from/` cannot be later than `to/`.
-* `pay/STATUS` lists only lessons that are `paid` or `unpaid`. Unlike `unpaid`, this includes lessons that
-  have not happened yet.
+* `pay/STATUS` accepts `paid`, `partial` or `unpaid`; `unpaid` also includes partial payments.
+  Payment filters exclude cancelled lessons. Unlike `unpaid`, they include lessons that have not happened yet.
+* Without a payment filter, cancelled lessons remain visible with their reason and a `not chargeable` label.
+  Their fees are excluded from `Total fees (excluding cancelled lessons)`. Other totals show the full saved
+  fees of matching non-cancelled lessons, rather than their remaining balances.
 * `filter` on its own lists every lesson, past and future.
 
 Examples:
@@ -1028,7 +1036,8 @@ S5 Ryan Koh  $45.00  (1 lesson)
 
 Lists every lesson fee for one student, including lessons paid in advance, in date and time order. Each entry
 shows the lesson ID, date, subject, fee, and current payment status. A partially paid lesson also shows its
-amount paid so far.
+amount paid so far. Cancelled lessons remain in this history with a `[cancelled: REASON; not chargeable]`
+label. Their displayed fees and payments are historical amounts; they do not represent an outstanding charge.
 
 Format: `fee_statement STUDENT_ID`
 

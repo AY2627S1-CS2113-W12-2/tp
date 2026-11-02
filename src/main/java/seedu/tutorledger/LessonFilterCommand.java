@@ -154,9 +154,15 @@ public class LessonFilterCommand {
                     lesson.getLessonId(), DISPLAY_DATE.format(lesson.getDate()),
                     DISPLAY_TIME.format(lesson.getTime()), studentLabel(lesson), lesson.getSubject(),
                     money(lesson.getFee()), lesson.getPaymentStatus()));
-            total = total.add(lesson.getFee());
+            if (lesson.isCancelled()) {
+                output.append(" [cancelled: ").append(lesson.getCancellationReason()).append("; not chargeable]");
+            } else {
+                total = total.add(lesson.getFee());
+            }
         }
-        output.append(System.lineSeparator()).append("Total fees: ").append(money(total));
+        String totalLabel = lessons.stream().anyMatch(Lesson::isCancelled)
+                ? "Total fees (excluding cancelled lessons): " : "Total fees: ";
+        output.append(System.lineSeparator()).append(totalLabel).append(money(total));
         return output.toString();
     }
 
@@ -189,6 +195,7 @@ public class LessonFilterCommand {
             return (student == null || student.getStudentId().equalsIgnoreCase(lesson.getStudentId()))
                     && (from == null || !lesson.getDate().isBefore(from))
                     && (to == null || !lesson.getDate().isAfter(to))
+                    && (payment == null || !lesson.isCancelled())
                     && (payment == null || payment.equalsIgnoreCase(lesson.getPaymentStatus())
                             || (payment.equals(Lesson.PAYMENT_UNPAID)
                                     && lesson.getPaymentStatus().equals(Lesson.PAYMENT_PARTIAL)));

@@ -149,6 +149,12 @@ and data-store methods validate values and relationships before records are inse
 User-input checks use ordinary conditionals and exceptions, so they remain active when Java assertions
 are disabled. Assertions check internal assumptions, such as preserving record identities and advancing
 ID counters after successful insertion.</p>
+<p><code>RecordIds</code> validates numeric suffixes before a store collection is changed. Records and map keys keep
+string IDs; supported record numbers are 1 through 2147483646. Validation calculates the successor
+before insertion, so a rejected import leaves both the collection and its counter unchanged. All five
+record types use the same rule. Counters can reach 2147483647 as an exhausted value; creation checks
+capacity first, and a weekly schedule reserves capacity for its whole batch before inserting anything.
+This prevents both integer overflow and partially applied imports or schedules.</p>
 <p>Records are immutable: edits create validated copies, and the store replaces the original only after
 the relevant checks pass. The automatic-save flow described above then persists the changed store.
 The implementation sections below explain checks and persistence rules specific to each feature.</p>
@@ -179,7 +185,9 @@ T | T1 | pending | 16-10-2026 | S1 | Bring Worksheet 4B
 </code></pre>
 <ul>
 <li>The <code>NEXT</code> line saves the ID counters. Without it, deleting the newest student and restarting would
-hand the deleted student's ID to the next new student, breaking the rule that IDs are never reused.</li>
+hand the deleted student's ID to the next new student, breaking the rule that IDs are never reused.
+Positive counter values through 2147483647 are supported, including ten-digit values. A malformed
+<code>NEXT</code> line is rejected as a whole; optional score/task counters in older files remain supported.</li>
 <li>A <code>|</code> or <code>\</code> inside a value is escaped as <code>\|</code> or <code>\\</code>, so notes and subjects can contain any text.</li>
 <li>Values are written in the same format the user types them (e.g. <code>DD-MM-YYYY</code>), so a hand-edited file
 uses the rules users already know.</li>
@@ -711,8 +719,10 @@ An edit below the amount received is rejected. Free lessons are always settled a
 outstanding-balance views: they include non-cancelled lessons dated today or earlier with a
 remaining balance, including partial payments, and report the amount still owed.
 <code>fee_statement</code> intentionally shows the full stored history, including paid, future and cancelled
-lessons. A cancellation therefore remains visible in the history, even though it is excluded from the
-amounts due.</p>
+lessons. Cancelled statement rows append <code>[cancelled: REASON; not chargeable]</code>, preserving their saved
+fee and payment amounts without presenting them as ordinary charges. The lesson filter excludes cancelled
+records whenever <code>pay/</code> is specified. Without <code>pay/</code>, it retains labelled cancellation rows but excludes
+their fees from the explicitly labelled total. These views never modify the saved records.</p>
 <p><code>pay STUDENT_ID AMOUNT LESSON_ID [LESSON_ID...]</code> separates amount parsing, lesson validation, allocation and
 confirmation formatting into focused steps. Before changing any lesson, it checks that the amount is positive
 and has at most two decimal places, that every selected lesson belongs to the student and is neither cancelled
@@ -1441,14 +1451,30 @@ lesson, with each saved fee and current payment status; the other student's less
 missing/extra arguments and a student-not-found error for S99.</li>
 <li>Run <code>mark L1 paid</code>, then <code>fee_statement S1</code>. Expected: L1 now shows as paid. Exit and restart TutorLedger,
 then run the statement again; the paid status and saved fee should be unchanged.</li>
+<li>In a separate empty data file, add Alice with Math, schedule a $60 lesson dated <code>01-01-2020</code>, allocate
+$25 with <code>pay</code>, and cancel it with reason <code>Sick</code>. Expected: <code>filter S1 pay/unpaid</code> has no matches,
+while <code>filter S1</code> and <code>fee_statement S1</code> label the retained row <code>[cancelled: Sick; not chargeable]</code>.
+The filter total excludes the $60 fee; the statement preserves the $25 payment. Restart and repeat:
+the labels and amounts remain. Uncancel the lesson: it reappears in the partial/unpaid filters.</li>
 </ol>
 <h3 id="saving-and-loading-data">Saving and loading data</h3>
+<p>To check ID rejection, use a separate test folder with an existing <code>data/tutorledger.txt</code> containing
+<code>S | S1 | Bob Tan | Pri6 | 98765432</code> and <code>S | S2147483648 | Alice Tan | Pri5 | 91234567</code> on separate lines.
+Start the application: only Bob loads, and Alice's row is reported with a supported-range error.
+<code>list</code> must work, <code>view S2147483648</code> must report an unknown student, and <code>save</code> must omit Alice's row.
+Restart: there is no skipped-row warning. For counter exhaustion, set a test file's student <code>NEXT</code>
+counter to <code>S2147483647</code>: existing students remain readable, while <code>add</code> reports that no more S IDs
+are available and leaves the file unchanged. The same range/capacity checks apply to L, H, A and T.</p>
 <ol>
 <li>Automatic save and restart
 <ol>
-<li>Start TutorLedger in an empty folder. Expected: <code>No saved data yet...</code>.</li>
-<li>Run <code>add n/Amirah Binte Rahman l/Sec 3 p/91234567</code>, then <code>exit</code>.</li>
-<li>Start TutorLedger again. Expected: <code>Loaded 1 student, 0 lessons and 0 homework items...</code>.</li>
+<li>Start TutorLedger in an empty folder. Expected: a small set of synthetic sample records is loaded and
+saved automatically.</li>
+<li>Try <code>list</code>, <code>lessons week</code>, <code>next</code>, <code>homework S1</code>, <code>scores S1</code> and <code>tasks S1</code> before entering real records.
+Expected: <code>lessons week</code> shows at least one sample lesson on any day of the week, and <code>next</code> shows L2,
+which is tomorrow.</li>
+<li>Run <code>add n/Carol Tan l/Pri 5 p/87654321</code>, then <code>exit</code>.</li>
+<li>Start TutorLedger again. Expected: the sample records and Carol's record are loaded from the data file.</li>
 </ol>
 </li>
 <li>Deleted IDs are not reused
@@ -1463,8 +1489,11 @@ then run the statement again; the paid status and saved fee should be unchanged.
 Expected: <code>view</code> shows the new number.</li>
 <li>Change a lesson's date to <code>31-02-2026</code>, then run <code>reload</code>.
 Expected: that line is reported as skipped with its line number; all other records load.</li>
-<li>Delete <code>data/tutorledger.txt</code>, then run <code>reload</code>.
-Expected: <code>No data file found...</code> and the current data is unchanged.</li>
+<li>To test a clean first launch, exit TutorLedger, empty <code>data/tutorledger.txt</code> without deleting the file,
+then start TutorLedger again. Expected: an empty data set is loaded and sample records are not recreated.
+Deleting the file instead causes the first-launch sample records to be created again.</li>
+<li>While TutorLedger is running, move <code>data/tutorledger.txt</code> elsewhere, then run <code>reload</code>.
+Expected: <code>No data file found at data/tutorledger.txt.</code> and the current records are unchanged.</li>
 </ol>
 </li>
 <li>Backups
