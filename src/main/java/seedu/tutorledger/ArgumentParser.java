@@ -23,6 +23,15 @@ final class ArgumentParser {
     /** A prefix is a run of letters followed by a slash, at the start of the text or after a space. */
     private static final Pattern PREFIX = Pattern.compile("(?i)(?<!\\S)([a-z]+)/");
 
+    /**
+     * The words "s/o" (son of) and "d/o" (daughter of), as in "Ravi s/o Kumar", followed by a space or the
+     * end of the text. They are common in Singapore names but look like the prefixes {@code s/} and {@code d/}.
+     */
+    private static final Pattern NAME_CONNECTOR = Pattern.compile("(?i)[sd]/o(?=\\s|$)");
+
+    /** The prefix whose value is a person's name, which may contain {@link #NAME_CONNECTOR} words. */
+    private static final String NAME_PREFIX = "n";
+
     /** Prevents instantiation, because this class only holds a static parsing method. */
     private ArgumentParser() {
     }
@@ -71,6 +80,11 @@ final class ArgumentParser {
                 throw new IllegalArgumentException("Expected a prefixed value.");
             }
             String key = matcher.group(1).toLowerCase(Locale.ROOT);
+            // Without this, "n/Ravi s/o Kumar" would store the name "Ravi" and a subject "o Kumar".
+            if (NAME_PREFIX.equals(previousKey) && isNameConnector(text, matcher.start())) {
+                LOGGER.log(Level.FINE, "Keeping {0}/o as part of the name", key);
+                continue;
+            }
             // This is checked before the previous value is stored, because that value has not ended yet.
             // previousEnd is left alone, so the word stays inside the free-text value being read.
             if (!allowed.contains(key) && previousKey != null && freeText.contains(previousKey)) {
@@ -98,6 +112,11 @@ final class ArgumentParser {
         assert values.values().stream().noneMatch(List::isEmpty) : "A prefix was recorded without its value";
         LOGGER.log(Level.INFO, "Parsed fields result: {0}", values);
         return new Fields(values);
+    }
+
+    /** Returns whether an "s/o" or "d/o" word starts at the given index of the text. */
+    private static boolean isNameConnector(String text, int start) {
+        return NAME_CONNECTOR.matcher(text).region(start, text.length()).lookingAt();
     }
 
     /** The values typed for each prefix, keyed by the prefix in lower case. */
