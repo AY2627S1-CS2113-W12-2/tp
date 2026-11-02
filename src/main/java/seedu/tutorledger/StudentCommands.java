@@ -501,7 +501,12 @@ public class StudentCommands extends CommandHandler {
                 + Formats.DISPLAY_DATE.format(lesson.getDate()) + " " + Formats.TIME.format(lesson.getTime())
                 + "  " + lesson.getSubject() + "  " + Formats.money(lesson.getFee()) + "  " + attendance
                 + "  " + lesson.getPaymentStatus());
-        if (lesson.getAmountPaid().signum() > 0 && !lesson.getPaymentStatus().equals(Lesson.PAYMENT_PAID)) {
+        if (lesson.isCancelled()) {
+            row.append(" [not chargeable]");
+            if (lesson.getAmountPaid().signum() > 0) {
+                row.append("  ").append(Formats.money(lesson.getAmountPaid())).append(" paid");
+            }
+        } else if (lesson.getAmountPaid().signum() > 0 && !lesson.getPaymentStatus().equals(Lesson.PAYMENT_PAID)) {
             row.append("  ").append(Formats.money(lesson.getAmountPaid())).append(" paid, ")
                     .append(Formats.money(lesson.getAmountOwed())).append(" remaining");
         }
