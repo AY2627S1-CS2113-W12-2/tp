@@ -10,7 +10,7 @@ I also worked on command routing, diagnostics, build reliability and first-launc
 
 ## Summary of contributions
 
-**Code contributed:** [My RepoSense code dashboard](https://nus-cs2113-ay2627-s1.github.io/tp-dashboard/?search=Izaaz&breakdown=true)
+**Code contributed:** [My RepoSense code dashboard](https://nus-cs2113-ay2627-s1.github.io/tp-dashboard/?search=Chomus-ai&breakdown=true)
 · [Authored pull requests](https://github.com/AY2627S1-CS2113-W12-2/tp/pulls?q=is%3Apr+author%3AChomus-ai).
 
 ### Enhancements implemented
