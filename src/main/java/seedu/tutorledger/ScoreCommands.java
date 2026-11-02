@@ -1,6 +1,7 @@
 package seedu.tutorledger;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.DateTimeException;
@@ -253,9 +254,29 @@ public class ScoreCommands extends CommandHandler {
         return (change.signum() > 0 ? "Up " : "Down ") + change.abs().toPlainString() + " points";
     }
 
+    /** Averages the original score ratios exactly, rounding only the final percentage for display. */
     private static BigDecimal average(List<Score> scores) {
-        BigDecimal total = scores.stream().map(Score::getPercentage).reduce(BigDecimal.ZERO, BigDecimal::add);
-        return total.divide(BigDecimal.valueOf(scores.size()), 1, RoundingMode.HALF_UP);
+        BigInteger numerator = BigInteger.ZERO;
+        BigInteger denominator = BigInteger.ONE;
+        for (Score score : scores) {
+            // Align decimal scales so fractional marks become an exact ratio of integers.
+            int scale = Math.max(score.getMarks().scale(), score.getTotalMarks().scale());
+            BigInteger marks = score.getMarks().setScale(scale).unscaledValue();
+            BigInteger totalMarks = score.getTotalMarks().setScale(scale).unscaledValue();
+            BigInteger scoreDivisor = marks.gcd(totalMarks);
+            marks = marks.divide(scoreDivisor);
+            totalMarks = totalMarks.divide(scoreDivisor);
+
+            numerator = numerator.multiply(totalMarks).add(marks.multiply(denominator));
+            denominator = denominator.multiply(totalMarks);
+            // Reducing after each addition limits growth without approximating repeating fractions.
+            BigInteger divisor = numerator.gcd(denominator);
+            numerator = numerator.divide(divisor);
+            denominator = denominator.divide(divisor);
+        }
+        return new BigDecimal(numerator.multiply(BigInteger.valueOf(100)))
+                .divide(new BigDecimal(denominator.multiply(BigInteger.valueOf(scores.size()))),
+                        1, RoundingMode.HALF_UP);
     }
 
     /** Returns one student's scores, oldest first. */

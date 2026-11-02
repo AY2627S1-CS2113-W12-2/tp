@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static seedu.tutorledger.TestUtil.NL;
 
 import java.time.Clock;
+import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -115,6 +116,69 @@ class ScoreCommandsTest {
         assertTrue(output.contains("Scores: 1 test, average 55.0%"), output);
         assertFalse(output.contains("WA1"), output);
         assertTrue(output.contains("record at least 2 scores"), output);
+    }
+
+    @Test
+    void progress_averagesOriginalRatiosWithoutChangingIndividualDisplaysOrTrend() {
+        commands.execute("score S1 Quiz m/18/20 d/01-10-2026");
+        commands.execute("score S1 Exam m/20/30 d/02-10-2026");
+        String before = Storage.encode(data);
+        String output = commands.execute("progress S1");
+
+        assertTrue(output.contains("Scores: 2 tests, average 78.3%"), output);
+        assertTrue(output.contains("90.0%"), output);
+        assertTrue(output.contains("66.7%  -23.3"), output);
+        assertTrue(output.endsWith("Trend: declining, down 23.3 points from the first test to the latest"), output);
+        assertEquals(before, Storage.encode(data));
+    }
+
+    @Test
+    void progress_exactAverage_handlesSingleZeroFullFractionalAndUnequalTotals() {
+        assertAverage("66.7", "2/3");
+        assertAverage("0.0", "0/3", "0/7");
+        assertAverage("100.0", "3/3", "7/7");
+        assertAverage("50.0", "0/1", "100/100");
+        assertAverage("78.3", "4.5/5", "1/1.5");
+        assertAverage("50.0", "0.1/0.3", "0.02/0.03");
+        assertAverage("39.2", "1/3", "2/7", "5/9");
+    }
+
+    @Test
+    void progress_exactAverage_roundsHalfUpOnlyAtTheFinalBoundary() {
+        assertAverage("50.1", "5004/10000", "5006/10000");
+        assertAverage("50.0", "5004/10000", "5005/10000");
+        assertAverage("50.1", "5005/10000", "5006/10000");
+        assertAverage("0.1", "0/1", "1/1000");
+        // Many repeating ratios sum to an exact tie; intermediate decimal rounding must not lose it.
+        assertAverage("12.6", "1/3", "1/6", "0/1", "1/500");
+    }
+
+    @Test
+    void progress_exactAverage_usesOnlyTheStudentsScoresWithinInclusiveDates() {
+        commands.execute("score S1 Before m/0/1 d/30-09-2026");
+        commands.execute("score S1 First m/9/10 d/01-10-2026");
+        commands.execute("score S1 Second m/2/3 d/02-10-2026");
+        commands.execute("score S1 After m/1/1 d/03-10-2026");
+        commands.execute("score S2 Other m/0/1 d/01-10-2026");
+        String output = commands.execute("progress S1 from/01-10-2026 to/02-10-2026");
+
+        assertTrue(output.contains("Scores: 2 tests, average 78.3%"), output);
+        for (String excluded : List.of("Before", "After", "Other")) {
+            assertFalse(output.contains(excluded), output);
+        }
+    }
+
+    /** Checks a known mathematical mean through the command with an independent score collection. */
+    private void assertAverage(String expected, String... ratios) {
+        TutorLedgerData sample = new TutorLedgerData();
+        sample.addStudent("Alice Tan", "Pri5", "91234567");
+        ScoreCommands scores = new ScoreCommands(sample, TestUtil.clockAt("2026-10-14T10:00:00Z"));
+        for (String ratio : ratios) {
+            String result = scores.execute("score S1 Test m/" + ratio);
+            assertTrue(result.startsWith("Recorded"), result);
+        }
+        String output = scores.execute("progress S1");
+        assertTrue(output.contains("average " + expected + "%"), output);
     }
 
     @Test
