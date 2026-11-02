@@ -6,7 +6,7 @@ TutorLedger is a Java command-line application that helps independent tutors man
 lessons, homework and payments in a local data file.
 
 My contributions span the payment workflow, its supporting data model and tests, and project documentation.
-I also worked on command routing, diagnostics and build reliability.
+I also worked on command routing, diagnostics, build reliability and first-launch onboarding.
 
 ## Summary of contributions
 
@@ -40,20 +40,26 @@ I also worked on command routing, diagnostics and build reliability.
 * **Build reliability** ([PR #109](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/109)):
   fixed a Checkstyle issue in payment-command handling that caused the Gradle build to fail, with related
   command-routing updates and tests.
+* **Payment validation and refactoring**
+  ([implementation commit](https://github.com/AY2627S1-CS2113-W12-2/tp/commit/33f4288)):
+  separated payment parsing, validation, allocation and confirmation formatting, ensuring invalid requests
+  are rejected before lesson records are changed. Documented the validation and allocation behavior in the
+  Developer Guide.
+* **First-launch sample data** ([issue #13](https://github.com/AY2627S1-CS2113-W12-2/tp/issues/13),
+  [implementation commit](https://github.com/AY2627S1-CS2113-W12-2/tp/commit/cfd5e4a)):
+  added a small synthetic dataset for new users, including students, lessons, a homework item, a score and
+  a follow-up task. The dataset is loaded and persisted only when no data file exists; existing data files
+  remain authoritative.
 
 ### Testing and documentation
 
 * Added and extended tests for payment status changes, unpaid-list filtering and ordering, owed totals,
   fee statements, income reports, payment allocation and invalid payment requests.
+* Added tests for sample-data contents, independent dataset creation, first-launch loading and persistence.
 * Updated the [User Guide](../UserGuide.md) and command help with payment command formats, examples and
   behavior.
+* Updated the project README, [User Guide](../UserGuide.md) and [Developer Guide](../DeveloperGuide.md) to
+  explain the first-launch sample records and how to try commands before entering real data.
 * Expanded the [Developer Guide](../DeveloperGuide.md) with the fee-statement design
   ([PR #83](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/83)), income-summary test instructions
   ([PR #86](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/86)), and project-specific appendices.
-
-### Current branch work (not yet merged)
-
-* Refactored `PaymentCommands` so payment parsing, validation, allocation and confirmation formatting are
-  handled in focused steps. The validation occurs before lesson records are updated.
-* Updated the Developer Guide to describe `pay` validation and ordered allocation, and refined Appendices C
-  and D.

@@ -1226,11 +1226,12 @@ Marked T3 as done: Return graded test
 TutorLedger loads `data/tutorledger.txt` when it starts and tells you what it found:
 
 ```
-No saved data yet. TutorLedger will create data/tutorledger.txt when you add something.
+No saved data yet. Loaded sample data (2 students, 2 lessons and 1 homework item) and saved it to
+data/tutorledger.txt.
 ```
 
 ```
-Loaded 4 students, 9 lessons and 4 homework items from data/tutorledger.txt.
+Loaded 2 students, 2 lessons and 1 homework item from data/tutorledger.txt.
 ```
 
 If a change cannot be written to the file (for example, because the folder is read-only), TutorLedger shows a

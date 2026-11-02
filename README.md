@@ -18,6 +18,10 @@ Prerequisites: JDK 25 (use the exact version), update Intellij to the most recen
    ```
    Type `exit` and press Enter to close the application.
 
+   On the first launch, TutorLedger creates a small set of synthetic sample records so that you can
+   try the commands immediately. Your records are saved automatically after every change. An existing
+   `data/tutorledger.txt` file is loaded as-is.
+
 For a configuration created by right-clicking `TutorLedger.main()`, open **Run → Edit Configurations →
 Modify options → Add VM options** and add `-ea`. Gradle runs and tests enable assertions in `build.gradle`;
 generated application scripts also include `-ea`. When running the JAR directly, use

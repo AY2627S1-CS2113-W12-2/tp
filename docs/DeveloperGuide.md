@@ -1226,9 +1226,11 @@ Use an empty working directory and run the packaged application with Java 25 and
 ### Saving and loading data
 
 1. Automatic save and restart
-   1. Start TutorLedger in an empty folder. Expected: `No saved data yet...`.
-   1. Run `add n/Amirah Binte Rahman l/Sec 3 p/91234567`, then `exit`.
-   1. Start TutorLedger again. Expected: `Loaded 1 student, 0 lessons and 0 homework items...`.
+   1. Start TutorLedger in an empty folder. Expected: a small set of synthetic sample records is loaded and
+      saved automatically.
+   1. Try `list`, `lessons`, `homework S1`, `scores S1` and `tasks S1` before entering real records.
+   1. Run `add n/Carol Tan l/Pri 5 p/87654321`, then `exit`.
+   1. Start TutorLedger again. Expected: the sample records and Carol's record are loaded from the data file.
 1. Deleted IDs are not reused
    1. Add two students (S1, S2), `delete S2`, then restart TutorLedger.
    1. Add another student. Expected: it is given the ID S3, not S2.

@@ -140,6 +140,20 @@ class StorageCommandsTest {
     }
 
     @Test
+    void loadOnStartup_withSampleSeeding_populatesAndPersistsSampleData() {
+        TutorLedgerData freshData = new TutorLedgerData();
+        StorageCommands seededCommands = new StorageCommands(freshData, new Storage(dataFile.toString()), true);
+
+        String output = seededCommands.loadOnStartup();
+
+        String expectedPrefix = "No saved data yet. Loaded sample data (2 students, 2 lessons and 1 "
+                + "homework item)";
+        assertTrue(output.startsWith(expectedPrefix), output);
+        assertEquals(2, freshData.getStudents().size());
+        assertTrue(Files.exists(dataFile));
+    }
+
+    @Test
     void reloadAndStartup_unreadableFile_reportItAndKeepTheCurrentData() throws IOException {
         // A folder in place of the data file cannot be read on any operating system.
         Files.createDirectories(dataFile);
