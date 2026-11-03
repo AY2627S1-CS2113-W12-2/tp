@@ -47,7 +47,8 @@ extra attention.
   a teammate's warning before deleting a student only checked for lessons, so a student with only homework,
   scores or tasks was deleted at once, along with those records. I reported the bug and extended the
   warning to count every kind of linked record.
-* **Fixes to teammates' merged code** (follow-up PR): found while testing merged PRs.
+* **Fixes to teammates' merged code** ([PR #133](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/133)):
+  found while testing merged PRs.
   * A task description containing a name such as `Priya d/o Raman` was rejected as an invalid due date. I
     reused the existing `Student.isNameConnectorAt` check so `d/o` stays in the description.
   * After a data file could not be read, the warning advised a plain `save`, which could replace a file still
@@ -122,6 +123,5 @@ extra attention.
   ([comments](https://github.com/NUS-CS2113-AY2627-S1/tp/pull/29)), with five questions on its diagrams and
   design descriptions.
 
-<!-- Before final submission: add the PR link for the "Fixes to teammates' merged code" bullet once it is
-opened, and add the CakeQueue (CS2113-W12-1) DG review if it has a link. Export this page to PDF and check
-the page limit. -->
+<!-- Before final submission: add the CakeQueue (CS2113-W12-1) DG review if it has a link. Export this page
+to PDF and check the page limit. -->
