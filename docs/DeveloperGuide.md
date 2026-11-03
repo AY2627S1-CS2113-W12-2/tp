@@ -192,6 +192,11 @@ command, `saveIfChanged` compares a new snapshot with it and writes the file onl
   before `reload`.
 * `save` and `reload` skip the automatic save. In particular, `reload` must not save, or the lines it just
   skipped would be erased before the tutor could fix them.
+* If the file exists but cannot be read at startup or on `reload` (for example, another program has it
+  locked), `StorageCommands` turns automatic saving off until a later `reload` or `save` succeeds. Otherwise
+  the first change would replace a file that may still hold every record with this session's few changes.
+  The warning shown instead recommends `reload`, or `save FILE_PATH` to keep a separate copy, and says that a
+  plain `save` would replace the records.
 * The trade-off is encoding the data twice per ordinary command. The work grows with the stored
   records; this guide does not assume a measured response-time guarantee.
 
@@ -356,8 +361,11 @@ The sequence diagram below shows `task S1 Bring Worksheet 4B d/16-10-2026`.
 
 *Figure 11. A linked task resolves its student before the new reminder is stored.*
 
-1. A regular expression splits off a final `d/DUE_DATE`. As with `assign`, the date must come last, so the
-   description may contain spaces and commas.
+1. `addTask` finds the last standalone `d/` (case-insensitive) and parses everything after it as the due date,
+   so trailing words after a date are an error rather than being silently ignored. Earlier `d/` text and words
+   such as `and/or` stay in the description. A name connector such as `d/o` (as in "Priya d/o Raman") is
+   skipped using `Student.isNameConnectorAt`, the same check `ArgumentParser` uses, so a description that
+   mentions such a name is not mistaken for a due date.
 2. If the first remaining word looks like a student ID (`S1`), the task is linked to that student and the
    rest is the description. Otherwise the whole text is the description.
 3. `TutorLedgerData.addTask` looks the student up first. A task can therefore never point to a missing
@@ -1096,9 +1104,13 @@ later. Back up any real data before testing deletion, reload or hand-edited file
 1. Reminders in `next`
    1. Schedule a future lesson for S1, then run `next`. Expected: a final line `Follow-ups: T1 Bring Worksheet 4B
       (by ...)`.
+1. Names with `d/o`
+   1. Run `task Call Priya d/o Raman's mother`. Expected: `Added T4: Call Priya d/o Raman's mother` with no
+      due date, because `d/o` is part of the name, not a date.
 1. Saving and deleting
    1. Restart TutorLedger. Expected: `tasks` shows the same tasks.
-   1. Run `delete S1 confirm`. Expected: `Also deleted 2 follow-up tasks.` (T1 and T3); T2 (not linked) is kept.
+   1. Run `delete S1 confirm`. Expected: `Also deleted 2 follow-up tasks.` (T1 and T3); T2 and T4 (not linked)
+      are kept.
 
 ### Lessons
 

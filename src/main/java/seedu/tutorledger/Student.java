@@ -20,6 +20,8 @@ public class Student {
      * as in "Ravi s/o Kumar". They are common in Singapore names but look like the prefixes s/ and d/.
      */
     private static final Pattern NAME_CONNECTOR = Pattern.compile("(?i)[sd]/o");
+    /** Every name connector ("s/o" or "d/o") is three characters long. */
+    private static final int NAME_CONNECTOR_LENGTH = 3;
 
     private final String studentId;
     private final String name;
@@ -229,7 +231,7 @@ public class Student {
      */
     static boolean isNameConnectorAt(String text, int index) {
         assert index >= 0 && index <= text.length() : "Index outside the text: " + index;
-        int end = index + 3;
+        int end = index + NAME_CONNECTOR_LENGTH;
         return NAME_CONNECTOR.matcher(text).region(index, Math.min(end, text.length())).matches()
                 && (end == text.length() || Character.isWhitespace(text.charAt(end)));
     }
@@ -267,9 +269,11 @@ public class Student {
             }
 
             // " s/o " or " d/o " joins two words; the connector itself is defined once, in NAME_CONNECTOR.
+            // connectorEnd is the index just after the connector, where its closing space must be.
+            int connectorEnd = index + 1 + NAME_CONNECTOR_LENGTH;
             if (name.charAt(index) == ' ' && isNameConnectorAt(name, index + 1)
-                    && index + 4 < name.length() && name.charAt(index + 4) == ' ') {
-                index += 5;
+                    && connectorEnd < name.length() && name.charAt(connectorEnd) == ' ') {
+                index = connectorEnd + 1;
             } else if (name.charAt(index) == ' ' || name.charAt(index) == '-'
                     || name.charAt(index) == '\'') {
                 index++;

@@ -35,24 +35,32 @@ extra attention.
   added `task`, `tasks` and `done` for reminders such as "Bring Worksheet 4B". A task may be linked to a
   student and may have a due date, and both are optional. A student's pending tasks also appear in `next`, so
   they are seen when the tutor prepares for the lesson.
-* **Attention flags** ([issue #20](https://github.com/AY2627S1-CS2113-W12-2/tp/issues/20)):
+* **Attention flags** ([PR #115](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/115),
+  [issue #20](https://github.com/AY2627S1-CS2113-W12-2/tp/issues/20)):
   added `flag`, `unflag` and `flagged`, so a tutor can mark students who need more preparation time, with a
   reason such as an upcoming exam. The flag is shown where the tutor already looks: `list`, `view` and `next`.
   It is stored on the student like the archive state, so edit, archive and restore keep it and deletion
-  removes it without extra code. Older data files still load.
+  removes it without extra code. Older data files still load. After review, the `flagged` list was sorted by
+  numeric ID; I avoided the suggested text comparison of IDs, which would put `S10` before `S2`.
 * **Deletion warning for all linked records** ([PR #99](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/99),
   [issue #98](https://github.com/AY2627S1-CS2113-W12-2/tp/issues/98)):
   a teammate's warning before deleting a student only checked for lessons, so a student with only homework,
   scores or tasks was deleted at once, along with those records. I reported the bug and extended the
   warning to count every kind of linked record.
+* **Fixes to teammates' merged code** (follow-up PR): found while testing merged PRs.
+  * A task description containing a name such as `Priya d/o Raman` was rejected as an invalid due date. I
+    reused the existing `Student.isNameConnectorAt` check so `d/o` stays in the description.
+  * After a data file could not be read, the warning advised a plain `save`, which could replace a file still
+    holding every record with one session's changes. I reworded it to recommend `reload` or a separate copy,
+    and added tests for turning automatic saving off and back on.
 
 ### Testing
 
 * **Unit and command tests for my features:** wrote `HomeworkCommandsTest`, `ScoreCommandsTest`,
   `TaskCommandsTest` and `StudentFlagTest`, added flag tests to `StudentTest`, and extended `StorageTest`
   and `StudentDeletionWarningTest`. The tests use equivalence partitions and boundary values (for example
-  marks above the total, a total of 0, and a task due today versus yesterday), and a fixed `Clock`, so results do not
-  depend on the date. They also check that data files from older versions still load.
+  marks above the total, a total of 0, and a task due today versus yesterday), and a fixed `Clock`, so results
+  do not depend on the date. They also check that data files from older versions still load.
 * **End-to-end tests for the whole app:** wrote `EndToEndTest`, which feeds whole sessions to the real command
   loop and checks both the printed output and the saved file. It covers every command, including
   teammates' features:
@@ -93,8 +101,18 @@ extra attention.
     test came from an outdated base branch and passed once merged with master.
   * [PR #112](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/112) (DG return arrows): checked every diagram
     against its source, then added the two constructor returns it had missed.
+  * [PR #116](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/116) (sorting students): checked that
+    `sort/owed` matched `owed`, left four suggestions, and tested the combination with my conflicting PR #115.
+  * [PR #126](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/126) (long-name crash): compared the new name
+    validator with the old regex on about 300,000 generated names, finding no difference, and confirmed the
+    new regression test fails on the old code.
+  * PRs [#128](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/128) to
+    [#132](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/132): merged all five together locally and ran the
+    full test suite before approving and merging them, and worked out that stuck macOS CI runs were a GitHub
+    runner problem rather than a build failure.
   * Also reviewed [PR #75](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/75) and
     [PR #113](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/113).
+* Fixed a merge of master into PR #115 that left a duplicated line and broke the build on CI.
 * Fixed the About Us portfolio links, which returned 404 on the website
   ([PR #97](https://github.com/AY2627S1-CS2113-W12-2/tp/pull/97)).
 
@@ -104,5 +122,6 @@ extra attention.
   ([comments](https://github.com/NUS-CS2113-AY2627-S1/tp/pull/29)), with five questions on its diagrams and
   design descriptions.
 
-<!-- Before final submission: add the PR link for attention flags once it is opened, and add the CakeQueue
-(CS2113-W12-1) DG review if it has a link. Export this page to PDF and check the page limit. -->
+<!-- Before final submission: add the PR link for the "Fixes to teammates' merged code" bullet once it is
+opened, and add the CakeQueue (CS2113-W12-1) DG review if it has a link. Export this page to PDF and check
+the page limit. -->

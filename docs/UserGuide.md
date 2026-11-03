@@ -1190,7 +1190,8 @@ Format: `task [STUDENT_ID] DESCRIPTION [d/DUE_DATE]`
 * If the first word is a student ID, the task is linked to that student. Their pending tasks are then shown by
   [`next`](#preparing-for-the-next-lesson-next) before their lesson.
 * `DESCRIPTION` is everything after the student ID (if any) and before the last standalone `d/` marker
-  (case-insensitive), so it may contain spaces, commas, `and/or` and earlier `d/` text.
+  (case-insensitive), so it may contain spaces, commas, `and/or` and earlier `d/` text. A name such as
+  `Priya d/o Raman` also stays in the description: `d/o` is never read as a due date.
 * `d/DUE_DATE` is optional and must come last. It may be in the past. Spaces around the date are allowed,
   for example `task Bring notes d/ 01-01-2020`. Everything after the final marker must be a real date in
   `DD-MM-YYYY` format. An empty date, an impossible date or trailing words cause an error without adding
@@ -1334,6 +1335,10 @@ Format: `reload`
   any unsaved changes in memory. Automatic saving normally keeps the file up to date, but a failed save
   can leave newer changes only in memory. Before reloading after a failed save, use
   `save /path/to/writable-folder/recovery.txt` to save a copy to a writable location and check that it succeeds.
+* If TutorLedger could not read the file at all, for example because another program had it open, it
+  stops saving automatically, so the file is not overwritten. Each change then shows a warning. Close the
+  other program and run `reload`. A plain `save` would replace the file with only the changes made since,
+  so to keep those changes, first save a copy with `save FILE_PATH`.
 * A line that is not in the format TutorLedger expects is skipped, and its line number and the reason are
   shown so you can fix it.
 * If a student's line is skipped, the lines for that student's lessons and homework are skipped too, because

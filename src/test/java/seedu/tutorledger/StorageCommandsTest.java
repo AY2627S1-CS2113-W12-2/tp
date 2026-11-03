@@ -9,6 +9,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -220,6 +222,55 @@ class StorageCommandsTest {
 
         assertEquals(0, saveAttempts.get());
         assertTrue(warning.contains("automatic saving is disabled"), warning);
+        // The advice must not lead the tutor to replace the unreadable file with only this session's changes.
+        assertTrue(warning.contains("A plain save would replace them"), warning);
+        assertTrue(warning.contains("run reload") && warning.contains("save FILE_PATH"), warning);
+    }
+
+    @Test
+    void reloadReadFailure_disablesAutomaticSavingUntilAReloadOrSaveSucceeds() {
+        AtomicBoolean isReadable = new AtomicBoolean(false);
+        AtomicInteger saveAttempts = new AtomicInteger();
+        Storage lockedStorage = new Storage(dataFile.toString()) {
+            @Override
+            public LoadResult load() throws IOException {
+                if (!isReadable.get()) {
+                    throw new IOException("file is locked");
+                }
+                return new LoadResult(new TutorLedgerData(), List.of());
+            }
+
+            @Override
+            public void save(TutorLedgerData records) {
+                saveAttempts.incrementAndGet();
+            }
+        };
+        StorageCommands lockedCommands = new StorageCommands(data, lockedStorage);
+
+        assertTrue(lockedCommands.execute("reload").startsWith("Could not read"));
+        assertTrue(changeOneRecord(lockedCommands).contains("automatic saving is disabled"));
+        assertEquals(0, saveAttempts.get());
+
+        // Once the file can be read again, a successful reload turns automatic saving back on.
+        isReadable.set(true);
+        assertTrue(lockedCommands.execute("reload").startsWith("Reloaded"));
+        assertEquals("", changeOneRecord(lockedCommands));
+        assertEquals(1, saveAttempts.get());
+
+        // An explicit save also turns it back on, because the file then holds the current records.
+        isReadable.set(false);
+        lockedCommands.execute("reload");
+        assertTrue(lockedCommands.execute("save").startsWith("Saved"));
+        assertEquals("", changeOneRecord(lockedCommands));
+        assertEquals(3, saveAttempts.get());
+    }
+
+    /** Adds a student as a command would, then runs the automatic save and returns its warning, if any. */
+    private String changeOneRecord(StorageCommands storageCommands) {
+        String before = storageCommands.snapshot();
+        data.addStudent("Person " + "abcdefghij".charAt(data.getStudents().size()), "Sec 2",
+                "8765432" + data.getStudents().size());
+        return storageCommands.saveIfChanged(before);
     }
 
     @Test
