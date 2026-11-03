@@ -46,6 +46,29 @@ JVM to JDK 25. The shared **TutorLedger (assertions enabled)** run configuration
 assertions with `-ea`, as do Gradle application runs and tests. Enable `-ea` in any custom application
 run configuration too.
 
+### Enabling debug logs
+
+Routine diagnostic logs are hidden by default; warnings and errors remain visible. To show `FINE` logs
+from TutorLedger, create a `logging.properties` file in the directory from which you run the JAR:
+
+```properties
+handlers = java.util.logging.ConsoleHandler
+.level = INFO
+seedu.tutorledger.level = FINE
+java.util.logging.ConsoleHandler.level = FINE
+java.util.logging.ConsoleHandler.formatter = java.util.logging.SimpleFormatter
+```
+
+Start the packaged JAR with the configuration file (adjust the paths if needed):
+
+```sh
+java -Djava.util.logging.config.file=logging.properties -jar build/libs/tutorledger.jar
+```
+
+To save diagnostic output to a file while keeping normal command output in the terminal, append
+`2> tutorledger-debug.log` to the command. Logs can contain student details, so keep the file private.
+Supplying a logging configuration leaves its settings under the developer's control.
+
 ## Design
 
 ### Overall architecture
