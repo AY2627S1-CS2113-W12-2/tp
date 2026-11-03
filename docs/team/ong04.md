@@ -125,3 +125,22 @@ extra attention.
 
 <!-- Before final submission: add the CakeQueue (CS2113-W12-1) DG review if it has a link. Export this page
 to PDF and check the page limit. -->
+
+<!-- Print-only layout: the PDF version must fit the two-page limit, so printing uses a smaller font,
+tighter line spacing and narrower margins. The web page itself keeps the theme's normal layout. -->
+<style>
+  @page { size: A4; margin: 12mm; }
+  @media print {
+    body .container-lg { margin: 0 !important; padding: 0 !important; max-width: none !important; }
+    body .markdown-body { font-size: 13px !important; line-height: 1.3 !important; }
+    body .markdown-body p, body .markdown-body ul, body .markdown-body ol { margin-bottom: 4px !important; }
+    body .markdown-body li + li { margin-top: 1px !important; }
+    body .markdown-body h1, body .markdown-body h2, body .markdown-body h3 {
+      margin: 8px 0 4px !important;
+      padding-bottom: 2px !important;
+    }
+    body .markdown-body h1 { font-size: 1.6em !important; }
+    body .markdown-body h2 { font-size: 1.3em !important; }
+    body .markdown-body h3 { font-size: 1.1em !important; }
+  }
+</style>
